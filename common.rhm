@@ -1,0 +1,76 @@
+#lang rhombus/static/and_meta
+
+import:
+  slideshow
+  pict
+  pict/balloon 
+  slideshow open
+  pict open
+  "config.rhm"
+
+export:
+  all_from(.slideshow)
+  balloon
+  defterm
+  OptMap
+  rotate_for
+  string_gt
+  string_lt
+  scooter
+  frac
+  plus
+  minus
+  rename:
+    math.pi as pi
+
+fun defterm(s) :~ Pict:
+  bold(s).colorize("firebrick")
+
+veneer OptMap(this :~ Map):
+  implements Indexable
+  override get(key):
+    this.get(key, #false)
+  implements Appendable
+  override append(other) :~ OptMap:
+    if other is_a Map
+    | this ++ other
+    | this ++ (for Map (k: (other :: Set)):
+                 values(k, #true))
+  method remove(key) :~ OptMap:
+    this.remove(key)
+
+fun frac(a :~ Pict, b :~ Pict) :~ Pict:
+  let p = stack(a, line(~dx: math.max(a.width, b.width)), b)
+  let w = if a.width > b.width | a | b
+  overlay(p, b.ghost()).refocus(b).pad(~horiz: (math.max(a.width, b.width) - b.width) / 2,
+                                       ~vert: (p.height - math.max(a.height, b.height)) / 2)
+
+fun rotate_for(q :~ Pict, f1 :~ Find, f2 :~ Find, p) :~ Pict:
+  let (x1, y1) = f1.in(p)
+  let (x2, y2) = f2.in(p)
+  let a = math.atan(y1 - y2, x2 - x1)
+  let dx = 2 * q.height * math.cos(a + math.pi/2)
+  let dy = 2 * q.height * math.cos(a + math.pi/2)
+  let q = q.pad(~horiz: -q.width/2, ~vert: -q.height/2)
+  q.rotate(a).translate(-dx, -dy)
+
+fun string_gt(a :: String, b :: String):
+  import lib("racket/base.rkt")
+  base.#{string>?}(a, b)
+
+fun string_lt(a :: String, b :: String):
+  import lib("racket/base.rkt")
+  base.#{string<?}(a, b)
+
+fun scooter(p, from :~ Find, to :~ Find, q,
+            ~order: order = #'front) :~ Pict:
+  let (fx, fy) = from.in(p)
+  let (tx, ty) = to.in(p)
+  fun (n):
+    pin(~on: p,
+        ~at: Find.abs(n*tx + (1-n)*fx, n*ty + (1-n)*fy),
+        q,
+        ~order: if order is_a Function | order(n) | order)
+
+def plus = @ttly{@boldly{+}}.colorize("forestgreen")
+def minus = @ttly{@boldly{-}}.colorize("firebrick")

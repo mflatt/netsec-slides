@@ -1,0 +1,635 @@
+#lang rhombus/static/and_meta
+
+import:
+  "common.rhm" open
+  "layers.rhm"
+  "udpAndDns.rhm"!socket
+  "reliableDataTransfer.rhm"!send_buffer
+  "layout.rhm":
+    expose:
+      field
+      row
+
+slide(
+  ~title: "TCP",
+  stack(
+    ~sep: 64,
+    ~horiz: #'left,
+    @lines(
+      @para{Reliable delivery},
+      italicly(@para{all the good things from last time}).pad(~left: 100),
+    ),
+    @para{Connection-oriented},
+    @para{Full duplex (= bidirectional)}
+  )
+)
+
+let tcp_server_code = @verbatim{
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        int server_port = 5678;
+        ServerSocket listener = new ServerSocket(server_port);
+        System.out.println("Listening at " + server_port);
+
+        for (int count = 1; true; count++) {
+            Socket socket = listener.accept();
+            InputStream input = socket.getInputStream();
+            OutputStream output = socket.getOutputStream();
+            byte[] buffer = new byte[5];
+
+            int got = input.read(buffer);
+
+            System.out.println(count + " Heard from " + socket.getInetAddress() + " " + socket.getPort());
+            for (int i = 0; i < got; i++)
+                System.out.printf(" %d", buffer[i]);
+            System.out.print("\n");
+
+            output.write(buffer, 0, got);
+
+            socket.close();
+        }
+    }
+}
+}
+
+slide(~title: "TCP Echo Server in Java",
+      tcp_server_code.scale(0.5))
+
+let tcp_client_code = @verbatim{
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        int server_port = 5678;
+        Socket socket = new Socket("localhost", server_port);
+        InputStream input = socket.getInputStream();
+        OutputStream output = socket.getOutputStream();
+        byte[] buf = new byte[3];
+
+        buf[0] = 10;
+        buf[1] = 20;
+        buf[2] = 30;
+
+        output.write(buf);
+        int got = input.read(buf);
+        for (int i = 0; i < got; i++)
+            System.out.printf(" %d", buf[i]);
+        System.out.print("\n");
+
+        socket.close();
+    }
+}
+}
+
+slide(~title: "TCP Echo Client in Java",
+      tcp_client_code.scale(0.5))
+
+block:
+  fun tcp_slide(options :~ OptMap) :~ OptMap:
+    slide(~title: if options[#'server]
+                  | "Server-Side TCP"
+                  | "Client-Side TCP",
+          socket.sockets_pict(options))
+    options
+
+  let options = tcp_slide(({} :~ OptMap) ++ { #'host })
+  let c_options = tcp_slide(options ++ { #'connect_syscall })
+  let options = tcp_slide(options ++ { #'tcp, #'ports })
+  let c_options = tcp_slide(options ++ { #'syn, #'pkt, #'pkt_tcp, #'pkt_ip, #'src })
+  let options = tcp_slide(options ++ { #'hello, #'pkt, #'pkt_tcp, #'pkt_ip, #'src })
+
+  let options = tcp_slide(({} :~ OptMap) ++ { #'host, #'server, #'src })
+  let c_options = tcp_slide(options ++ { #'listen_syscall })
+  let options = tcp_slide(options ++ { #'ports, #'tcp_listen })
+  let listen_options = tcp_slide(options ++ { #'syn, #'pkt, #'pkt_tcp, #'pkt_ip })
+  let listen_options = tcp_slide(listen_options ++ { #'syn, #'pkt, #'pkt_tcp, #'pkt_ip, #'tcp })
+  let syn_options = tcp_slide(options ++ { #'tcp, #'syn })
+  let syn_options = tcp_slide(syn_options ++ { #'accept_syscall })
+  let options = tcp_slide(options ++ { #'tcp })
+  let reply_options = tcp_slide(options ++ { #'reply, #'pkt, #'pkt_tcp, #'pkt_ip, #'file_content })
+  let options = tcp_slide(options ++ { #'tcp, #'another_tcp })
+  let options = tcp_slide(options ++ { #'tcp, #'pkt, #'pkt_tcp, #'pkt_ip })
+  let options = tcp_slide(options ++ { #'tcp_segment })
+  #void
+
+fun tx([s]):
+  t(s).rotate(math.pi/2)
+
+fun unused(p :~ Pict):
+  p.colorize("lightgray")
+
+let src_port_field = field(16, @t{source port})
+let dest_port_field = field(16, @t{destination port})
+let sequence_number = field(32, @t{sequence number})
+let ack_number = field(32, @t{acknowledgement number})
+let ack_flag_field = field(1, @tx{ACK})
+let head_len_field = field(4, @t{head len})
+let checksum_field = field(16, @t{checksum})
+let rst_field = field(1, @tx{RST})
+let cwr_field = field(1, @tx{CWR})
+let recv_win_field = field(16, @t{receive window})
+let tcp_header:
+  layout.record(
+    row(src_port_field,
+        dest_port_field),
+    row(sequence_number),
+    row(ack_number),
+    row(head_len_field,
+        field(4, unused(@t{unused})),
+        cwr_field,
+        field(1, @tx{ECE}),
+        field(1, unused(@tx{URG})),
+        ack_flag_field,
+        field(1, unused(@tx{PSH})),
+        rst_field,
+        field(1, @tx{SYN}),
+        field(1, @tx{FIN}),
+        recv_win_field),
+    row(checksum_field,
+        field(16, unused(@t{urgent data pointer}))),
+    row(field(32, @t{options}, ~height: 2, ~varies: #true)),
+  )
+let tcp_segment_no_bits:
+  layout.record(
+    tcp_header,
+    row(field(32, @para{application's data}, ~height: 3, ~varies: #true)),
+  )
+let tcp_segment:
+  layout.record(
+    ~bits: 32,
+    tcp_segment_no_bits
+  )
+
+fun highlight(p, field :~ Pict) :~ Pict:
+  let r = rectangle(~around: field.ghost(),                    
+                    ~fill: "yellow",
+                    ~line: #false)
+  pin(~on: p, ~at: Find.left_top(field), r, ~order: #'back)
+
+slide(~title: "TCP Segment Details",
+      slide.alts(
+        tcp_segment,
+        balloon.pin(~on: highlight(tcp_segment, tcp_header),
+                    ~at: Find.left(head_len_field, ~dx: 5),
+                    ~spike: #'e,
+                    @para{header size in 32-bit words}),
+        balloon.pin(~on: tcp_segment,
+                    ~at: Find.left(cwr_field, ~dx: 5),
+                    ~spike: #'e,
+                    ~dx: 100,
+                    lines(@para{CWR and ECE are for},
+                          @para{congestion notification})),
+        balloon.pin(~on: tcp_segment,
+                    ~at: Find.left(rst_field, ~dx: 5),
+                    ~spike: #'e,
+                    ~dx: 100,
+                    lines(@para{RST, SYN, and FIN are for},
+                          @para{connection management})),
+        balloon.pin(~on: tcp_segment,
+                    ~at: Find.right(recv_win_field, ~dx: -5),
+                    ~spike: #'w,
+                    lines(@para{number of bytes the receiver},
+                          @para{is ready to accept})),
+        balloon.pin(~on: highlight(tcp_segment, tcp_segment_no_bits),
+                    ~at: Find.left(checksum_field, ~dx: 5),
+                    ~spike: #'e,
+                    lines(@para{1's complement of sum},
+                          @para{of 16-bit words})),
+        balloon.pin(~on: tcp_segment,
+                    ~at: Find.right(sequence_number, ~dx: -5),
+                    ~spike: #'w,
+                    @para{counts bytes, not packets}),
+        balloon.pin(~on: highlight(tcp_segment, ack_flag_field),
+                    ~at: Find.right(ack_number, ~dx: -5),
+                    ~spike: #'w,
+                    switch(
+                      @para{valid when ACK flag is set},
+                      block:
+                        let p = @para{next expected byte number}
+                        switch(
+                          p,
+                          balloon.pin(~on: p,
+                                      ~at: Find.bottom(p),
+                                      ~spike: #'n,
+                                      ~fill: "lightblue",
+                                      @para{cumulative acknowledgements}.scale(0.8))
+                        )
+                    )),
+        ))
+
+fun fresh_tags(p):
+  let ack = ack_number.ghost()
+  let seq = sequence_number.ghost()
+  let src_port = src_port_field.ghost()
+  let dest_port = dest_port_field.ghost()
+  let p = pin(~on: p, ~at: Find.left_top(ack_number), ack)
+  let p = pin(~on: p, ~at: Find.left_top(src_port_field), src_port)
+  let p = pin(~on: p, ~at: Find.left_top(dest_port_field), dest_port)
+  let p = pin(~on: p, ~at: Find.left_top(sequence_number), seq)
+  values(p,
+         src_port, dest_port,
+         ack, seq)
+
+let (client_tcp,
+     client_src, client_dest,
+     client_ack, client_seq):
+  fresh_tags(tcp_segment)
+
+let (server_tcp,
+     server_src, server_dest,
+     server_ack, server_seq):
+  fresh_tags(tcp_segment)
+
+slide(
+  ~title: "Sender and Receiver Fields",
+  block:
+    let p = table([[client_tcp, server_tcp],
+                   [@t{packets sent by host A}.colorize(layers.color),
+                    @t{packets sent by host B}.colorize(layers.color)]],
+                  ~hsep: 100,
+                  ~vsep: 16,
+                  ~horiz: #'center)
+    let color = "blue"
+    let w = 3
+    let p = connect(~on: p,
+                    Find.top(client_src),
+                    Find.top(server_dest),
+                    ~start_angle: pi * 1/2,
+                    ~end_angle: pi * -1/2,
+                    ~start_pull: 0.1,
+                    ~end_pull: 0.1,
+                    ~line: color,
+                    ~line_width: w,
+                    ~style: #'arrows)
+    let p = connect(~on: p,
+                    Find.top(client_dest),
+                    Find.top(server_src),
+                    ~start_angle: pi * 1/2,
+                    ~end_angle: pi * -1/2,
+                    ~start_pull: 0.1,
+                    ~end_pull: 0.1,
+                    ~line: color,
+                    ~line_width: w,
+                    ~style: #'arrows)
+    let p = connect(~on: p,
+                    Find.right(client_ack),
+                    Find.left(server_seq),
+                    ~start_angle: 0,
+                    ~end_angle: 0,
+                    ~line: color,
+                    ~line_width: w,
+                    ~style: #'arrows)
+    let p = connect(~on: p,
+                    Find.right(client_seq),
+                    Find.left(server_ack),
+                    ~start_angle: 0,
+                    ~end_angle: 0,
+                    ~line: color,
+                    ~line_width: w,
+                    ~style: #'arrows)
+    p.pad(~top: 64)
+                  
+)
+
+fun api(s) :~ Pict:
+  let p = tt(s)
+  rectangle(~around: p.scale(0.75).pad(3), ~fill: socket.syscall_color, ~line: #'inherit).refocus(p)
+  
+fun interaction_pict(host_a,
+                     host_b,
+                     msg1 :~ Pict,
+                     msg2 :~ Pict,
+                     msg3 :~ Pict,
+                     ~as_connect = #false,
+                     ~show_api = #false,
+                     ~secure = #false):
+  let c1 = blank()
+  let s1 = blank()
+  let c2 = blank()
+  let s2 = blank()
+  let accept_syscall = @api{s = accept(lnr)}
+  fun connection_request(p):
+    if as_connect
+    | let p:
+        if show_api
+        | beside(~vert: #'bottom, p, @api{s = connect(~on: srv_host, srv_port)}).refocus(p)
+        | p
+      beside(~sep: 32, lines(~horiz: #'right,
+                             @t{connection},
+                             @t{request}).colorize("blue"), p).refocus(p)
+    | p
+  fun connection_granted(p):
+    if as_connect
+    | let granted = lines(@t{connection},
+                          @t{granted}).colorize("blue")
+      let p = beside(~sep: 32, p, granted).refocus(p)
+      if show_api && !secure
+      | stack(~sep: 64, p, accept_syscall).refocus(p)
+      | p      
+    | p
+  fun ack_state(p):
+    if as_connect
+    | beside(~sep: 32, @t{ACK}.colorize("blue"), p).refocus(p)
+    | p
+  fun listen(p):
+    if show_api
+    | stack(~sep: 16, p, @api{lnr = listen(srv_port)}).refocus(p)
+    | p
+  fun accept(p):
+    if show_api && secure
+    | stack(~sep: 16, p, accept_syscall).refocus(p)
+    | p
+  let p = beside(~sep: 600,
+                 ~vert: #'top,
+                 stack(~sep: 96,
+                       @bold(host_a).colorize(layers.color),
+                       stack(~sep: 300,
+                             connection_request(c1),
+                             ack_state(c2))),
+                 stack(~sep: 96,
+                       listen(@bold(host_b).colorize(layers.color)),
+                       stack(~sep: 300,
+                             connection_granted(s1),
+                             accept(s2)).pad(~top: 150)))
+  let fc1 = Find.center(c1)
+  let fs1 = Find.center(s1, ~dy: -5)
+  let fs1x = Find.center(s1, ~dy: 5)
+  let fc2 = Find.center(c2, ~dy: -5)
+  let fc2x = Find.center(c2, ~dy: 5)
+  let fs2 = Find.center(s2)
+  let p = connect(~on: p, fc1, fs1,
+                  ~style: #'arrow,
+                  ~label: rotate_for(msg1.scale(0.8).pad(~bottom: 5), fc1, fs1, p))
+  let p = connect(~on: p, fs1x, fc2,
+                  ~label: rotate_for(msg2.rotate(pi).scale(0.8), fs1x, fc2, p),
+                  ~style: #'arrow)
+  let p = connect(~on: p, fc2x, fs2,
+                  ~style: #'arrow,
+                  ~label: rotate_for(msg3.scale(0.8).pad(~bottom: 5), fc2x, fs2, p))
+  p
+
+fun example_sequence_slide(reply :~ String):
+  let reply_ack = to_string(79 + reply.length())
+  slide(~title: "Example Sequence",
+        interaction_pict("host A",
+                         "host B",
+                         @tt{seq=42, ACK=79, data="abc"},
+                         @tt{seq=79, ACK=45, data="@reply"},
+                         @tt{seq=45, ACK=@reply_ack, data="!"}))
+example_sequence_slide("ok")
+example_sequence_slide("")
+
+let C_seed = @italic{C}
+let S_seed = @italic{S}
+let SYN_1 = @tt{1}
+let SYN_0 = @tt{0}
+let first_data = @tt{...}
+fun make_connect(~on: show_api, secure):
+  interaction_pict("client host",
+                   "server host",
+                   @tt{SYN=@SYN_1, seq=@C_seed},
+                   @tt{SYN=1, seq=@S_seed, ACK=@italic{C}+1},
+                   @tt{SYN=@SYN_0, seq=@italic{C}+1, ACK=@italic{S}+1, data=@first_data},
+                   ~as_connect: #true,
+                   ~show_api: show_api,
+                   ~secure: secure)
+let connected = make_connect(~on: #false, #false)
+
+slide(~title: "TCP Handshake: Initiating a Connection",
+      slide.alts(
+        connected,
+        balloon.pin(~on: connected,
+                    ~at: Find.top(SYN_1),
+                    ~spike: #'sw,
+                    @para{initiating a connection}),
+        balloon.pin(~on: connected,
+                    ~at: Find.top(C_seed),
+                    ~spike: #'sw,
+                    @para{random, chosen by client}),
+        balloon.pin(~on: connected,
+                    ~at: Find.top(S_seed),
+                    ~spike: #'se,
+                    @para{random, chosen by server}),
+        balloon.pin(~on: connected,
+                    ~at: Find.bottom(SYN_0),
+                    ~spike: #'ne,
+                    @para{zero ever after}),
+        balloon.pin(~on: connected,
+                    ~at: Find.top(first_data),
+                    ~spike: #'sw,
+                    @para{application data starts here}),
+        make_connect(~on: #true, #false),
+        make_connect(~on: #true, #true)
+      ))
+
+fun flow_control_slide(options :~ OptMap) :~ OptMap:
+  let host_scale = 0.75
+  let options = options ++ { #'balloon_scale: 1/host_scale }
+  let host_a = send_buffer.make(options ++ { #'client }
+                                  ++ (if options[#'allocated]
+                                      | { #'shorter_allocated,  #'report_allocated }
+                                      | {}))
+  let host_b = send_buffer.make(options ++ { #'server, #'mix_recv, #'cumulative }
+                                  ++ (if options[#'window_as_allocated]
+                                      | { #'shorter_window, #'report_shorter_window }
+                                      | {})
+                                  ++ (if options[#'in_order]
+                                      | { #'bump_recv }
+                                      | {}))
+  let p:
+    stack(~sep: 64,
+          ~horiz: #'left,
+          host_a[#'main].scale(host_scale),
+          host_b[#'main].scale(host_scale).pad(~left: 100))
+  def done_color = "blue"
+  def done_w = 2
+  let p:
+    if options[#'a_sent]
+    | connect(~on: p,
+              Find.right_top(host_b[#'recvd], ~dx: -5),
+              Find.right_bottom(host_a[#'sent], ~dx: -5),
+              ~start_angle: pi/2,
+              ~end_angle: pi/2,
+              ~line: done_color,
+              ~line_width: done_w,
+              ~style: #'arrow)
+    | p
+  let p:
+    if options[#'b_sent]
+    | connect(~on: p,
+              Find.right_bottom(host_a[#'recvd], ~dx: -5),
+              Find.right_top(host_b[#'sent], ~dx: -5),
+              ~start_angle: -pi/2,
+              ~end_angle: -pi/2,
+              ~line: done_color,
+              ~line_width: done_w,
+              ~style: #'arrow)
+    | p
+  let p:
+    if options[#'exp_backoff]
+    | balloon.pin(~on: p,
+                  ~at: Find.right_bottom(host_a[#'sent], ~dx: 8),
+                  ~spike: #'nw,
+                  lines(@para{Resend on timeout, but},
+                        @para{double timeout if no ACK},
+                        @para{⇒ @defterm{exponential backoff}}))
+    | p
+  let p:
+    if options[#'in_order]
+    | balloon.pin(~on: p,
+                  ~at: Find.right_top(host_b[#'recvd], ~dx: 8),
+                  ~spike: #'s,
+                  ~sprout: 0.2,
+                  ~dy: 64,
+                  lines(@para{When an in-order packet is received,},
+                        @para{wait a little while, in case the ACK},
+                        @para{can cover more}))
+    | p
+  slide(~title: cond
+                | options[#'ack_ooo_policy]:
+                    "Out-of-Order ACK Policy"
+                | options[#'timeout_policy]:
+                    "Timeout Policy"
+                | options[#'in_order]:
+                    "In-Order ACK Policy"
+                | ~else:
+                    "Buffers and Flow Control",
+        p)
+  options
+
+let options :~ OptMap = {}
+let options = options ++ {  #'base, #'window }
+let base_options = flow_control_slide(options)
+let options = flow_control_slide(base_options ++ { #'a_sent, #'b_sent })
+let options = flow_control_slide(base_options ++ { #'allocated, #'b_sent })
+let options = flow_control_slide(options ++ { #'window_as_allocated })
+
+let options = flow_control_slide(base_options ++ { #'ack_ooo_policy })
+let options = flow_control_slide(options ++ { #'ack_ooo, #'a_sent })
+let options = flow_control_slide(options ++ { #'ack_third_ooo })
+
+let options = flow_control_slide(base_options ++ { #'in_order })
+
+let options = flow_control_slide(base_options ++ { #'timeout_policy })
+let options = flow_control_slide(options ++ { #'exp_backoff })
+
+let close_title = "Closing TCP Connections"
+fun note(p, c :~ Pict):
+  stack(~horiz: #'right,
+        ~sep: 32,
+        p,
+        c.colorize("blue").scale(0.75))  
+slide(~title: close_title,
+      slide.align(~horiz: #'left,
+                  note(lines(@para{Each send end of a connection can be closed separately}),
+                       lines(@para{The @tt{shutdown} sustem call can close only one direction},
+                             @para{of a socket, while @tt{close} closes both})),
+                  blank(),
+                  lines(@para{When a sending end is closed, the other host's receive end},
+                        @para{produces EOF — but new data still can be sent the other way}),
+                  blank(),
+                  note(lines(@para{The connection terminates only after all send ends are closed}),
+                       lines(@para{The OS socket representing a connection stays allocated until},
+                             @para{both the send and receive parts are closed}))))
+            
+fun close_pict(options :~ OptMap) :~ Pict:
+  let host_a = "Host A"
+  let host_b = "Host B"
+  
+  let c1 = blank()
+  let s1 = blank()
+  let c2 = blank()
+
+  let S1 = blank()
+  let C1 = blank()
+  let S2 = blank()
+  
+  let fc1 = Find.center(c1)
+  let fs1 = Find.center(s1, ~dy: -5)
+  let fs1x = Find.center(s1, ~dy: 5)
+  let fc2 = Find.center(c2)
+
+  let fS1 = Find.center(S1)
+  let fC1 = Find.center(C1, ~dy: -5)
+  let fC1x = Find.center(C1, ~dy: 5)
+  let fS2 = Find.center(S2)
+
+  let p = beside(~sep: 600,
+                 ~vert: #'top,
+                 stack(~sep: 64,
+                       @bold(host_a).colorize(layers.color),
+                       stack(~sep: 100,
+                             c1,
+                             blank(),
+                             c2,
+                             C1).pad(~bottom: 200)),
+                 stack(~sep: 64,
+                       @bold(host_b).colorize(layers.color),
+                       stack(~sep: 100,
+                             s1.pad(~bottom: 32),
+                             S1,
+                             blank(),
+                             S2).pad(~top: 100)))
+  
+  let p = connect(~on: p, fc1, fs1,
+                  ~style: #'arrow,
+                  ~label: rotate_for(@t{FIN}.scale(0.8).pad(~bottom: 10), fc1, fs1, p))
+  let p = connect(~on: p, fs1x, fc2,
+                  ~label: rotate_for(@t{ACK}.rotate(pi).scale(0.8).pad(~bottom: -10), fs1x, fc2, p),
+                  ~style: #'arrow)
+  
+  let p = connect(~on: p, fS1, fC1,
+                  ~style: #'arrow,
+                  ~label: rotate_for(@t{FIN}.rotate(pi).scale(0.8).pad(~bottom: -10), fS1, fC1, p))
+  let p = connect(~on: p, fC1x, fS2,
+                  ~label: rotate_for(@t{ACK}.scale(0.8).pad(~bottom: 10), fC1x, fS2, p),
+                  ~style: #'arrow)
+
+  let close = api("close")
+  let p = pin(~on: p, ~at: Find.center(c1, ~dx: -close.width, ~dy: -close.height), close)  
+  let p = pin(~on: p, ~at: Find.center(S1, ~dx: 16, ~dy: -close.height), close)
+  if options[#'show_closed]
+  | let closed = @t{closed}
+    let timed_wait = @t{timed wait}
+    let p = pin(~on: p, ~at: Find.left_bottom(p), closed)
+    let p = pin(~on: p, ~at: fS2, closed.launder())
+    let p:
+      let (cx, cy) = fC1x.in(p)
+      let (clx, cly) = Find.top(closed).in(p)
+      let wait_color = "purple"
+      connect(~on: p, Find.abs(cx, cy + 5), Find.abs(cx, cly),
+              ~line: wait_color,
+              ~label:
+                let t = timed_wait.colorize(wait_color)
+                t.pad(~right: -t.width))
+    let p:
+      if options[#'reuse]
+      | balloon.pin(~on: p,
+                    ~at: Find.bottom(timed_wait),
+                    ~spike: #'nw,
+                    ~dy: -32,
+                    lines(@para{Creating a new socket with the same address and the flag},
+                          @para{@tt{SO_REUSEADDR} forces the end of the timed-wait step}).scale(0.8))
+      | p
+    p
+  | p
+
+fun close_slides(options :~ OptMap) :~ OptMap:
+  slide(~title: close_title,
+        ~layout: #'tall,
+        close_pict(options))
+  options
+
+let options = close_slides({})
+let options = close_slides(options ++ { #'show_closed })
+let options = close_slides(options ++ { #'reuse })

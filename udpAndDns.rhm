@@ -1,0 +1,616 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+  "layers.rhm".color as layer_color
+
+runtime_path.def laptop_png: "images/laptop.png"
+runtime_path.def wifi_png: "images/wifi-ap.png"
+runtime_path.def router_png: "images/router.png"
+                               
+def laptop = bitmap(laptop_png).scale(0.2)
+def wifi = bitmap(wifi_png).scale(0.2)
+def router = bitmap(router_png).scale(0.5).pad(~horiz: 10)
+
+fun networks_slide(options :~ OptMap) :~ OptMap:
+  let w = 3
+  let ts = 0.75
+  fun show(key, p :~ Pict) :~ Pict:
+    if options[key] | p | p.ghost()
+  fun name(s, p, ~below = #false) :~ Pict:
+    let dev = show(#'device, tt(s))
+    lines(~horiz: #'center,
+          if below | p | dev,
+          if below | dev | p).refocus(p)
+  let p = beside(~sep: 150,
+                 laptop,
+                 stack(~sep: 100, wifi.pad(~left: 100),
+                       show(#'ethernet, router)))
+  let p = connect(~on: p,
+                  Find.right(laptop, ~dy: laptop.height * -0.2),
+                  Find.left(wifi),
+                  ~line_width: w,
+                  ~label: show(#'address,
+                               name("en0", @tt{10.0.0.218}).scale(ts).pad(~bottom: 32)))
+  let p = (if options[#'ethernet]
+           | connect(~on: p,
+                     Find.right_bottom(laptop, ~dx: 5),
+                     Find.left_top(router),
+                     ~line_width: w,
+                     ~label: show(#'address,
+                                  name("en1", @tt{155.98.69.112}).scale(ts).pad(~left: 16, ~bottom: 16)))
+           | p)
+  let p = (if options[#'loopback]
+           | connect(~on: p,
+                     Find.bottom(laptop, ~dy: 5),
+                     Find.left_bottom(laptop, ~dy: 5),
+                     ~start_angle: math.pi * -1/2,
+                     ~start_pull: 2,
+                     ~end_angle: math.pi * 1/4,
+                     ~end_pull: 2,
+                     ~line_width: w,
+                     ~style: #'arrow,
+                     ~label: @name("lo0", @tt{127.0.0.1}, ~below: #true).scale(ts).translate(0, 150))
+           | p) :~ Pict
+  let p = overlay(~vert: #'bottom,
+                  ~horiz: #'right,
+                  p.pad(~right: 100, ~bottom: 100),
+                  show(#'ifconfig,
+                       rectangle(~around: @para{View with @tt{ifconfig}}.pad(10),
+                                 ~line: #false,
+                                 ~fill: "lightblue"))).refocus(p)
+  slide(~title: "One Machine, Many Networks",
+        p)
+  options
+
+let options = networks_slide({})
+let options = networks_slide(options ++ { #'ethernet })
+let options = networks_slide(options ++ { #'address })
+let options = networks_slide(options ++ { #'loopback })
+let options = networks_slide(options ++ { #'device })
+let options = networks_slide(options ++ { #'ifconfig })
+
+import "applicationLayer.rhm"!socket_slides
+socket_slides.socket_slides({ #'recap: #true,
+                              #'layers_short: #true })
+
+module ~early socket ~lang rhombus/static:
+  import:
+    "common.rhm" open
+    "layers.rhm".color as layer_color
+
+  export:
+    sockets_pict
+    syscall_color
+
+  def msg_color = "blue"
+  def msg_bg_color = "lightblue"
+  def syscall_color = "palegreen"
+
+  fun portno(s) :~ Pict:
+    tt(s)
+
+  fun socket(kind, port, host = #false, host_port = #false) :~ Pict:
+    rectangle(~around: lines(~horiz: #'center,
+                             t(kind).scale(0.75),
+                             portno(port),
+                             & (if host
+                                | [ lines(~horiz: #'left,
+                                          t("to:").scale(0.5),
+                                          lines(~horiz: #'center,
+                                                tt(host).scale(0.75),
+                                                tt(host_port))) ]
+                                | [])).pad(10),
+              ~fill: "lightgray",
+              ~line: #'inherit)
+
+  fun msg(content :~ Pict) :~ Pict:
+    rectangle(~around: content.pad(5),
+              ~line: msg_color,
+              ~fill: "white")
+
+  fun going_down(msg :~ Pict) :~ Pict:
+    let p = msg.pad(~bottom: 32)
+    connect(~on: p,
+            Find.bottom(msg),
+            Find.bottom(p),
+            ~line: msg_color,
+            ~style: #'arrow)
+
+  fun going_up(msg :~ Pict) :~ Pict:
+    let p = msg.pad(~top: 32)
+    connect(~on: p,
+            Find.top(msg),
+            Find.top(p),
+            ~line: msg_color,
+            ~style: #'arrow)
+
+  fun sockets_pict(options :~ OptMap) :~ Pict:
+    let app = rectangle(~around: @t{application}.pad(~horiz: 32, ~vert: 5).colorize("white"),
+                        ~fill: layer_color,
+                        ~line: #'inherit)
+    let msg_data :~ Pict: if options[#'syn]
+                          | lines(~horiz: #'center,
+                                  italic("connection"),
+                                  italic("request")).scale(0.8)
+                          | tt("cat hello.txt")
+    let reply_data = tt("Hello, World!")
+    let app1 = app.launder()
+    let app2 = app.launder()
+    let app3 = app.launder()
+    let apps = beside(~sep: 32, app1, app2, @t{...}, app3)
+    let sock0 = socket("UDP", "53")
+    let sock1 = socket("UDP", "6523")
+    let udp_port = portno("18120")
+    let sock2 = socket("UDP", udp_port)
+    let tcp_port = portno("1234")
+    let tcp_port = if options[#'ports] | tcp_port | tcp_port.ghost()
+    let tcp_remote = @tt{155.98.65.55}
+    let remote = (if options[#'dns_msg]
+                  | @tt{8.8.8.8}
+                  | tcp_remote)
+    let remote_2 = @tt{128.2.17.45}
+    let local = @tt{10.18.230.214}
+    let (local :~ Pict, tcp_remote :~ Pict, remote :~ Pict):
+      if options[#'server]
+      | values(tcp_remote, local, local)
+      |values(local, tcp_remote, remote)
+    fun server_flip(b): if options[#'server] | !b | b      
+    let tcp_out_port = portno("22")
+    let out_port = (if options[#'dns_msg]
+                    | portno("53")
+                    | tcp_out_port)
+    let dns_core_msg_data = tt("find cs.utah.edu MX")
+    let dns_core_reply_data = tt("smtps.cs.utah.edu")
+    let dns_msg_data = @lines(dns_core_msg_data,
+                              @bold{to @remote port @out_port})
+    let dns_reply_data = @lines(dns_core_reply_data,
+                                @bold{from @remote port @out_port})
+    let dest_ip = (if server_flip(options[#'reply]) | local | remote)
+    let src_ip = (if server_flip(options[#'reply]) | remote | local)
+    let tcp_out_port_2 = tcp_out_port.launder()
+    let tcp_port_2 = portno("7796")
+    let sock3 :~ Pict: if options[#'server]
+                       | socket("TCP", tcp_out_port, remote, tcp_port)
+                       | socket("TCP", tcp_port, tcp_remote, tcp_out_port)
+    let sock3_2 :~ Pict = (if options[#'another_tcp]
+                           | let port = tcp_port_2
+                             let port = if options[#'ports] | port | port.ghost()
+                             if options[#'server]
+                             | socket("TCP", tcp_out_port_2, remote_2, port)
+                             | socket("TCP", port, tcp_remote, tcp_out_port_2)
+                           | nothing)
+    let sock4 = socket("TCP listen", tcp_out_port)
+    let pkt:
+      let ip = lines(~horiz: #'center,
+                     t("IP header"),
+                     lines(if options[#'src] && options[#'pkt_ip]
+                           |  @para{src: @src_ip}
+                           | nothing,
+                           if !options[#'reply] || options[#'host]
+                           | @para{dest: @dest_ip}
+                           | nothing,
+                           @para{TTL: @tt{64}}).pad(~left: 10)).scale(0.75)
+      let tcp_port = if options[#'dns_msg] | udp_port | tcp_port
+      let tcp_dest_port = if options[#'reply] | tcp_port | out_port
+      let tcp_src_port = if options[#'reply] | out_port | tcp_port
+      let tcp = lines(~horiz: #'center,
+                      t("TCP header"),
+                      lines(if options[#'src]
+                            | @para{src: @tcp_src_port}
+                            | nothing,
+                            if !options[#'reply] || options[#'ports]
+                            | @para{dest: @tcp_dest_port}
+                            | nothing,
+                            if options[#'syn]
+                            | @tt{SYN}
+                            | nothing).pad(~left: 10)).scale(0.75)
+      let wifi = lines(~horiz: #'center,
+                       t("WiFi header"),
+                       @t{...}.pad(~left: 10)).scale(0.75)
+      let msg_data = overlay(blank(~height: ip.height),
+                             if options[#'file_content]
+                             | reply_data
+                             | (if options[#'dns_msg]
+                                | (if options[#'reply]
+                                   | dns_core_reply_data
+                                   | dns_core_msg_data)
+                                | msg_data))
+      let tcp = overlay(blank(~height: ip.height), tcp, ~vert: #'top)
+      let msg_data = overlay(blank(~height: tcp.height), msg_data)
+      let wifi = overlay(blank(~height: ip.height), wifi, ~vert: #'top)
+      let data = rectangle(~around: msg_data.pad(~horiz: 5), ~line: msg_color, ~fill: msg_bg_color)
+      let tcp = rectangle(~around: tcp.pad(~horiz: 5), ~line: msg_color, ~fill: msg_bg_color)
+      let wifi = rectangle(~around: wifi.pad(~horiz: 5), ~line: msg_color, ~fill: msg_bg_color)
+      let ip = rectangle(~around: ip.pad(~horiz: 5), ~line: msg_color, ~fill: msg_bg_color)
+      let pkt = beside(if options[#'pkt_tcp] | tcp | nothing,
+                       data)
+      let pkt: if options[#'tcp_segment]
+               | let p = rectangle(~around: pkt.pad(5), ~line: #false, ~fill: "yellow")
+                 let p = balloon.pin(~on: p,
+                                     ~at: Find.right(p),
+                                     ~spike: #'w,
+                                     @defterm{TCP segment})
+                 let p = p.refocus(pkt)
+                 p
+               | pkt                           
+      let pkt = beside(if options[#'pkt_wifi] | wifi | nothing,
+                       if options[#'pkt_ip] | ip | nothing,
+                       pkt)      
+      let pkt = pkt.refocus(data)
+      let p = pkt.pad(~vert: 24)
+      let is_reply: server_flip(options[#'reply])
+      let p = connect(~on: p, Find.top(pkt), Find.top(p), ~line: msg_color, ~line_width: 3,
+                      ~style: if is_reply | #'arrow | #'line)
+      let p = connect(~on: p, Find.bottom(pkt), Find.bottom(p), ~line: msg_color, ~line_width: 3,
+                      ~style:  if is_reply | #'line | #'arrow)
+      p
+    let os = overlay(~vert: #'bottom,
+                     block:
+                       let p = rectangle(~width: apps, ~height: 300, ~fill: "beige", ~line: #'inherit)
+                       let p :~ Pict = if options[#'udp] | pin(~on: p, ~at: Find.abs(50, 140), sock0) | p
+                       let p :~ Pict = if options[#'udp] | pin(~on: p, ~at: Find.abs(p.width - sock1.width - sock2.width - 30, 40), sock1) | p
+                       let p :~ Pict = if options[#'udp] | pin(~on: p, ~at: Find.abs(p.width - sock2.width - 20, 100), sock2) | p
+                       let p :~ Pict = if options[#'tcp] | overlay(p, sock3.pad(~right: 40)).refocus(p) | p
+                       let p = if options[#'another_tcp] | overlay(~horiz: #'right, p, sock3_2.pad(~right: 20)).refocus(p) | p
+                       let p :~ Pict: if options[#'tcp_listen]
+                                      | overlay(~horiz: #'left, p, sock4.pad(~left: 50)).refocus(p)
+                                      | p
+                       p,
+                     @t{operating system}.pad(20))
+    let os = (if options[#'host]
+              | overlay(os, local.scale(0.75).pad(10), ~horiz: #'left, ~vert: #'bottom)
+              | os)
+    let link = rectangle(~around: @t{link}.pad(~horiz: 32, ~vert: 5).colorize("white"),
+                         ~width: os,
+                         ~fill: layer_color,
+                         ~line: #'inherit)
+    let os_plus_apps:
+      let p = stack(~sep: 16, apps, os, link)
+      let p = if options[#'pkt] | stack(p, pkt).refocus(p) | p
+      let p = if options[#'udp] | connect(~on: p, Find.bottom(app1), Find.top(sock0)) | p
+      let p = if options[#'udp] | connect(~on: p, Find.bottom(app3, ~dx: -10), Find.top(sock1)) | p
+      let p = (if options[#'udp]
+               | connect(~on: p, Find.bottom(app3, ~dx: 10), Find.top(sock2),
+                         ~label:
+                           cond
+                           | options[#'dns_reply]:
+                               going_up(msg(dns_reply_data)).scale(0.6).pad(~left: 50)
+                           | options[#'dns_msg] && !options[#'reply]:
+                               going_down(msg(dns_msg_data)).scale(0.6).pad(~left: 50)
+                           | ~else: #false)
+               | p)
+      let p = (if options[#'another_tcp]
+               | if options[#'server]
+                 | connect(~on: p, Find.right_bottom(app2, ~dx: -32), Find.top(sock3_2))
+                 | connect(~on: p, Find.bottom(app3, ~dx: 10), Find.top(sock3_2))
+               | p) :~ Pict
+      let p = (if options[#'tcp]
+               | if options[#'syn] && options[#'tcp_listen]
+                 | connect(~on: p, Find.right(sock4), Find.left(sock3))
+                 | connect(~on: p, Find.bottom(app2), Find.top(sock3),
+                           ~label: options[#'hello]
+                                     && (block:
+                                           let p = (if options[#'reply]
+                                                    | going_up(msg(reply_data))
+                                                    | going_down(msg(msg_data))) :~ Pict
+                                           p.scale(0.6)))
+               | p) :~ Pict
+      let p: (if options[#'tcp_listen]
+              | connect(~on: p, Find.left_bottom(app2, ~dx: 32), Find.top(sock4))
+              | p) :~ Pict
+      let p = p.pad(~bottom: 60)
+      let p = (if options[#'socket]
+               | balloon.pin(~on: p,
+                             ~at: Find.left(sock3),
+                             ~spike: #'e,
+                             @para{socket})
+               | p)
+      let p = (if options[#'well_known]
+               | let expl = lines(@para{A @defterm{well-known port}},
+                                  @para{is used to contact a server})
+                 let p = balloon.pin(~on: p,
+                                     ~at: Find.right(tcp_out_port_2),
+                                     ~spike: #'nw,
+                                     expl)
+                 let p = (if options[#'reserved]
+                          | balloon.pin(~on: p,
+                                        ~at: Find.bottom(expl),
+                                        ~spike: #'n,
+                                        ~fill: "lightgreen",
+                                        lines(
+                                          @para{Ports @tt{1} through @tt{1024}},
+                                          @para{are usually privileged}))
+                          | p)
+                 p
+               | p)
+      let p = (if options[#'ephemeral]
+               | balloon.pin(~on: p,
+                             ~at: Find.right(tcp_port_2),
+                             ~spike: #'sw,
+                             lines(@para{An @defterm{ephemeral port}},
+                                   @para{is usually picked by the OS}))
+               | p)
+      let p = (if options[#'connectionless]
+               | balloon.pin(~on: p,
+                             ~at: Find.bottom(sock2),
+                             ~spike: #'n,
+                             ~sprout: 0.3,
+                             lines(@para{UDP is @defterm{connectionless},},
+                                   @para{so only a local port number}))
+               | p)
+      let p = (if options[#'udp_multiple]
+               | balloon.pin(~on: p,
+                             ~at: Find.bottom(sock2),
+                             ~spike: #'nw,
+                             lines(@para{Can use one UDP socket},
+                                   @para{with multiple hosts}))
+               | p)
+      let p = (if options[#'connect_syscall] || options[#'listen_syscall] || options[#'accept_syscall]
+               | let c :~ Pict: cond
+                                | options[#'connect_syscall]:
+                                    @tt{tcp_connect(~on: @tcp_remote, @tcp_out_port)}
+                                | options[#'listen_syscall]:
+                                    @tt{lnr = tcp_listen(@tcp_out_port)}
+                                | ~else:
+                                    @tt{tcp_accept(lnr)}
+                 let c = c.scale(0.8)
+                 let c = rectangle(~around: c.pad(3),
+                                   ~fill: syscall_color,
+                                   ~line: #'inherit)
+                 let p = pin(~on: p,
+                             ~at: Find.bottom(app2, ~dx: -c.width/2, ~dy: 8),
+                             going_down(c))
+                 connect(~on: p,
+                         Find.bottom(app2),
+                         Find.top(c),
+                         ~line: msg_color)
+               | p)
+      p
+    os_plus_apps
+
+import: self!socket
+
+fun sockets_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: "Using Sockets",
+        socket.sockets_pict(options))
+  options
+
+let options = sockets_slide({})
+let tcp_options = sockets_slide(options ++ { #'tcp, #'socket })
+let tcp_options :~ OptMap = tcp_options.remove(#'socket)
+
+let options = sockets_slide(tcp_options ++ { #'hello })
+let options = sockets_slide(options ++ { #'pkt })
+let options = sockets_slide(options ++ { #'pkt_tcp })
+let out_options = sockets_slide(options ++ { #'pkt_ip })
+let options = sockets_slide(out_options ++ { #'pkt_wifi })
+
+let options = sockets_slide(tcp_options ++ { #'pkt, #'reply, #'file_content })
+let options = sockets_slide(options ++ { #'pkt_tcp, #'src })
+let options = sockets_slide(options ++ { #'pkt_ip })
+let options = sockets_slide(options ++ { #'another_tcp })
+let options = sockets_slide(options ++ { #'ports })
+let aside_options = sockets_slide(options ++ { #'well_known })
+let aside_options = sockets_slide(aside_options ++ { #'reserved })
+let aside_options = sockets_slide(aside_options ++ { #'ephemeral })
+let options = sockets_slide(options ++ { #'host })
+let options = sockets_slide(options ++ { #'hello })
+
+let options = sockets_slide(out_options ++ { #'ports, #'host, #'src })
+
+let options = sockets_slide(tcp_options ++ { #'host, #'ports, #'udp })
+let aside_options = sockets_slide(options ++ { #'connectionless })
+let options = sockets_slide(options ++ { #'dns_msg })
+let options = sockets_slide(options ++ { #'pkt, #'pkt_tcp, #'pkt_ip, #'src })
+let options = sockets_slide(options ++ { #'reply })
+let options = sockets_slide(options ++ { #'dns_reply })
+let options = sockets_slide(options ++ { #'udp_multiple })
+
+let client = @verbatim{
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        int server_port = 5678;
+        InetAddress server_host = InetAddress.getByName("localhost");
+        System.out.println("Sending to " + server_host + " " + server_port);
+        DatagramSocket socket = new DatagramSocket();
+
+        System.out.println("I am " + socket.getLocalPort());
+
+        byte[] data = new byte[3];
+        data[0] = 10;
+        data[1] = 20;
+        data[2] = 30;
+        DatagramPacket pkt = new DatagramPacket(data, data.length, server_host, server_port);
+        socket.send(pkt);
+    }
+}
+}
+
+let server = @verbatim{
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        int server_port = 5678;
+        System.out.println("Listening at " + server_port);
+        DatagramSocket socket = new DatagramSocket(server_port);
+
+        byte[] buffer = new byte[512];
+        DatagramPacket pkt = new DatagramPacket(buffer, buffer.length);
+        for (int count = 1; true; count++) {
+            socket.receive(pkt); // <----- waits here
+            System.out.println(count + " Heard from " + pkt.getAddress() + " " + pkt.getPort());
+            for (int i = 0; i < pkt.getLength(); i++)
+                System.out.printf(" %x", (int)buffer[i] & 0xFF);
+            System.out.print("\n");
+        }
+    }
+}
+}
+
+slide(~title: "UDP Client", client.scale(0.65))
+slide(~title: "UDP Server", server.scale(0.65))
+
+let dns_overall = @verbatim{
+    +---------------------+
+    |        Header       |
+    +---------------------+
+    |       Question      | the question for the name server
+    +---------------------+
+    |        Answer       | RRs answering the question
+    +---------------------+
+    |      Authority      | RRs pointing toward an authority
+    +---------------------+
+    |      Additional     | RRs holding additional information
+    +---------------------+
+}
+
+slide(~title: "DNS Messages (RFC 1035)",
+      dns_overall)
+
+let dns_header = @verbatim{
+                                    1  1  1  1  1  1
+      0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                      ID                       |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                    QDCOUNT                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                    ANCOUNT                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                    NSCOUNT                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                    ARCOUNT                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+}
+
+fun remap(p :~ Pict, skip, widths :~ List):
+  let count = skip + widths.length() * 2 + 1
+  let h = p.height / count
+  let cw = p.width / (16 * 3 + 1)
+  let w = cw * 3
+  let bx = blank(~width: w, ~height: 1.5 * h)
+  recur loop(p :~Pict = p, i = skip + 1, j = 0):
+    if j == widths.length()
+    | p
+    | let top = h * i - (h / 2)
+      let p:
+        let ds = 5
+        let byte = rectangle(~width: w * 8 - 2*ds, ~height: 2 * h - 2*ds,
+                             ~line: #false,
+                             ~fill: Color("light blue") with (alpha = 0.5))
+        let p = pin(~on: p, ~at: Find.abs(cw/2 + ds, top+ds), byte)
+        pin(~on: p, ~at: Find.abs(w*8 + cw/2 + ds, top+ds), byte)
+      loop(for values(p :~ Pict = p) (k: 0..16):
+             pin(~on: p,
+                 ~at: Find.abs(cw/2 + k*w, top),
+                 overlay(bx,
+                         tt(to_string((15 - k) mod widths[j])).scale(0.75).colorize("blue"),
+                         ~vert: #'top)),
+           i + 2,
+           j + 1)
+
+slide(~title: "DNS Header (RFC 1035)",
+      slide.alts(dns_header,
+                 remap(dns_header, 2, [16, 8, 16, 16, 16, 16])))
+
+let dns_question = @verbatim{
+                                    1  1  1  1  1  1
+      0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                                               |
+    /                     QNAME                     /
+    /                                               /
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                     QTYPE                     |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                     QCLASS                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+where:
+
+QNAME           a domain name represented as a sequence of labels, where
+                each label consists of a length octet followed by that
+                number of octets.  The domain name terminates with the
+                zero length octet for the null label of the root.  Note
+                that this field may be an odd number of octets; no
+                padding is used.
+}
+
+slide(~title: "DNS Question (RFC 1035)",
+      dns_question.scale(0.75))
+
+let dns_resource_record = @verbatim{
+
+                                    1  1  1  1  1  1
+      0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                                               |
+    /                                               /
+    /                      NAME                     /
+    |                                               |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                      TYPE                     |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                     CLASS                     |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                      TTL                      |
+    |                                               |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                   RDLENGTH                    |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--|
+    /                     RDATA                     /
+    /                                               /
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+}
+
+slide(~title: "DNS Resource Record (RFC 1035)",
+      slide.align(~horiz: #'left,
+                  @para{Used for Answer, Authority, and Additional:},
+                  block:
+                    let p = dns_resource_record.scale(0.65).pad(~left: 32)
+                    slide.alts(p,
+                               balloon.pin(~on: p,
+                                           ~at: Find.abs(p.width * 0.6, p.height * 9/21),
+                                           ~spike: #'w,
+                                           lines(
+                                             @para{Additional type 41 needs to be},
+                                             @para{copied to reply}
+                                           )))))
+
+let dns_compression = @verbatim{
+4.1.4. Message compression
+
+In order to reduce the size of messages, the domain system utilizes a
+compression scheme which eliminates the repetition of domain names in a
+message.  In this scheme, an entire domain name or a list of labels at
+the end of a domain name is replaced with a pointer to a prior occurance
+of the same name.
+
+The pointer takes the form of a two octet sequence:
+
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    | 1  1|                OFFSET                   |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+The first two bits are ones.  This allows a pointer to be distinguished
+from a label, since the label must begin with two zero bits because
+labels are restricted to 63 octets or less.
+}
+
+slide(~title: "DNS Names (RFC 1035)",
+      slide.align(~horiz: #'left,
+                  @para{Relevant to names, whenever they appear:},
+                  dns_compression.scale(0.75).pad(~left: 32)))
+

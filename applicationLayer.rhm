@@ -1,0 +1,840 @@
+#lang rhombus/static/and_meta
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+  "layers.rhm"
+
+module ~early socket_slides ~lang rhombus/static:
+  import:
+    "common.rhm" open
+    "layers.rhm"
+
+  export:
+    socket_slides
+  
+  def layers_title = "Network Layers"
+
+  def socket = italic("socket")
+
+  fun my_layers(n, m, ~top = #false):
+    let [l0, [name, ex, intf], li, ...] = layers.make()
+    let l1 = [name, ex, socket]
+    let l :~ List = (if m > 0
+                     | fun adj(s): t(s).scale(m)
+                       let [name0, ex0, intf0] = l0
+                       [[overlay(t(name0).ghost(), t("program")), ex0, intf0],
+                        ["library", "SSL, HTML, QUIC, ...", italic("object")].map(adj),
+                        l1, li, ...]
+                     | [l0, l1, li, ...])
+    let p = layers.pict(l, ~interfaces: n)
+    if top
+    | overlay(~vert: #'top,
+              ~horiz: #'left,
+              p.ghost(),
+              layers.pict(l.take_left(3), ~interfaces: 1))
+    | p
+
+  def basic_layers = my_layers(1, 0, ~top: #true)
+
+  fun recap(p, options :~ Map):
+    if options.get(#'recap, #false)
+    | overlay(overlay(p, blank(~width: 980, ~height: 700)),
+              @ellipse(~around: @italic{RECAP}.pad(10),
+                       ~fill: "palegreen").colorize("forestgreen"),
+              ~vert: #'top,
+              ~horiz: #'left).refocus(p)
+    | p
+
+  fun layers_slides(overall_options :~ Map):
+    unless overall_options.get(#'layers_short, #false)
+    | // Writing this two ways to see how the `slide` and pict models interact.
+      // There's a substle alignment issue between these two since `alts`
+      // keeps ghosts instead of using `transition`    
+      if #false
+      | slide(~title: layers_title,
+              slide.alts(
+                animate(fun (n): my_layers(n, 0)),
+                animate(fun (m): my_layers(1, m)),
+                animate(fun (m): my_layers(1, 1-m)).sustain()
+              ))
+      | slide(~title: layers_title,
+              animate(fun (n): my_layers(n, 0)))
+        slide(~title: layers_title,
+              animate(fun (m): my_layers(1, m)))
+        slide(~title: layers_title,
+              animate(fun (m): my_layers(1, 1-m)).sustain())
+
+    slide(~title: layers_title,
+          recap(basic_layers, overall_options))
+
+  def ip_address = @italic{IP address}
+  def port_number = @italic{port number}
+
+  fun socket_slide(options :~ Map, ~skip = #false) :~ Map:
+    fun rep(p :~ Pict):
+      if options.get(#'rep, #false)
+      | p
+      | p.ghost()
+    let p = balloon.pin(~on: basic_layers,
+                        ~at: Find.right(socket),
+                        ~spike: #'w,
+                        ~dx: -250,
+                        stack(
+                          ~sep: 20,
+                          @para{Opening a socket needs:},
+                          @t{transport}.colorize("blue"),
+                          beside(~sep: 50,
+                                 stack(@t{host}.colorize("blue"),
+                                       rep(ip_address)),
+                                 stack(@t{service}.colorize("blue"),
+                                       rep(port_number)))
+                        ))
+    let p = (if options.get(#'network, #false)
+             | balloon.pin(~on: p,
+                           ~at: Find.bottom(ip_address),
+                           ~spike: #'n,
+                           ~dy: -40,
+                           ~sprout: 0.7,
+                           ~fill: "lightblue",
+                           @para{network layer})
+             | p)             
+    let p :~ Pict = (if options.get(#'transport, #false)
+                     | balloon.pin(~on: p,
+                                   ~at: Find.bottom(port_number),
+                                   ~spike: #'n,
+                                   ~dy: -40,
+                                   ~sprout: 0.3,
+                                   ~fill: "lightblue",
+                                   @para{transport layer})
+                     | p)
+    let p:
+      let ex = options.get(#'examples, #false)
+      if ex
+      | let rows = [["Web server", "TCP", @tt{www.cs.utah.edu}, @tt{80}],
+                    ["Modern web server", "TCP", @tt{www.cs.utah.edu}, @tt{443}],
+                    ["Mail receiver", "TCP", @tt{smtp.cs.utah.edu}, @tt{25}],
+                    ["Name resolver", "UDP", @tt{8.8.8.8}, @tt{53}]]
+        stack(p.pad(~bottom: -100),
+              table(for List (row :~ List: rows,
+                              i: 0..):
+                      if ex >= i
+                      | for List (elem: row):
+                          if elem is_a String
+                          | t(elem)
+                          | elem
+                      | for List (elem: row):
+                          let p :~ Pict = (if elem is_a String
+                                           | t(elem)
+                                           | elem)
+                          p.ghost(),
+                    ~vsep: current_line_sep()))
+          .refocus(p)
+      | p
+    let p = recap(p, options)
+    unless skip
+    | slide(~title: layers_title,
+            p)
+    options
+
+  fun socket_slides(overall_options :~ Map):
+    layers_slides(overall_options)
+    let short = overall_options.get(#'layers_short, #false)
+    let options = socket_slide(overall_options)
+    let options = socket_slide(options ++ { #'rep: #true })
+    let options :~ Map = (if short
+                          | options
+                          | socket_slide(options ++ { #'network: #true }))
+    let options :~ Map = (if short
+                          | options
+                          | socket_slide(options ++ { #'transport: #true }))
+    let options = socket_slide(options ++ { #'examples: 0 }, ~skip: short)
+    let options = socket_slide(options ++ { #'examples: 1 }, ~skip: short)
+    let options = socket_slide(options ++ { #'examples: 2 }, ~skip: short)
+    let options = socket_slide(options ++ { #'examples: 3 })
+    #void
+
+import self!socket_slides
+socket_slides.socket_slides({})
+
+// ------------------------------------------------------------
+
+def transport_title = "Transport Layer Options"
+
+def TCP = @bold{TCP}
+def UDP = @bold{UDP}
+
+fun transport_slide(options :~ Map) :~ Map:
+  fun style(s): italic(s).colorize("blue")
+  fun plus(p :~ Pict): p.colorize("forestgreen")
+  fun minus(p :~ Pict): p.colorize("firebrick")
+  fun step(key, p :~ Pict):
+    if options.get(key, #false)
+    | p
+    | p.ghost()
+  let p = (beside(
+             ~sep: 60,
+             stack(
+               ~sep: 32,
+               ~horiz: #'center,
+               lines(
+                 ~horiz: #'center,
+                 TCP,
+                 @step(#'style, @style{stream}),
+               ),
+               @step(#'delivery, @plus(@para{reliable delivery})),
+               @step(#'order, @plus(@para{reliable order})),
+               @step(#'flow, @plus(@para{flow/congestion control})),
+               @step(#'speed, @minus(@para{potentially slow})),
+             ),
+             stack(
+               ~sep: 32,
+               ~horiz: #'center,
+               lines(
+                 ~horiz: #'center,
+                 UDP,
+                 @step(#'style, @style{datagram}),
+               ),
+               @step(#'delivery, @minus(@para{unreliable delivery})),
+               @step(#'order, @minus(@para{unreliable order})),
+               @step(#'flow, @minus(@para{no flow/congestion control})),
+               @step(#'speed, @plus(@para{potentially fast})),
+             )
+           ))
+  let p = (if options.get(#'right_answer, #false)
+           | balloon.pin(~on: p,
+                         ~at: Find.top(TCP),
+                         ~spike: #'se,
+                         lines(@para{When you need the right answer},
+                               @para{and can wait a little while}))
+           | p)
+  let p = (if options.get(#'stream, #false)
+           | balloon.pin(~on: p,
+                         ~at: Find.top(UDP),
+                         ~spike: #'sw,
+                         lines(@para{For small data, or for getting},
+                               @para{most data as fast as possible}))
+           | p)
+  slide(~title: transport_title,
+        p)
+  options
+
+let options = transport_slide({})
+let options = transport_slide(options ++ { #'style: #true })
+let options = transport_slide(options ++ { #'delivery: #true })
+let options = transport_slide(options ++ { #'order: #true })
+let options = transport_slide(options ++ { #'flow: #true })
+let options = transport_slide(options ++ { #'speed: #true })
+let options = transport_slide(options ++ { #'right_answer: #true })
+let options = transport_slide(options ++ { #'stream: #true })
+
+// ------------------------------------------------------------
+
+runtime_path.def laptop_png: "images/laptop.png"
+runtime_path.def server_png: "images/server.png"
+runtime_path.def database_png: "images/database.png"
+
+def laptop = bitmap("images/laptop.png").scale(0.2)
+def server = bitmap("images/server.png").scale(0.2).pad(~horiz: 10)
+def database = bitmap("images/database.png").scale(0.5)
+
+fun tt_lines(s, ...) :~ Pict:
+  lines(tt(s), ...)
+
+fun msg(p :~ Pict, ~direction: dir) :~ Pict:
+  let color = "blue"
+  let p = rectangle(~around: p.pad(5),
+                    ~line: color)
+  let dx = 60
+  let q :~ Pict:
+    if dir == #'left
+    | let q = p.pad(~left: dx)
+      connect(~on: q,
+              Find.left(p),
+              Find.left(q),
+              ~style: #'arrow,
+              ~line: color)
+    | let q = p.pad(~right: dx)
+      connect(~on: q,
+              Find.right(p),
+              Find.right(q),
+              ~style: #'arrow,
+              ~line: color)
+  q.refocus(p)
+
+fun client_server_network(options :~ Map):
+  let server:
+    let name = options.get(#'server_name, #false)
+    if name
+    | stack(~sep: 10, name, server).refocus(server)
+    | server
+  let p = beside(~sep: 500,
+                 laptop,
+                 server)
+  let p = connect(~on: p,
+                  Find.right(laptop),
+                  Find.left(server),
+                  ~line_width: 3,
+                  ~label: options.get(#'label, #false))
+  let req:
+    if options.get(#'req, #false)
+    | msg(options[#'req_data],
+          ~direction: #'right)
+    | blank()
+  let resp:
+    if options.get(#'resp, #false)
+    | msg(options[#'resp_data],
+          ~direction: #'left)
+    | blank()
+  let sep = 20
+  fun show(p :~ Pict, key):
+    if options.get(key, #false) | p | p.ghost()
+  let p = overlay(~horiz: #'right,
+                  ~vert: #'top,
+                  stack(~sep: sep,
+                        ~horiz: #'right,
+                        stack(~sep: sep,
+                              ~horiz: #'left,
+                              req, p),
+                        resp),
+                  show(@bold(options[#'protocol]).colorize("blue"), #'tcp)).refocus(p)
+  let p:
+    stack(~sep: 32,
+          show(@t{client–server}, #'client_server),
+          p).refocus(p)
+  let p:
+    if options.get(#'single_packet, #false)
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(options[#'resp_data]),
+                  ~spike: #'n,
+                  @para{Fits in one packet})
+    | p
+  let p:
+    let note = options.get(#'server_note, #false)
+    if note
+    | balloon.pin(~on: p,
+                  ~at: Find.right(server),
+                  ~spike: #'w,
+                  note)
+    | p
+  p
+
+fun web_network(options :~ Map):
+  fun try_this(p :~ Pict):
+    if options.get(#'netcat, #false)
+    | balloon.pin(~on: p,
+                  ~at: Find.top(p),
+                  ~spike: #'s,
+                  ~fill: "lightblue",
+                  @lines(
+                    @tt{netcat www.cs.utah.edu 80}
+                  ))
+    | p
+  client_server_network(options ++ {
+                          #'protocol: "TCP",
+                          #'req_data: try_this(
+                                        tt_lines(
+                                          "GET /index.html HTTP/1.1",
+                                          "Host: www.cs.utah.edu",
+                                          "Accept-Encoding: gzip, deflate",
+                                          ""
+                                        )
+                                      ),
+                          #'resp_data: tt_lines(
+                                         "HTTP/1.1 301 Moved Permanently",
+                                         "Date: Fri, 12 Jan 2024 15:32:54 GMT",
+                                         "Location: https://www.cs.utah.edu/index.html",
+                                         ""
+                                       )
+                        })
+
+fun web_network_slide(options) :~ Map:
+  slide(~title: "Example: Web Browsing",
+        web_network(options))
+  options
+
+let options = web_network_slide({})
+let kind_options = web_network_slide( options ++ { #'client_server: #true })
+let msg_options = web_network_slide(options ++ { #'req: #true })
+let msg_options = web_network_slide(msg_options ++ { #'resp: #true })
+let kind_options = web_network_slide( msg_options ++ { #'tcp: #true })
+let kind_options = web_network_slide( msg_options ++ { #'netcat: #true })
+
+// ------------------------------------------------------------
+
+fun email_network(options :~ Map):
+  fun show(p :~ Pict, key):
+    if options.get(key, #false)
+    | p
+    | p.ghost()
+  let local_server1:
+    let p = server.launder()
+    stack(show(@tt{smtp.cs.utah.edu}, #'name),
+          p).refocus(p)
+  let local_server2:
+    let p = server.launder()
+    stack(p,
+          show(@tt{imap.cs.utah.edu}, #'name)).refocus(p)
+  let remote_server:
+    let p = server.launder()
+    stack(show(@tt{example.com}, #'name),
+          p).refocus(p)
+  let p = beside(~sep: 100,
+                 laptop,
+                 stack(~horiz: #'left,
+                       ~sep: 32,
+                       beside(~sep: 500,
+                              show(local_server1, #'indirect),
+                              remote_server),
+                       show(stack(~sep: 32,                         
+                                  database.scale(0.5),
+                                  local_server2),
+                            #'receive)))
+  let p = (if options.get(#'indirect, #false)
+           | connect(~on: p,
+                     Find.right(local_server1),
+                     Find.left(remote_server),
+                     ~line_width: 3,
+                     ~label: show(@t{SMTP}, #'protocol))
+           | p)
+  let p = (if options.get(#'indirect, #false)
+           | connect(~on: p,
+                     Find.right(laptop),
+                     Find.left(local_server1),
+                     ~line_width: 3,
+                     ~label: show(@t{SMTP}.pad(~bottom: 32), #'protocol))
+           | connect(~on: p,
+                     Find.right(laptop),
+                     Find.left(remote_server),
+                     ~line_width: 3))
+  let p = (if options.get(#'receive, #false)
+           | connect(~on: p,
+                     Find.right(laptop),
+                     Find.left(local_server2),
+                     ~line_width: 3,
+                     ~label: @t{IMAP}.pad(~left: -120, ~top: 250, ~right: 140))
+           | p)
+  let p = (if options.get(#'receive, #false)
+           | connect(~on: p,
+                     Find.bottom(local_server1),
+                     Find.top(database),
+                     ~line_width: 3)
+           | p)
+  let p = (if options.get(#'receive, #false)
+           | connect(~on: p,
+                     Find.top(local_server2),
+                     Find.bottom(database),
+                     ~line_width: 3)
+           | p)
+  p
+
+fun email_all_network_slide(options) :~ Map:
+  slide(~title: "Example: Email",
+        email_network(options))
+  options
+
+let options = email_all_network_slide({ #'name: #true })
+let options = email_all_network_slide(options ++ { #'indirect: #true })
+let options = email_all_network_slide(options ++ { #'protocol: #true })
+let options = email_all_network_slide(options ++ { #'receive: #true })
+
+fun send_email_network(options :~ Map):
+  client_server_network(options ++ {
+                          #'protocol: "TCP",
+                        })
+
+fun email_network_slide(options) :~ Map:
+  slide(~title: "Example: Sending Email",
+        send_email_network(options))
+  options
+
+block:
+  let options = email_network_slide({ #'label: @t{SMTP} })
+  let msg_options = email_network_slide(options ++ { #'resp: #true,
+                                                     #'resp_data:
+                                                       tt_lines(
+                                                         "220 smtp.cs.utah.edu"
+                                                       )
+                                                     })
+  let msg_options = email_network_slide(options ++ { #'req: #true,
+                                                     #'req_data:
+                                                       tt_lines(
+                                                         "EHLO localhost"
+                                                       ),
+                                                     })
+  let msg_options = email_network_slide(msg_options ++ { #'resp: #true,
+                                                         #'resp_data:
+                                                           tt_lines(
+                                                             "250 pleased to meet you"
+                                                           ),
+                                                         })
+  let msg_options = email_network_slide(options ++ { #'req: #true,
+                                                     #'req_data:
+                                                       tt_lines(
+                                                         "MAIL FROM:<mflatt@cs.utah.edu>"
+                                                       ),
+                                                     })
+  let msg_options = email_network_slide(msg_options ++ { #'resp: #true,
+                                                         #'resp_data:
+                                                           tt_lines(
+                                                             "250 OK"
+                                                           )
+                                                         })
+  let msg_options = email_network_slide(options ++ { #'req: #true,
+                                                     #'req_data:
+                                                       tt_lines(
+                                                         "RCPT TO:<friend@example.com>"
+                                                       ),
+                                                     })
+  let msg_options = email_network_slide(msg_options ++ { #'resp: #true,
+                                                         #'resp_data:
+                                                           tt_lines(
+                                                             "250 OK"
+                                                           )
+                                                         })
+  let msg_options = email_network_slide(options ++ { #'req: #true,
+                                                     #'req_data:
+                                                       tt_lines(
+                                                         "DATA"
+                                                       ),
+                                                     })
+  let msg_options = email_network_slide(msg_options ++ { #'resp: #true,
+                                                         #'resp_data:
+                                                           tt_lines(
+                                                             "354 Send message content"
+                                                           )
+                                                         })
+  let msg_options = email_network_slide(options ++ { #'req: #true,
+                                                     #'req_data:
+                                                       tt_lines(
+                                                         "Date: Thu, 11 Jan 2023 01:02:03 -0700",
+                                                         "From: Matthew Flatt <mflatt@cs.utah.edu>",
+                                                         "Subject: Hi",
+                                                         "To: Friend <friend@example.com>",
+                                                         "",
+                                                         "Howdy",
+                                                         ".",
+                                                         "").scale(0.5)
+                                                     })
+  let msg_options = email_network_slide(msg_options ++ { #'resp: #true,
+                                                         #'resp_data:
+                                                           tt_lines(
+                                                             "250 OK"
+                                                           )
+                                                         })
+  let kind_options = email_network_slide(msg_options ++ { #'tcp: #true })
+  let msg_options = email_network_slide(kind_options ++ { #'req_data:
+                                                            block:
+                                                              let p = kind_options[#'req_data]                                                           
+                                                              balloon.pin(~on: p,
+                                                                          ~at: Find.top(p),
+                                                                          ~spike: #'s,
+                                                                          ~fill: "lightblue",
+                                                                          @lines(
+                                                                            @tt{netcat smtps.cs.utah.edu 587}
+                                                                          ))
+                                                          })
+  #void
+
+// ----------------------------------------
+
+fun bittorrent_network(options :~ Map):
+  let m1 = laptop.launder()
+  let m2 = laptop.launder()
+  let m3 = laptop.launder()
+  let m4 = laptop.launder()
+  let m5 = laptop.launder()
+
+  let p = stack(~sep: 80,
+                m1,
+                beside(~sep: 400,
+                       m2, m3),
+                beside(~sep: 350,
+                       m4, m5))
+  fun conn(p, f1, f2):
+    connect(~on: p, f1, f2, ~line_width: 3)
+
+  let p = conn(p,
+               Find.left_bottom(m1),
+               Find.right(m2))
+  let p = conn(p,
+               Find.bottom(m1),
+               Find.right(m4))
+  let p = conn(p,
+               Find.right_bottom(m1),
+               Find.left_top(m3))
+  let p = conn(p,
+               Find.right(m4),
+               Find.left(m3))
+  let p = conn(p,
+               Find.bottom(m3),
+               Find.top(m5))
+  let p = conn(p,
+               Find.right(m4),
+               Find.left(m5))
+  let p:
+    if options.get(#'looking, #false)
+    | let m = msg(@t{looking for @tt{lotr.mp4}},
+                  ~direction: #'right)
+      stack(~horiz: #'left, ~sep: 32, p, m).refocus(p)
+    | p
+  let p:
+    if options.get(#'supplying, #false)
+    | let m = msg(@t{@tt{lotr.mp4}, 3 of 17},
+                  ~direction: #'left).pad(~left: 70, ~top: 80).rotate(math.pi * 1/7)
+      overlay(p, m)
+    | p
+  let p:
+    if options.get(#'peer_to_peer, #false)
+    | overlay(~vert: #'top,
+              ~horiz: #'right,
+              p,
+              @t{peer-to-peer}.pad(~right: -32))
+    | p
+  let p:
+    if options.get(#'tcp_or_udp, #false)
+    | overlay(~vert: #'top,
+              ~horiz: #'right,
+              p,
+              @para{@(@bold{TCP}.colorize("blue")) or @(@bold{UDP}.colorize("blue"))}.pad(~right: -32))
+    | p
+  p
+
+fun bittorrent_slide(options) :~ Map:
+  slide(~title: "Example: BitTorrent",
+        bittorrent_network(options))
+  options
+
+let options = bittorrent_slide({})
+let kind_options = bittorrent_slide( options ++ { #'peer_to_peer: #true } )
+let options = bittorrent_slide( options ++ { #'looking: #true })
+let options = bittorrent_slide( options ++ { #'supplying: #true })
+let options = bittorrent_slide( options ++ { #'tcp_or_udp: #true } )
+
+// ----------------------------------------
+
+fun dns_network(options :~ Map):
+  client_server_network(options ++ { #'protocol: "UDP",
+                                     
+                                     })
+
+fun dns_slide(options) :~ Map:
+  slide(~title: "Example: DNS",
+        dns_network(options))
+  options
+
+fun data(s):
+  import lib("racket/base.rkt") as rkt
+  let str = to_string(rkt.#{regexp-replace*}(rkt.pregexp("[^[:graph:]]"), s, "."))
+  let W = 32
+  lines(& recur loop (str :~ String = str) :~ List:
+          if str.length() <= W
+          | [tt(str)]
+          | loop(str.substring(0, W)) ++ loop(str.substring(W)))
+
+
+let actual_req = data("D\x1c\x12\x19\3\xa4\xcf\x99\x90D\xde\x86\xdd`\x07\x02\x00\x008\x11@&\x01"
+                        ++ "\x06\x81h\x00Npe\xba8\x05\xd5l/C \x01\x05X\xfe\xed\x00\x00\x00\x00\x00"
+                        ++ "\x00\x00\x00\x00\x01\xc1\xd5\x005\x008\x8d\x03\xf8\xa5\x01 \x00\x01\x00"
+                        ++ "\x00\x00\x00\x00\x01\x07memphis\x02cs\x04utah\x03edu\x00\x00\x01\x00\x01"
+                        ++ "\x00\x00)\x10\x00\x00\x00\x00\x00\x00\x00")
+let actual_resp = data("\xa4\xcf\x99\x90D\xdeD\x1c\x12\x19\3\x86\xdd`\x00\x00\x00\x00H\x117 \x01\x05X"
+                         ++ "\xfe\xed\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01&\x01\x06\x81h\x00Npe\xba8\x05"
+                         ++ "\xd5l/C\x005\xc1\xd5\x00H\xect\xf8\xa5\x81\x80\x00\x01\x00\x01\x00\x00\x00\x01"
+                         ++ "\x07memphis\x02cs\x04utah\x03edu\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00\x01\x00"
+                         ++"\x00p\x80\x00\x04\x9bbA8\x00\x00)\x02\x00\x00\x00\x00\x00\x00\x00")
+
+let options = dns_slide({})
+let options = dns_slide(options ++ { #'req: #true,
+                                     #'req_data: @tt{memphis.cs.utah.edu} })                                     
+let options = dns_slide(options ++ { #'resp: #true,
+                                     #'resp_data: @tt{155.98.65.56} })
+let options = dns_slide(options ++ { #'server_name: @tt{8.8.8.8} })
+let options = dns_slide(options ++ { #'req_data: actual_req })
+let options = dns_slide(options ++ { #'resp_data: actual_resp })
+let options = dns_slide(options ++ { #'single_packet: #true })
+let options = dns_slide( options ++ { #'tcp: #true })
+let options = dns_slide( options ++ { #'server_note: lines(@para{Too many},
+                                                           @para{answers to fit all},
+                                                           @para{of them here!}) })
+
+block:
+  let title = "Name Resolution"
+  fun named(s):
+    stack(t(s), server)
+  let local_server = named("local server")
+  let root_server = named("root server")
+  let server1 = named(".com server")
+  let server1_1 = named("google.com server")
+  let server1_2 = named("amazon.com server")
+  let server2 = named(".org server")
+  let server2_1 = named("racket-lang.org server")
+  let server3 = named(".edu server")
+  let server3_1 = named("utah.edu server")
+  let server3_2 = named("byu.edu server")
+  let dots = @t{...}
+    
+  fun resolve_slide(options :~ Map) :~ Map:
+    let tld = @tt{edu}
+    let tld:
+      if options.get(#'tld, #false)
+      | lines(~horiz: #'center,
+              stack(tld,
+                    stack(beside(~sep: tld.width,
+                                 line(~dy: 5, ~line_width: 2),
+                                 line(~dy: 5, ~line_width: 2)),
+                          line(~dx: tld.width, ~line_width: 2).colorize("blue"))),
+              @t{top-level domain}).refocus(tld)
+      | tld
+    let name = @t(@tt{www.cs.utah.}, tld)
+    let name:
+      if options.get(#'domain_name, #false)
+      | lines(~horiz: #'center,
+              @t{domain name},
+              stack(stack(line(~dx: name.width, ~line_width: 2),
+                          beside(~sep: name.width,
+                                 line(~dy: 5, ~line_width: 2),
+                                 line(~dy: 5, ~line_width: 2))).colorize("blue"),
+                    name)).refocus(name)
+      | name
+    let servers :~ Pict:
+      let sep = 50
+      let p = stack(~sep: 2*sep,
+                    root_server,
+                    beside(~sep: sep,
+                           ~vert: #'top,
+                           stack(~sep: sep,
+                                 server1,
+                                 beside(~sep: sep,
+                                        server1_1,
+                                        server1_2)),
+                           stack(~sep: sep,
+                                 server2,
+                                 server2_1),  
+                           stack(~sep: sep,
+                                 server3,
+                                 beside(~sep: sep,
+                                        server3_1,
+                                        server3_2)),
+                           dots))
+      let p:
+        for values(p = p) ([from, to]: [[root_server, server1],
+                                        [root_server, server2],
+                                        [root_server, server3],
+                                        [root_server, dots],
+                                        [server1, server1_1],
+                                        [server1, server1_2],
+                                        [server2, server2_1],
+                                        [server3, server3_1],
+                                        [server3, server3_2]]):
+          connect(~on: p,
+                  Find.bottom(from),
+                  Find.top(to),
+                  ~line_width: 2)
+      p
+    let servers = servers.scale(0.7)
+    slide(~title: title,
+          blank(),
+          name,
+          blank(50),
+          if options.get(#'servers, #false) | servers | servers.ghost())
+    options
+
+  let options = resolve_slide({})
+  let options = resolve_slide(options ++ { #'domain_name: #true })
+  let options = resolve_slide(options ++ { #'tld: #true })
+  let options = resolve_slide(options ++ { #'servers: #true })
+
+  let root_addr = "1.1.1.1"
+  let addr3 = "1.2.3.4"
+  let addr3_1 = "4.4.4.4"
+  fun addr(p, s):
+    stack(p, tt(s).scale(0.8)).refocus(p)
+
+  fun query_slide(options :~ Map) :~ Map:
+    let extra_laptop = laptop.launder()
+    let laptop = laptop.launder()
+    let laptop:
+      if options.get(#'extra_client, #false)
+      | let p = stack(~sep: 100, extra_laptop, laptop)
+        connect(~on: p,
+                Find.bottom(extra_laptop),
+                Find.top(laptop),
+                ~line_width: 3).refocus(laptop)
+      | laptop
+    let p = beside(~sep: 250,
+                   laptop,
+                   beside(~sep: 200,
+                          local_server,
+                          stack(~sep: 100,
+                                addr(root_server, root_addr),
+                                addr(server3, addr3),
+                                addr(server3_1, addr3_1))))
+    fun conn(p, from, to, ask, reply, req_key, resp_key):
+      let from = Find.right(from)
+      let to = Find.left(to)
+      let (fx, fy) = from.in(p)
+      let (tx, ty) = to.in(p)
+      fun spin(p :~ Pict, angle) :~ Pict:
+        if angle .= 0
+        | p.translate(0, -5)
+        | let dx = math.cos(angle) * p.height
+          let dy = math.sin(angle) * p.height
+          p.pad(~horiz: -p.width/2, ~vert: -p.height/2).rotate(angle).pad(~horiz: dx, ~vert: dy)
+      let angle = math.atan(fy-ty, tx-fx)
+      let ask = msg(t(ask), ~direction: #'right).scale(0.7)
+      let reply = msg(t(reply), ~direction: #'left).scale(0.7)
+      let ask = if options.get(req_key, #false) | ask | ask.ghost()
+      let reply = if options.get(resp_key, #false) | reply | reply.ghost()
+      let ask:
+        stack(~sep: 10, ask, reply).refocus(if angle < 0 | reply | ask)
+      connect(~on: p,
+              from,
+              to,
+              ~label: spin(ask, angle),
+              ~line_width: 3)
+    let name = options.get(#'req_name, "www.utah.edu")
+    let ip = tt(options.get(#'resp_addr, "155.98.186.21"))
+    let p = conn(p, laptop, local_server, name, ip, #'orig_req, #'orig_resp)
+    let p = conn(p, local_server, root_server, "edu", tt(addr3), #'root_req, #'root_resp)
+    let p = conn(p, local_server, server3, "utah.edu", tt(addr3_1), #'utah_req, #'utah_resp)
+    let p = conn(p, local_server, server3_1, name, ip, #'www_req, #'www_resp)
+    let p:
+      if options.get(#'cache, #false)
+      | balloon.pin(~on: p,
+                    ~at: Find.bottom(local_server),
+                    ~spike: #'ne,
+                    @para{caches all answers})
+      | p
+    let p:
+      if options.get(#'dig, #false)
+      | overlay(~vert: #'bottom,
+                ~horiz: #'left,
+                p,
+                rectangle(~around: @tt{dig www.cs.utah.edu}.pad(5),
+                          ~line: #false,
+                          ~fill: "lightblue"))
+      | p
+    slide(~title: title, p)
+    options
+
+  let orig_options = query_slide({})
+  let options = query_slide(orig_options ++ { #'orig_req: #true })
+  let options = query_slide(options ++ { #'root_req: #true })
+  let options = query_slide(options ++ { #'root_resp: #true })
+  let options = query_slide(options ++ { #'utah_req: #true })
+  let options = query_slide(options ++ { #'utah_resp: #true })
+  let options = query_slide(options ++ { #'www_req: #true })
+  let options = query_slide(options ++ { #'www_resp: #true })
+  let options = query_slide(options ++ { #'orig_resp: #true })
+  let options = query_slide(options ++ { #'cache: #true })
+  let options = query_slide(orig_options ++ { #'orig_req: #true })
+  let options = query_slide(options ++ { #'orig_resp: #true })
+  let options = query_slide(orig_options ++ { #'orig_req: #true, #'req_name: "umail.utah.edu" })
+  let options = query_slide(options ++ { #'www_req: #true })
+  let options = query_slide(options ++ { #'www_resp: #true, #'resp_addr: "155.98.187.125" })
+  let options = query_slide(options ++ { #'orig_resp: #true })  
+  let options = query_slide(orig_options ++ { #'extra_client: #true })
+  let options = query_slide(options ++ { #'dig: #true })
+  #void
+    
+  

@@ -1,0 +1,968 @@
+#lang rhombus/static/and_meta
+
+import:
+  "common.rhm" open
+  "layers.rhm"
+  "state_machine.rhm" open
+
+block:
+  let title = "Reliable Data Transfer"
+  let unreliable = @italic{potentially unreliable}
+  let [[layer, examples, interface], ...] = layers.make()
+  let dstack :~ List.of(List) = [[layer, "", nothing], ...]
+  let dstack :~ List.of(List) = dstack.delete(1).insert(1, dstack[1].delete(2).insert(2, @italic{ensure reliable}))
+  let dstack = dstack.delete(2).insert(2, dstack[2].delete(2).insert(2, unreliable.pad(~horiz: -32)))
+  let mutable save = #false
+  fun mk(n) :~ Pict:
+    layers.pict(dstack,
+                ~adjust: fun (p :~ Pict, i):
+                           if i == 1 
+                           | save := p
+                             p
+                           | p.alpha(1-0.5*n),
+                ~interfaces: n)
+  slide(~title: title,
+        animate(mk).sustain())
+  let reasons:
+    let reasons = slide_pict(slide.align(~horiz: #'left,
+                                         @para{corrupted packets},
+                                         slide.next,
+                                         @para{lost/duplicated packets},
+                                         slide.next,
+                                         @para{reordered packets})).pad(10)
+    balloon.pin(~on: mk(1),
+                ~at: Find.right(unreliable),
+                ~spike: #'w,
+                reasons)
+  let made = mk(1)
+  let rdt_send = @tt{rdt_send(msg)}
+  let udt_send = @tt{udt_send(pkt)}
+  let rdt_recv = @tt{rdt_recv(msg)}
+  let udt_recv = @tt{udt_recv(pkt)}
+  let udt_recv_ack = @tt{udt_recv(pkt)}
+  let udt_send_ack = @tt{udt_send(pkt)}
+  fun rdt_udt_for_networks(base, sender, receiver, to_center_n,
+                           ~both_udt = #false) :~ Pict:
+    fun maybe_both(a, b :~ Pict):
+      if both_udt
+      | let b = b.launder()
+        let p = stack(a, @t{+}, b).refocus(a)
+        let p = connect(~on: p,
+                        Find.right_bottom(a),
+                        Find.right_top(b),
+                        ~start_angle: math.pi * -1/4,
+                        ~end_angle: math.pi * -3/4,
+                        ~style: #'arrow,
+                        ~line: "blue")
+        let p = connect(~on: p,
+                        Find.left_top(b),
+                        Find.left_bottom(a),
+                        ~start_angle: math.pi * 3/4,
+                        ~end_angle: math.pi * 1/4,
+                        ~style: #'arrow,
+                        ~line: "blue")
+        p
+      | a
+    let p = stack(~sep: 64,
+                  beside(~sep: 64, rdt_send, rdt_recv),
+                  base,
+                  beside(~sep: 64,
+                         maybe_both(udt_send, udt_recv_ack),
+                         maybe_both(udt_recv, udt_send_ack))).refocus(save)
+    fun xconnect(~on: p, from, to, is_up) :~ Pict:
+      connect(~on: p, from, to,
+              ~start_angle: math.pi * (if is_up | 1 | -1) * 1/2,
+              ~end_angle: math.pi * (if is_up | 1 | -1) * 1/2,
+              ~line_width: 3,
+              ~style: #'arrow)
+    let dx = 32 + to_center_n * (Pict.width(sender)/2 - 32)
+    let p = xconnect(~on: p,
+                     Find.bottom(rdt_send),
+                     Find.left_top(sender, ~dx: dx),
+                     #false)
+    let p = xconnect(~on: p,
+                     Find.left_bottom(sender, ~dx: dx),
+                     Find.top(udt_send),
+                     #false)
+    let p = xconnect(~on: p,
+                     Find.top(udt_recv),
+                     Find.right_bottom(receiver, ~dx: -dx),
+                     #true)
+    let p = xconnect(~on: p,
+                     Find.right_top(receiver, ~dx: -dx),
+                     Find.bottom(rdt_recv),
+                     #true)
+    p
+  let initial_rdt_udt = rdt_udt_for_networks(Pict.ghost(save), save, save, 0)
+  fun mk_rdt_udt(n) :~ Pict:
+    pin(~on: made.ghost(),
+        ~at: Find.left_top(save),
+        overlay(save,
+                initial_rdt_udt.alpha(n)))
+  slide(
+    ~title: title,
+    overlay(~duration: #'pad,
+            & sequential(
+              ~join: #'splice,
+              switch(
+                ~splice: #'before,
+                reasons,
+                animate(fun (n):
+                           pin(~on: made.alpha(1-n),
+                               ~at: Find.left_top(save),
+                               save))
+              ),
+              animate(mk_rdt_udt).sustain()))
+  )
+  let rdt_udt = mk_rdt_udt(1)
+  let p = balloon.pin(~on: rdt_udt,
+                      ~at: Find.left_top(rdt_send),
+                      ~spike: #'se,
+                      @para{``reliable data transfer''})
+  slide(~title: title,
+        p)
+  let p = balloon.pin(~on: p,
+                      ~at: Find.left_bottom(udt_send),
+                      ~spike: #'ne,
+                      @para{``unreliable data transfer''})
+  slide(~title: title,
+        p)
+  fun mk_separate(n, ~both_udt = #false):
+    let sender = Pict.launder(save)
+    let receiver = Pict.launder(save)
+    let together = overlay(Pict.ghost(save),
+                           beside(~sep: 100 - (1-n)*(100 + sender.width),
+                                  sender,
+                                  receiver))
+    pin(~on: made.ghost(),
+        ~at: Find.left_top(save),
+        rdt_udt_for_networks(together, sender, receiver,
+                             ~both_udt: both_udt,
+                             n).refocus(save))
+  slide(
+    ~title: title,
+    animate(mk_separate).sustain()
+    )
+  slide(~title: title,
+        mk_separate(1, ~both_udt: #true))
+
+// ----------------------------------------
+
+let pi = math.pi
+
+let state_machines_title = "State Machines"
+
+slide(
+  ~title: state_machines_title,
+  block:
+    let state1 = state(@para{State 1})
+    let state2 = state(@para{State 2})
+    let state3 = state(@para{State 3})
+    let machine = stack(~sep: 100,
+                        beside(~sep: 150, state1, state2),
+                        state3)
+    let condition = @italic{condition}
+    let action = @italic{action}
+    let machine = machine.pad(~top: 100)
+    let machine0 = edge(machine,
+                        state1, pi*1/4, state2, pi*3/4,
+                        condition,
+                        action,
+                        ~scale: 1,
+                        ~dy: -1)
+    let machine = edge(machine0,
+                       state2, -pi*1/4, state3, 0,
+                       condition,
+                       action,
+                       ~scale: 1,
+                       ~dx: 1.1,
+                       ~dy: 0.3)
+    let machine = edge(machine,
+                       state3, pi*3/4, state2, -pi,
+                       condition,
+                       action,
+                       ~scale: 1,
+                       ~dx: -1.1,
+                       ~dy: 0.3)
+    let machine = edge(machine,
+                       state1, pi*1/2, state1, pi,
+                       condition,
+                       action,
+                       ~start_pull: 1,
+                       ~end_pull: 1,
+                       ~scale: 1,
+                       ~dx: -1.2,
+                       ~dy: -0.4)
+    overlay(& sequential(machine0,
+                         machine))
+)
+
+slide(
+  ~title: state_machines_title,
+  block:
+    let wait = state(lines(~horiz: #'center,
+                           @para{Wait for},
+                           @para{coin}))
+    let vend = state(lines(~horiz: #'center,
+                           @para{Wait for},
+                           @para{vend}))
+    let machine = beside(~sep: 150, wait, vend).pad(~left: 350, ~top: 150, ~bottom: 150)
+    let machine = edge(machine,
+                       wait, pi*1/4, vend, pi*3/4,
+                       lines(@tt{button_pushed(selection)},
+                             @tt{  && money >= costof(selection)},
+                             @tt{  && is_available(selection)}),
+                       @tt{money = 0},
+                       ~dy: -0.9)
+    let machine = edge(machine,
+                       wait, pi*3/4, wait, pi*5/4,
+                       ~start_pull: 1,                       
+                       ~end_pull: 1,
+                       @tt{coin_added(value)},
+                       @tt{money = money + value},
+                       ~dx: -0.8)
+    let machine = edge(machine,
+                       vend, pi*-3/4, wait, pi*-1/4,
+                       nothing,
+                       @tt{keep_coins()},
+                       ~dy: 2,
+                       ~dx: 0.5)
+    let machine = edge(machine,
+                       wait, pi*-3/8, wait, pi*-5/8,
+                       ~start_pull: 1,
+                       ~end_pull: 1,
+                       @tt{coin_return_lever()},
+                       lines(@tt{return_coins()},
+                             @tt{money = 0}),
+                       ~dy: 1.2)
+    overlay(~horiz: #'left,
+            ~vert: #'top,
+            @para(~full: #true){Vending machine example:},
+            machine.pad(~top: 32))
+)
+
+fun add_suffix(p, s):
+  lines(~horiz: #'center, p, s).refocus(p)
+
+let state_label_scale = 0.75
+
+let wait_send_label = lines(~horiz: #'center,
+                            @para{Wait for},
+                            @para{application}).scale(state_label_scale)
+let wait_recv_label = lines(~horiz: #'center,
+                            @para{Wait for},
+                            @para{packet}).scale(state_label_scale)
+fun same(a, b :~ Pict) :~ Pict: overlay(a, b.ghost())
+fun make_wait_send(suffix = nothing) :~ Pict:
+  state(add_suffix(same(wait_send_label,
+                        wait_recv_label),
+                   suffix))
+let wait_send = make_wait_send()
+fun make_wait_recv(suffix = nothing) :~ Pict:
+  state(add_suffix(same(wait_recv_label,
+                        wait_send_label),
+                   suffix))
+let wait_recv = make_wait_recv()
+
+fun make_wait_ack(suffix = nothing) :~ Pict:
+  state(add_suffix(same(lines(~horiz: #'center,
+                              @para{Wait for},
+                              @para{ACK}).scale(state_label_scale),
+                        wait_send_label),
+                   suffix))
+let wait_ack = make_wait_ack()
+  
+slide(
+  ~title: @titlet{Assuming Reliable @tt{udt_send} and @tt{udt_recv}},
+  block:
+    fun label(p, lbl) :~ Pict:
+      stack(~sep: 132,
+            @bold(lbl).colorize("crimson"),
+            p)       
+    fun self(machine, wait, condition, action):
+      let machine = edge(machine,
+                         wait, 0, wait, pi*1/2,
+                         ~start_pull: 1,
+                         ~end_pull: 1,
+                         condition,
+                         action,
+                         ~dx: 0.7,
+                         ~dy: -1.1)
+      machine
+    let send_machine = self(wait_send, wait_send,
+                            @tt{rdt_send(msg)},
+                            lines(@tt{pkt = make_pkt(msg)},
+                                  @tt{udt_send(pkt)}))
+    let msg = @tt{pkt}
+    let udt_recv = @tt{udt_recv(@msg)}
+    let recv_machine = self(wait_recv, wait_recv,
+                            udt_recv,
+                            lines(@tt{msg = extract(pkt)},
+                                  @tt{rdt_recv(msg)}))
+    let send_machine = label(send_machine, "sending host")
+    let recv_machine = label(recv_machine, "receiving host")
+    let recv_machine:
+      switch(recv_machine,
+             balloon.pin(~on: recv_machine,
+                         ~at: Find.top(msg),
+                         ~spike: #'s,
+                         ~dy: 120,
+                         ~sprout: 0.5,
+                         @para{What if @msg is corrupted?}))
+    let send_machine = send_machine.sustain(recv_machine.duration)
+    let recv_machine = recv_machine.time_pad(~before: 1)
+    let machine = beside(~sep: 350,
+                         send_machine,
+                         recv_machine).pad(~right: 100)
+    machine
+)
+
+fun checksum_slide_content(options :~ OptMap):
+  import: lib("pict/face.rkt")
+  let face1 = Pict.from_handle(face.face(if options[#'unhappy] | #'unhappy | #'happy)).scale(0.75)
+  let face2 = Pict.from_handle(face.face(#'happy)).scale(0.75)
+  let scene = beside(~sep: 400, face1, face2)
+  let color = "Blanched Almond"
+  let talk1:
+    if options[#'talk1]
+    | balloon.pin(~on: scene,
+                  ~at: Find.top(face1),
+                  ~spike: #'s,
+                  ~sprout: 0.2,
+                  ~dy: 30,
+                  ~dx: -10,
+                  ~fill: color,
+                  @para{I'd like 1 apple, 2 bananas, and 3 cherries@(options[#'ext1] || "")})
+    | scene
+  let talk2:
+    if options[#'talk2]
+    | balloon.pin(~on: talk1,
+                  ~at: Find.bottom(face2),
+                  ~spike: #'n,
+                  ~sprout: 0.8,
+                  ~dy: -30,
+                  ~dx: 10,
+                  ~fill: color,
+                  @para{Ok: 1 apple, 2 bananas, and 2 cherries@(options[#'ext1] || "")})
+    | talk1
+  let p:
+    let p = balloon.note(@para{To deal with lots of numbers, just keep low bits of the sum})
+    let p = if options[#'hash] | p | p.ghost()
+    stack(~sep: 150, talk2, p)
+  p
+
+fun checksum_face_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: "Checksum",        
+        blank(64),
+        checksum_slide_content(options))
+  options
+
+let init_options = checksum_face_slide({})
+let options = checksum_face_slide(init_options ++ { #'talk1 })
+let options = checksum_face_slide(options ++ { #'talk2 })
+let options = checksum_face_slide(options ++ { #'unhappy })
+let options = checksum_face_slide(init_options ++ { #'talk1 }
+                                    ++ { #'ext1: "--- which is 6 total" } )
+let options = checksum_face_slide(options ++ { #'talk2 }
+                                    ++ { #'ext2: "--- which is 6... oops"})
+let options = checksum_face_slide(options ++ { #'hash })
+
+let send_cond = @tt{rdt_send(msg)}
+let send_act = lines(@tt{pkt = make_pkt_w_chksum(msg)},
+                     @tt{udt_send(pkt)})
+let recv_cond = @tt{udt_recv(pkt) && !corrupt(pkt)}
+let recv_act = lines(@tt{msg = extract(pkt)},
+                     @tt{rdt_recv(msg)})
+fun selfm(machine, wait, condition, action,
+          ~dx: dx = 0.5):
+  let machine = edge(machine,
+                     wait, 0, wait, pi*1/2,
+                     ~start_pull: 1,
+                     ~end_pull: 1,
+                     condition,
+                     action,
+                     ~dx: dx,
+                     ~dy: -1.5)
+  machine
+fun checksum_slide(options :~ OptMap) :~ OptMap:
+  let send_machine = beside(~sep: 100,
+                            wait_send,
+                            if options[#'ack]
+                            | wait_ack
+                            | wait_ack.ghost())
+  let send_machine:
+    if options[#'ack]
+    | edge(send_machine,
+           wait_send, pi*1/4, wait_ack, pi*3/4,
+           send_cond,
+           send_act,
+           ~dy: -1)
+    | selfm(send_machine, wait_send,
+            send_cond,
+            send_act)
+  let r_pkt = @tt{r_pkt}
+  let send_machine:
+    if options[#'ack_recv]
+    | edge(send_machine,
+           wait_ack, pi*-3/4, wait_send, pi*-1/4,
+           @tt{udt_recv(@r_pkt) && is_ack(r_pkt)},
+           nothing,
+           ~dx: -0.4,
+           ~dy: 2)             
+    | send_machine
+  let recv_machine:
+    selfm(wait_recv, wait_recv,
+          recv_cond,
+          if options[#'ack_send]
+          | lines(recv_act,
+                  @tt{udp_send(ack_pkt)}).refocus(recv_act)
+          | recv_act,
+          ~dx: 0.4)
+  let nack_pkt = @tt{nack_pkt}
+  let recv_machine:
+    if options[#'nack_send]
+    | edge(recv_machine,
+           wait_recv, -pi*1/10, wait_recv, pi*-1/2,
+           ~start_pull: 1,
+           ~end_pull: 1,
+           @tt{udt_recv(pkt) && corrupt(pkt)},
+           @tt{udp_send(@nack_pkt)},
+           ~dx: 0.4,
+           ~dy: 2)
+    | recv_machine
+  let send_machine:
+    if options[#'nack_recv]
+    | edge(send_machine,
+           wait_ack, pi*-1/2, wait_ack, pi*-1/4,
+           @tt{udt_recv(r_pkt) && is_nack(r_pkt)},
+           @tt{udt_send(pkt)},
+           ~start_pull: 2,
+           ~end_pull: 1,
+           ~dx: 0,
+           ~dy: 2)             
+    | send_machine
+  let machine = beside(~sep: 150,
+                       send_machine,
+                       recv_machine).pad(~right: 100)
+  let machine:
+    if options[#'corrupt]
+    | balloon.pin(~on: machine,
+                  ~at: Find.bottom(r_pkt),
+                  ~spike: #'nw,
+                  ~dy: -120,
+                  @para{What if @r_pkt is corrupt?})
+    | machine
+  let machine:
+    if options[#'regress]
+    | balloon.pin(~on: machine,
+                  ~at: Find.bottom(r_pkt),
+                  ~spike: #'nw,
+                  ~dy: -120,
+                  @para{How do we avoid an ACK of ACK of ACK...?})
+    | machine
+  slide(
+    ~title: "Using a Checksum",
+    machine
+  )
+  options
+
+let options = checksum_slide({})
+let options = checksum_slide( options ++ { #'ack })
+let options = checksum_slide( options ++ { #'ack_recv })
+let options = checksum_slide( options ++ { #'ack_send })
+let options = checksum_slide( options ++ { #'nack_send })
+let m_options = checksum_slide( options ++ { #'nack_recv })
+let options = checksum_slide( m_options ++ { #'corrupt })
+let options = checksum_slide( m_options ++ { #'regress })
+
+// ----------------------------------------
+
+let wait_send_0 = make_wait_send(@t{0})
+let wait_ack_0 = make_wait_ack(@t{0})
+let wait_send_1 = make_wait_send(@t{1})
+let wait_ack_1 = make_wait_ack(@t{1})
+let wait_recv_0 = make_wait_recv(@t{0})
+let wait_recv_1 = make_wait_recv(@t{1})
+
+fun nack_machine(options :~ OptMap) :~ Pict:
+  let p = beside(~sep: 350,
+                 stack(~sep: 300,
+                       beside(~sep: 100, wait_send_0, wait_ack_0),
+                       beside(~sep: 100, wait_ack_1, wait_send_1)),
+                 beside(~sep: 100,
+                        wait_recv_0,
+                        wait_recv_1).pad(~top: 200))
+  fun recv_cond(n, ~ok = "!"): lines(@tt{udt_recv(pkt)},
+                                     @tt{ && @(ok)corrupt(pkt, @n)})
+  let udt_send_pkt = @tt{udt_send(pkt)}
+  fun send_act(n): lines(@tt{pkt = make_pkt_w_chksum(msg, @n)},
+                         udt_send_pkt)
+  fun send_ack_pkt(n): @tt{udt_send(ack_pkt_@n)}
+  fun send_nack_pkt(): @tt{udt_send(nack_pkt)}
+  fun recv_act(n): lines(@tt{msg = extract(pkt)},
+                         @tt{rdt_recv(msg)},
+                         send_ack_pkt(n))
+  fun recv_ack(n, ~ok = "", ~timeout = #false) :~ Pict:
+    lines(@tt{udt_recv(r_pkt)},
+          @tt{  && @(ok)is_ack(r_pkt, @n)},
+          if timeout
+          | rectangle(~around: @tt{|| timeout},
+                      ~line: #false,
+                      ~fill: "yellow")
+          | nothing)
+  let p = edge(p,
+               wait_recv_0, pi*1/4, wait_recv_1, pi*3/4,
+               ~start_pull: 0.5,
+               ~end_pull: 0.5,
+               recv_cond("0"),
+               recv_act("0"),
+               ~dy: -1)
+  let p = edge(p,
+               wait_recv_1, pi*-3/4, wait_recv_0, pi*-1/4,
+               ~start_pull: 0.5,
+               ~end_pull: 0.5,
+               recv_cond("1"),
+               recv_act("1"),
+               ~dy: 1)
+  let p :~ Pict:
+    if options[#'recv_nack] || options[#'recv_plain_nack]
+    | let p = edge(p,
+                   wait_recv_0, pi*9/8, wait_recv_0, pi*7/8,
+                   ~start_pull: 0.5,
+                   ~end_pull: 0.5,
+                   recv_cond("0", ~ok: ""),
+                   if options[#'recv_plain_nack] | send_nack_pkt() | send_ack_pkt("1"),
+                   ~dy: 1.0,
+                   ~dx: -0.4)
+      let p = edge(p,
+                   wait_recv_1, pi*1/8, wait_recv_1, pi*-1/8,
+                   ~start_pull: 0.5,
+                   ~end_pull: 0.5,
+                   recv_cond("1", ~ok: ""),
+                   if options[#'recv_plain_nack] | send_nack_pkt() | send_ack_pkt("0"),
+                   ~dy: -1.1,
+                   ~dx: 0.5)
+      p
+    | p
+  let p = edge(p,
+               wait_send_0, pi*1/4, wait_ack_0, pi*3/4,
+               send_cond,
+               send_act("0"),
+               ~dy: -1)
+  let p = edge(p,
+               wait_send_1, pi*-3/4, wait_ack_1, pi*-1/4,
+               send_cond,
+               send_act("1"),
+               ~dy: 1)
+  let p = edge(p,
+               wait_ack_0, pi*-1/4, wait_send_1, pi*1/4,
+               recv_ack("0"),
+               nothing,
+               ~dx: 0.65,
+               ~dy: -2.4)
+  let p = edge(p,
+               wait_ack_1, pi*3/4, wait_send_0, pi*5/4,
+               recv_ack("1"),
+               nothing,
+               ~dx: -0.6,
+               ~dy: 2.4)
+  let p :~ Pict:
+    if options[#'send_nack]
+    | let p = edge(p,
+                   wait_ack_0, pi*-5/8,  wait_ack_0, pi*-7/8,
+                   ~start_pull: 1, ~end_pull: 1,
+                   recv_ack("0", ~ok: "!", ~timeout: options[#'timeout]),
+                   ~reshape: fun (p):
+                               let base = recv_ack("0", ~ok: "!")
+                               overlay(~vert: #'top,
+                                       ~horiz: #'left,
+                                       base.ghost(), p).refocus(base),
+                   udt_send_pkt,
+                   ~dx: -0.2,
+                   ~dy: 1.4)
+      let p = edge(p,
+                   wait_ack_1, pi*3/8,  wait_ack_1, pi*1/8, 
+                   ~start_pull: 1, ~end_pull: 1,
+                   recv_ack("1", ~ok: "!", ~timeout: options[#'timeout]),
+                   ~reshape: fun (p):
+                               let base = recv_ack("1", ~ok: "!")
+                               overlay(~vert: #'bottom,
+                                       ~horiz: #'left,
+                                       base.ghost(), p).refocus(base),
+                   udt_send_pkt,
+                   ~dx: 0.2,
+                   ~dy: -1.4)
+      p
+    | p
+  let p = p.scale(0.75)
+  let p :~ Pict :
+    if options[#'duplicates]
+    | overlay(~horiz: #'right,
+              ~vert: #'top,
+              p.pad(~top: 70, ~right: 50),
+              balloon.note(
+                lines(@para{To handle duplicated and reordered packets,},
+                      @para{use a sequence number that always counts up},
+                      @para{instead of just 0 and 1}))
+              ).refocus(p)
+    | p
+  let p :~ Pict:
+    if options[#'ack_as_nack]
+    | overlay(~horiz: #'right,
+              ~vert: #'top,
+              p.pad(~top: 70, ~right: 50),
+              balloon.note(
+                lines(@para{We can use @send_ack_pkt("1") as},
+                      @para{a NACK for @send_ack_pkt("0")},
+                      @para{and vice versa}))
+              ).refocus(p)
+    | p
+  p
+
+fun nack_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: if options[#'timeout]
+                | "Handling Corrupt and Lost Packets"
+                | "Handling ACK Corruption",
+        nack_machine(options).pad(~top: 32))
+  options
+
+let options = nack_slide({})
+let nack_options = nack_slide(options ++ { #'recv_plain_nack })
+let options = options ++ { #'recv_nack }
+let ack_nack_options = nack_slide(options ++ { #'ack_as_nack })
+let options = nack_slide(options ++ { #'send_nack })
+let options = nack_slide(options ++ { #'timeout })
+let options = nack_slide(options ++ { #'duplicates })
+
+slide(
+  ~title: "Choosing a Timeout",
+  slide.align(
+    @para{RTT is minimum useful timeout},
+    slide.next,
+    @lines(
+      @item{too small ⇒ resend data and ACKs unnecessarily}
+      @item{too large ⇒ sender waits too long to resend}
+    ),
+    slide.next,
+    blank(),
+    @para{@(@t{@italic{scale} × avg(RTT) + stddev(RTT)}.colorize("blue")) is a good approach}
+  )
+)
+
+let [instant :~ Pict, ...] = [blank(),
+                              blank(),
+                              blank(),
+                              blank(),
+                              blank(),
+                              blank(),
+                              blank(),
+                              blank(),
+                              blank(),
+                              blank(),
+                              blank()]
+let [s_instant, ...] && s_instances = [instant.launder(), ...]
+let [r_instant, ...] && r_instances = [instant.launder(), ...]
+let s_instant_line = stack(~sep: 48, s_instant, ...)
+let r_instant_line = stack(~sep: 48, r_instant, ...)
+
+let plot = table([[@italic{time}, @t{sender}.pad(~horiz: 50), @t{receiver}.pad(~horiz: 50)],
+                  [block:
+                     let p = line(~dy: s_instant_line.height)
+                     connect(~on: p,
+                             Find.top(p),
+                             Find.bottom(p),
+                             ~style: #'arrow),
+                   s_instant_line,
+                   r_instant_line]],
+                 ~horiz: #'center)
+
+fun one_msg(p, from, to, ~label: label :~ Pict = nothing, ~dy: dy = 0):
+  connect(~on: p,
+          Find.center(from, ~dy: dy),
+          Find.center(to, ~dy: dy),
+          ~line_width: 2,
+          ~style: #'arrow,
+          ~label: label.scale(0.75).pad(8))
+  
+let sequential_plot:
+  let p = plot
+  let p = one_msg(p, s_instances[0], r_instances[2], ~label: @t{data@subscript{1}})
+  let p = one_msg(p, r_instances[2], s_instances[4], ~label: @t{ACK@subscript{1}})
+  let p = one_msg(p, s_instances[4], r_instances[6], ~label: @t{data@subscript{2}})
+  let p = one_msg(p, r_instances[6], s_instances[8], ~label: @t{ACK@subscript{2}})
+  p
+
+let pipelined_plot:
+  let p = plot
+  let p:
+    for values(p = p) (i: 0..6):
+      let p = one_msg(p, s_instances[0], r_instances[2], ~dy: i * 16)
+      let p = one_msg(p, r_instances[2], s_instances[4], ~dy: i * 16)
+      p
+  let p:
+    for values(p = p) (i: 0..6):
+      let p = one_msg(p, s_instances[4], r_instances[6], ~dy: i * 16)
+      let p = one_msg(p, r_instances[6], s_instances[8], ~dy: i * 16)
+      p
+  p
+
+slide(~title: "Sequential Messages",
+      sequential_plot,
+      slide.next,
+      balloon.note(@para{Throughput is limited by latency}))
+
+slide(~title: "Pipelined Messages",
+      pipelined_plot,
+      slide.next,
+      balloon.note(@para{Need a way to track multiple packets in flight}))
+
+module ~early send_buffer ~lang rhombus/static:
+  import:
+    "common.rhm" open
+    "layers.rhm"
+
+  export:
+    make
+
+  fun make(options :~ OptMap) :~ Map.of(Symbol, Pict):
+    fun slot(color) :~ Pict: rectangle(~around: @tt{ }.scale(1.5), ~fill: color, ~line: #'inherit)
+    fun slots(n, color):
+      beside(& for List (i: 0..n): slot(color))
+    let wall = line(~dy: slot(#false).height * 2, ~line_width: 3)
+    let done = "goldenrod"
+    let in_flight = "wheat"
+    let waiting = "white"
+    let window_term = @defterm{window}
+    let balloon_scale = options[#'balloon_scale] || 1
+    fun label(p :~ Pict, l, ~horiz: align):
+      let brace = @roman("{")
+      let brace = brace.scale(p.width / brace.height)
+      let brace = brace.scale(16 / brace.width, 1)
+      let brace = brace.rotate(pi * -1/2)
+      stack(~sep: 32, stack(l, brace, ~horiz: align).refocus(brace), p).refocus(p)
+    fun make_base(name):
+      if options[#'base]
+      | let p = wall.colorize("firebrick")
+        stack(p, defterm(name)).refocus(p)
+      | wall
+    let bump_recv = if options[#'bump_recv] | 1 | 0
+    let bump = if options[#'bump] | 1 | 0
+    let bump_send = if options[#'bump_send] | 1 | 0
+    let shorter_window = if options[#'shorter_window] | 2 | 0
+    let (send_buffer, sent_pkts):
+      let done_n = if options[#'client] | 2 | 4
+      let sent_pkts = slots(done_n + bump_send, done)
+      let p:
+        beside(label(sent_pkts,
+                     lines(~horiz: #'center,
+                           @t{sent},
+                           @t{and ACKed}),
+                     ~horiz: if done_n > 3 | #'left | #'right),
+               make_base("send base"),
+               block:
+                 let first_sent = slots(1, if options[#'mix_more] | done | in_flight)
+                 let third_sent = slots(1, in_flight)
+                 let maybe_done = if options[#'mix_send] | done | in_flight
+                 let middle:
+                   beside(
+                     first_sent,
+                     slots(1 - bump_send, in_flight),
+                     slots(1, if options[#'mix_more] | done | maybe_done),
+                     third_sent,
+                     slots(2, in_flight),
+                     slots(1, maybe_done),
+                     slots(2 + bump_send - shorter_window, in_flight)
+                   )
+                 let middle :~ Pict:
+                   if options[#'window]
+                   | let w = window_term
+                     let wp = w.pad(~horiz: (middle.width - w.width) / 2)
+                     let wp = connect(~on: wp,
+                                      Find.left(w),
+                                      Find.left(wp),
+                                      ~style: #'arrow)                                  
+                     let wp = connect(~on: wp,
+                                      Find.right(w),
+                                      Find.right(wp),
+                                      ~style: #'arrow)                                  
+                     stack(middle, wp).refocus(middle)
+                   | middle
+                 let label = lines(~horiz: #'center,
+                                   @t{sent},
+                                   @t{but not},
+                                   @t{yet ACKed})
+                 let p = stack(~sep: 32, label, middle)
+                 let p = connect(~on: p,
+                                 Find.left_bottom(label, ~dx: 16),
+                                 Find.top(if options[#'mix_more] | third_sent | first_sent),
+                                 ~style: #'arrow,
+                                 ~end_angle: pi * -2/3)
+                 p.refocus(middle),
+               wall,
+               label(slots(5 - bump_send + shorter_window, waiting),
+                     lines(~horiz: #'center,
+                           @t{not yet},
+                           @t{sent}),
+                     ~horiz: #'right))
+      values(p, sent_pkts)
+    let (receive_buffer, recvd_pkts):
+      let done_n: if options[#'server] | 2 | 4
+      let recvd_pkts = slots(done_n + bump, done)
+      let p:
+        beside(label(recvd_pkts,
+                     lines(~horiz: #'center,
+                           @t{received},
+                           @t{and ACKed}),
+                     ~horiz: #'left),
+               make_base("receive base"),
+               block:
+                 let maybe_done: if options[#'mix_recv]
+                                 | if options[#'cumulative] && !options[#'mix_more]
+                                   | in_flight
+                                   | done
+                                 | waiting
+                 let maybe_done2: if options[#'mix_more]
+                                  | in_flight
+                                  | maybe_done
+                 let waiting_or_more_done: if options[#'cumulative_more]
+                                           | if options[#'mix_more]
+                                             | done
+                                             | in_flight
+                                           | waiting
+                 let first_ooo_slot = slots(1, maybe_done)
+                 let third_ooo_slot = slots(1, maybe_done2)
+                 let short_alloc_done_slot = slots(1, maybe_done2)
+                 let alloc_done_slot = slots(1, waiting)
+                 let avail = beside(slots(bump_recv - bump, in_flight),
+                                    slots(2 - math.max(bump, bump_recv), waiting_or_more_done),
+                                    first_ooo_slot,
+                                    slots(3, waiting),
+                                    short_alloc_done_slot,
+                                    third_ooo_slot,
+                                    alloc_done_slot,
+                                    slots(2, waiting),
+                                    )
+                 let alloc_done_slot: if options[#'shorter_allocated]
+                                      | short_alloc_done_slot
+                                      | alloc_done_slot
+                 let avail: if options[#'allocated]
+                            | let (ax, ay) = Find.right_bottom(alloc_done_slot).in(avail)
+                              pin(~on: avail,
+                                  ~at: Find.abs(0, 0),
+                                  rectangle(~width: ax, ~height: ay,
+                                            ~line: "lightblue",
+                                            ~line_width: 8))
+                            | avail
+                 let avail: if options[#'report_allocated]
+                            | balloon.pin(~on: avail,
+                                          ~at: Find.left_top(avail, ~dx: -8, ~dy: 8),
+                                          ~spike: #'sw,
+                                          ~dx: -32,
+                                          ~dy: 32,
+                                          lines(@para{When reporting cumulative ACK,},
+                                                @para{also report allocated buffer size},
+                                                @para{as the receive window size}).scale(balloon_scale))
+                            | avail
+                 let avail: if options[#'ack_third_ooo] && options[#'server]
+                            | balloon.pin(~on: avail,
+                                          ~at: Find.top(third_ooo_slot),
+                                          ~spike: #'s,
+                                          ~sprout: 0.4,
+                                          ~dy: 128,
+                                          lines(@para{When the sender see this third,},
+                                                @para{out-of-order ACK, it will immediately},
+                                                @para{repeat unACKed packets}).scale(balloon_scale))
+                            | if options[#'ack_ooo] && options[#'server]
+                              | balloon.pin(~on: avail,
+                                            ~at: Find.top(first_ooo_slot),
+                                            ~spike: #'s,
+                                            ~sprout: 0.2,
+                                            ~dy: 128,
+                                            lines(@para{When receiving packet not expected,},
+                                                  @para{immediately re-ACK for earlier}).scale(balloon_scale))
+                              |  avail
+                 avail)
+      values(p, recvd_pkts)
+    let p:
+      let who: cond
+               | options[#'server]: "side of server"
+               | options[#'client]: "side of client"
+               | ~else: "host"
+      beside(~sep: 150,
+             stack(~sep: 150,
+                   @bold{sending @who}.colorize(layers.color),
+                   send_buffer),
+             stack(~sep: 150,
+                   @bold{receiving @who}.colorize(layers.color),
+                   receive_buffer))
+    let note_sep = 80
+    let p:
+      if options[#'window_size]
+      | stack(~sep: note_sep,
+              p,
+              balloon.note(@para{Like a timeout, the window size needs to be chosen well})).refocus(p)
+      | p
+    let p:
+      if options[#'gbn]
+      | stack(~sep: note_sep,
+              p,
+              lines(~horiz: #'center,
+                    @para{@defterm{Go-Back-N}: on timeout, re-send in window},
+                    if options[#'cumulative]
+                    | @para{Can use a @defterm{cumulative} ACK}
+                    | nothing)).refocus(p)
+      | p
+    let p :~ Pict:
+      if options[#'sr]
+      | stack(~sep: note_sep,
+              p,
+              lines(~horiz: #'center,
+                    @para{@defterm{Selective repeat}: on timeout, re-send unACKed},
+                    if options[#'each_ack]
+                    | @para{Each packet must be specifically ACKed}
+                    | nothing)).refocus(p)
+      | p
+    let p :~ Pict:
+      if options[#'report_shorter_window]
+      | let window_explain = lines(@para{Use other's receive window},
+                                   @para{to size send window}).scale(balloon_scale)
+        let window_explain:
+          switch(window_explain,
+                 balloon.pin(~on: window_explain,
+                             ~at: Find.top(window_explain),
+                             ~spike: #'s,
+                             ~fill: "lightblue",
+                             @para{But don't go down to 0!}.scale(balloon_scale)))
+        balloon.pin(~on: p,
+                    ~at: Find.left(window_term),
+                    ~spike: #'e,
+                    ~dx: 100,
+                    window_explain)
+      | p
+    { #'main: p.pad(~bottom: 100),
+      #'sent: sent_pkts,
+      #'recvd: recvd_pkts }
+
+import:
+  self!send_buffer
+
+fun send_buffer_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: "Buffers",
+        send_buffer.make(options)[#'main])
+  options
+
+let options = send_buffer_slide({})
+let options = send_buffer_slide(options ++ { #'base })
+let options = send_buffer_slide(options ++ { #'bump_recv })
+let options = send_buffer_slide(options ++ { #'bump })
+let options = send_buffer_slide(options ++ { #'bump_send })
+let options = send_buffer_slide(options ++ { #'window })
+let aside_options = send_buffer_slide(options ++ { #'window_size })
+let options = send_buffer_slide(options ++ { #'mix_recv })
+let options = send_buffer_slide(options ++ { #'mix_send })
+let gbn_options = send_buffer_slide(options ++ { #'gbn })
+let gbn_options = send_buffer_slide(gbn_options.remove(#'mix_send) ++ { #'cumulative })
+let gbn_options = send_buffer_slide(gbn_options ++ { #'cumulative_more })
+let gbn_options = send_buffer_slide(gbn_options ++ { #'mix_more })
+let sr_options = send_buffer_slide(options ++ { #'sr })
+let sr_options = send_buffer_slide(sr_options ++ { #'each_ack })

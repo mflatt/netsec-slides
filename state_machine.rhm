@@ -1,0 +1,68 @@
+#lang rhombus/static/and_meta
+
+import:
+  pict open
+  slideshow open
+  "common.rhm" open
+  "layers.rhm"
+
+export:
+  state
+  edge
+
+fun state(label :~ Pict,
+          ~color: color = "lightblue",         
+          ~line_width: line_width = 1) :~ Pict:
+  circle(~around: label.pad(32),
+         ~line_width: line_width,
+         ~fill: color,
+         ~line: #'inherit)
+
+fun edge(machine,
+         from :~ Pict, from_at, to :~ Pict, to_at,
+         condition :~ Pict,
+         action :~ Pict,
+         ~start_pull: start_pull = #false,
+         ~end_pull: end_pull = #false,
+         ~scale: scale = 0.7,
+         ~dx: dx = 0, ~dy: dy = 0,
+         ~reshape: reshape = fun (p): p,
+         ~enable = #true,
+         ~cond_sep = #true) :~ Pict:
+  if !enable
+  | machine
+  | let (fx, fy):
+      Find.center(from,
+                  ~dx: (from.width/2) * math.cos(from_at),
+                  ~dy: -(from.width/2) * math.sin(from_at)).in(machine)
+    let (tx, ty):
+      Find.center(to,
+                  ~dx: (to.width/2) * math.cos(to_at),
+                  ~dy: -(to.width/2) * math.sin(to_at)).in(machine)
+    let cond_and_act :~ Pict:
+      if condition == nothing && action == nothing
+      | nothing
+      | lines(~horiz: #'center,
+              condition.colorize("forestgreen"),
+              block:
+                let ln = line(~dx: math.max(condition.width, action.width))
+                if cond_sep | ln | ln.ghost(),
+              action.colorize("purple"))
+    let cond_and_act :~ Pict:
+      reshape(cond_and_act)
+    let cond_and_act = cond_and_act.scale(scale)  
+    let cond_and_act:
+      let dx = dx * cond_and_act.width
+      let dy = dy * cond_and_act.height
+      cond_and_act.pad(~vert: -cond_and_act.height/2).translate(dx, dy)
+    connect(~on: machine,
+            Find.abs(fx, fy),
+            Find.abs(tx, ty),
+            ~start_angle: from_at,
+            ~end_angle: to_at + pi,
+            ~start_pull: start_pull,
+            ~end_pull: end_pull,                       
+            ~line: "blue",
+            ~line_width: 2,
+            ~style: #'arrow,
+            ~label: cond_and_act)

@@ -1,0 +1,7 @@
+#lang rhombus/and_meta
+
+import:
+  slideshow/config
+  pict/balloon
+
+balloon.current_color("gold")

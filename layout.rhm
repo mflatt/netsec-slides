@@ -1,0 +1,64 @@
+#lang rhombus/static/and_meta
+
+import:
+  "common.rhm" open
+
+export:
+  field
+  row
+  record
+
+fun field(n, label :~ Pict,
+          ~height: height = 1,
+          ~inset: inset = 0,
+          ~varies: varies = #false,
+          ~no_outline = #false,
+          ~no_top = #false,
+          ~no_bottom = #false) :~ Pict:
+  let r :~ Pict:
+    let vseg = 16
+    let dx = 8
+    let w = n * vseg
+    let h = 44 * height
+    if !varies
+    | cond
+      | no_outline:
+          blank()
+      | no_top:
+          beside.bottom(line(~dy: h), line(~dx: w), line(~dy: h))
+      | no_bottom:
+          beside.top(line(~dy: h), line(~dx: w), line(~dy: h))
+      | ~else:          
+          polygon([[0, 0], [w, 0], [w, h], [0, h]])
+    | polygon([[0, 0], [w, 0],
+               [w, vseg * 1/3], [w+dx, vseg * 2/3],
+               [w-dx, vseg * 5/3], [w, 2 * vseg],
+               [w, h], [0, h],
+               [-dx, h - vseg * 1/3],
+               [dx, h - vseg * 5/3], [0, h - vseg * 2]]).pad(~right: -dx)
+  let label = label.pad(2)
+  let p :~ Pict:
+    if label == nothing
+    | Pict.ghost(r)
+    | overlay(r, label.scale(math.min(r.width / label.width,
+                                      r.height / label.height,
+                                      1))).refocus(r)
+  if inset .= 0
+  | p
+  | p.pad(~vert: -44)
+
+fun row(field, ...) :~ Pict:
+  beside(field, ...)
+
+fun record(~bits: bits = #false, ~bytes: bytes = #false, row, ...) :~ Pict:
+  let p = stack(row, ...)
+  if bits || bytes
+  | let b = italic((bits || bytes) +& " " +& (if bits | "bits" | "bytes")).scale(0.75).pad(~horiz: 5)
+    let w = (p.width - b.width) / 2
+    let h = b.height / 2
+    stack(~sep: 5,
+          beside(line(~dy: h).pad(~top: h),
+                 line(~dx: w), b, line(~dx: w),
+                 line(~dy: h).pad(~top: h)).colorize("blue"),
+          p)
+  | p

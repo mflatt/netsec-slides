@@ -1,0 +1,592 @@
+#lang rhombus/static/and_meta
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+  "crypto.rhm"!key open
+  lib("pict/main.rkt") as rkt
+
+def H = @roman{H}.colorize(alg_color)
+def spc = @tt{ }
+
+fun emph(s): @bold(s)
+
+def H_implies:
+  beside(~sep: 32,
+         @romanly{@(«H»)(x) = @(«H»)(y)},
+         @para{⇒},
+         @romanly{x = y})
+
+slide(~title: "Cryptography Toolbox",
+      slide.align(
+        @para{So far:},
+        @para{@spc @defterm{stream ciphers}},
+        @para{@spc @defterm{block ciphers}},
+        @para{These provide @emph{confidentiality}, but not @emph{integrity}},
+        slide.next,
+        blank(32),
+        @para{Today:},
+        @para{@spc @defterm{cryptographic hash functions}},
+        @para{This is a key tool for @emph{integrity}},
+      ))
+
+fun integrity_slide(options :~ OptMap) :~ OptMap:
+  fun col(s):
+    if options[#'mallory]
+    | Color(s).scale(0.5)
+    | s
+  let msg = beside(square(~fill: col("blue")),
+                   square(~fill: col("red")),
+                   square(~fill: col("brown")),
+                   square(~fill: col("forestgreen")),
+                   square(~fill: col("gold")))
+  let msg_plus_key:
+    beside(msg, @t{+}, key2)
+  let hmac:
+    square(~fill: col("purple"))
+  let msg :~ Pict:
+    if options[#'hmac_add]
+    | beside(msg, hmac)
+    | msg
+  let msg :~ Pict:
+    if options[#'key2]
+    | beside(msg, rectangle(~around: key2.scale(0.5), ~height: msg.height, ~fill: "lightgray"))
+    | msg
+  let msg1 = msg.ghost()
+  let msg2 = msg.ghost()
+  fun add_key(p):
+    if options[#'key]
+    | let pk = stack(~sep: 16, p, key)
+      if options[#'key2] || options[#'hmac]
+      | stack(~sep: 16, pk, key2).refocus(p)
+      | pk.refocus(p)
+    | p
+  let alice = add_key(alice)
+  let alice = if options[#'mallory] | mallory_unscaled | alice
+  let medium = beside(~sep: 500,
+                      beside(~sep: 16, alice, msg1).refocus(alice),
+                      beside(~sep: 16, msg2, add_key(bob)).refocus(bob))
+  let medium:
+    connect(~on: medium,
+            Find.right(alice, ~dx: 32),
+            Find.left(bob, ~dx: -32),
+            ~line_width: 3)
+  let medium:
+    if options[#'msg]
+    | let scoot = scooter(medium, Find.top_left(msg1), Find.top_left(msg2), msg)
+      let medium: animate(scoot)
+      fun add_note(medium, note):
+        switch(medium,               
+               balloon.pin(~on: scoot(1),
+                           ~at: Find.top(msg),
+                           ~spike: #'s,
+                           ~dy: 128,
+                           note))
+      let medium:
+        cond
+        | options[#'mallory]:
+            add_note(medium,
+                     @para{Any stream of bytes decypts as @italic{something}})
+        | options[#'key2]:
+            add_note(medium.sustain(),
+                     lines(@para{Putting the key @key2 in just one place},
+                           @para{works with a @defterm{mode of operation},},
+                           @para{but doesn't help with a stream cipher}))
+        | ~else:
+            medium.sustain()
+      if options[#'hmac]
+      | fun add_hmac(p):
+          balloon.pin(~on: p,
+                      ~at: Find.bottom(hmac),
+                      ~spike: #'n,
+                      @defterm{message authentication code (MAC)})
+        fun add_H(p):
+          balloon.pin(~on: p,
+                      ~at: Find.top(H),
+                      ~spike: #'s,
+                      ~fill: "lightblue",
+                      @para{@defterm{hash function} to summarize message and key})
+        fun add_hmac_def(pre):
+          stack(~sep: 80,
+                @para{@hmac = @(«H»)(@msg_plus_key)},
+                pre)
+            .refocus(pre)
+        let pre = add_hmac_def(scoot(0))
+        if options[#'hmac_add]
+        | let p :~ Pict:
+            add_hmac(add_H(add_hmac_def(medium)))
+          balloon.pin(~on: p,
+                      ~at: Find.top(bob),
+                      ~spike: #'sw,
+                      ~dx: 0,
+                      ~sprout: 0.3,
+                      ~thought: #true,
+                      ~fill: "lightgray",
+                      @para{@(«H»)(@msg_plus_key)}.pad(16).delay(p.duration))
+        | switch(
+            pre,
+            add_H(pre),
+            add_hmac(add_H(pre))
+          )
+      | medium
+    | medium
+  slide(~title: "Message Integrity",
+        medium)
+  options
+
+let options = integrity_slide({})
+let options = integrity_slide(options ++ { #'key })
+let options = integrity_slide(options ++ { #'msg })
+let mallory_options = integrity_slide(options ++ { #'mallory })
+let key2_options = integrity_slide(options ++ { #'key2 })
+let options = integrity_slide(options ++ { #'hmac })
+let options = integrity_slide(options ++ { #'hmac_add })
+
+block:
+  let impossible = @t{impossible}.colorize("red")
+  let impossible:
+    switch(
+      impossible,
+      balloon.pin(~on: impossible,
+                  ~at: Find.bottom(impossible),
+                  ~spike: #'n,
+                  H_implies),
+      balloon.pin(~on: impossible,
+                  ~at: Find.bottom(impossible),
+                  ~spike: #'n,
+                  @para{How is this possible?}),
+      overlay.left(impossible.ghost(),
+                   @italic{infeasible}.colorize("red"))
+        .refocus(impossible)
+    )
+  let Collisions:
+    let Collisions = @t{Collisions}
+    balloon.pin(~on: Collisions,
+                ~at: Find.bottom(Collisions),
+                ~spike: #'n,
+                @para{@romanly{x ≠ y}, but @romanly{@(«H»)(x) = @(«H»)(y)}}.time_clip().delay(1))
+  slide(~title: "Hash Functions",       
+        para(@{A @defterm{hash function} @H maps an arbitraily large value},
+             @{to a fixed-sized number}),
+        slide.next,
+        blank(),
+        slide.align(
+          @para{@(@t{Data-structure usage}.colorize("blue")): fast location of a value},
+          @item{Use a number an an index into an array},
+          @item{@Collisions are inevitable},
+          slide.next,
+          blank(),
+          @para{@(@t{Cryptography usage}.colorize("blue")): compact representation of a value},
+          @item{Use a number as a proxy, potentially hiding the original value},
+          @item{Collisions should be @impossible}
+        ))
+
+let collision_percents:
+  fun p(n, q, m):
+    if n == 0
+    | 1.0
+    | (q/m) * p(n-1, q-1, m)
+  fun mk(start, end):
+    table(for List (i: start..end):
+            let s = to_string(p(i-1, 255, 256) * 1000)
+            let s = s.substring(0, 2) +& "." +& s.substring(2, 3) +& "%"
+            let s = (if i == 1 | "100.0%" | s)
+            [roman(to_string(i)), roman(s).colorize(if i == 20 | "red" | "black")],
+          ~horiz: #'right)
+  beside(~sep: 64, mk(1, 11), mk(11, 21), mk(21, 31))
+
+fun hash_ques(n):
+  lines(
+    para(@{If you have a hash array of length @n and a @(@t{ideal}.colorize("forestgreen"))},
+         @{hash function @H,}),
+    @para(@{how many items until you expect to find},
+          @{a collision?})
+  )
+
+slide(~title: "Hash Collisions",
+      ~layout: #'top,
+      hash_ques(@roman{256}),
+      slide.next,
+      blank(),
+      slide.alts(
+        slide.align(
+          @para{Probably that 2 items @italic{don't} collide: @spc @romanly{@frac(@t{255}, @t{256}) = 99.6%}},
+          slide.next,
+          @para{Probably that 3 items @italic{don't} collide: @spc @romanly{@frac(@t{255}, @t{256}) × @frac(@t{254}, @t{256}) = 98.8%}},
+          slide.next,
+          @para{Probably that 4 items @italic{don't} collide: @spc @romanly{@frac(@t{255}, @t{256}) × @frac(@t{254}, @t{256}) × @frac(@t{253}, @t{256}) = 97.6%}}
+        ),
+        slide.align(
+          @para{Probability of no collisions:}.pad(~left: -16),
+          switch(
+            collision_percents,
+            beside(~sep: 48,
+                   collision_percents,
+                   balloon.note(para(
+                                  ~width: 300,
+                                  @{@defterm{Birthday paradox}:},
+                                  @{In a room with only 23 people,},
+                                  @{probably two people in the room},
+                                  @{have the same birthday}
+                                )))
+              .refocus(collision_percents)
+          )
+        ))
+      )
+
+fun sqrtt(p :~ Pict):
+  @t{√@(stack(~sep: 5, line(~dx: p.width), p).refocus(p).pad(~left: 1))}
+
+slide(~title: "Hash Collisions",
+      ~layout: #'top,
+      hash_ques(@romanly{2@superscript{N}}),
+      slide.next,
+      blank(32),
+      slide.align(
+        @para{Probability of no collisions with @romanly{k} values:},
+        slide.center(
+          @romanly{@(@frac(@t{2@superscript{N}!},
+                           @t{2@(«@superscript{kN}»)(2@superscript{N} - k)!}.pad(~top: 12)))}
+        ),        
+        slide.next,
+        blank(32),
+        @para{Approximate @romanly{k} where probability reaches 50%:},
+        slide.center(
+          @romanly{2@superscript{N/2}}
+        )
+      ),
+      slide.next,
+      @para{@roman{256} ⇒ @roman{N = 8} ⇒ @roman{k = 16}, which is in the right neighborhood}.colorize("blue"))
+
+slide(~title: "Cryptographic Hash Collisions",
+      para(@{For cryptographic purposes, we're not allocating an array,},
+           @{so we can use a much larger @roman{N}}),
+      slide.next,
+      blank(),
+      table([[@t{Hash code bits @roman{N}}, @t{Expected collsision at}],
+             [@roman{128}, @romanly{2@superscript{64} = 4 × 10@superscript{9}}],
+             [@roman{256}, @romanly{2@superscript{128} = 3.4 × 10@superscript{38}}],
+             [@roman{512}, @romanly{2@superscript{256} = 1.2 × 10@superscript{77}}]],
+            ~vsep: 20,
+            ~hsep: 40,
+            ~horiz: [#'right, #'left]),
+      slide.next,
+      blank(),
+      @para{Number of atoms in the universe ≈ @romanly{10@superscript{80}}}.colorize("blue"))
+
+slide(~title: "Cryptographic Hash Assumptions",
+      slide.align(
+        @para{Needed for a MAC:},
+        slide.center(H_implies),
+        slide.next,
+        slide.alts(
+          [slide.center(
+             blank(),
+             @balloon.note(@para{Also useful as a secure document checksum}),
+             beside(~sep: 64,
+                    stack(Pict.from_handle(rkt.#{file-icon}(64, 88, "beige")),
+                          @tt{download_me}.scale(0.75)),
+                    @t{⇒},
+                    @tt{c2c594e8d3f81db4b6a9340d5cb1903b2c9e622179ae4955d353bd54c5e3af9c}.scale(0.5))
+           )],
+          [blank(32),
+           @para{For some other purposes, we also need},
+           slide.center(@para{given @romanly{@(«H»)(x)}, cannot compute @roman{x}}),
+           slide.next,
+           blank(),
+           slide.center(@balloon.note(@para{For example, password checks without storing passwords}))],
+        )
+      ))
+
+block:
+  fun ex(p :~ Pict): p.colorize("blue").pad(~left: 32)
+  slide(~title: "Attack Modes",
+        slide.align(
+          @para{Known @roman{x}, try to find colliding @roman{y}},
+          @ex(@para{Example: malicious substitute for a download}),
+          slide.next,
+          blank(),
+          @para{Find both @roman{x} and @roman{y} that collide},
+          ex(@para{Example: convince to accept @roman{x}, later substitute @roman{y}}),
+          slide.next,
+          blank(),
+          @para{Known @roman{@(«H»)(x)}, find @roman{x}},
+          ex(@para{Example: extract password from saved hash})
+        ))
+
+slide(~title: "Standardized Cryptographic Hash Functions",
+      table([[@italic{name},
+              @italic{hash bits},
+              @italic{status},
+              @italic{algorithm family}],
+             [@bold{MD5},
+              @t{128},
+              @italic{collisions found}.colorize("red"),
+              @t{Merkle–Damgård}],
+             [@bold{SHA-1},
+              @t{160},
+              @italic{some collisions found}.colorize("red"),
+              @t{Merkle–Damgård}],
+             [@bold{SHA-2},
+              @t{256 or 512},
+              @t{considered secure}.colorize("forestgreen"),
+              @t{Merkle–Damgård}],
+             [@bold{SHA-3},
+              @t{256 or 512},
+              @t{considered secure}.colorize("forestgreen"),
+              @t{Keccak}]],
+            ~vsep: 16),
+      blank(),
+      slide.align(
+        lines(
+          para(@{SHA-256 and SHA-512 are the 256-bit and 512-bit variants of SHA-2}),
+          para(@{SHA3-256 and SHA3-512 are the variants of SHA-3})
+        ),
+        blank(),
+        para(@{SHA-3 is intended as a potential drop-in replacement for SHA-2},
+             @{--- in case a weakness in SHA-2 is discovered})
+      ))
+
+block:
+  let w = 600
+  let lw = 3    
+  let needpad = 30
+  let message = overlay(blank(~width: w - 2*textpad - needpad), @t{plaintext})
+  let chunks :~ List:
+    fun mk(needpad) :~ Pict:
+      plaintext(overlay(blank(~width: w/8 - 2*textpad - needpad, ~height: message.height), @t{}))    
+    let pt = mk(0)
+    for List (i: 0..8):
+      if i == 7
+      | mk(needpad)
+      | pt.launder()
+  let pad_chunk = rectangle(~width: needpad, ~height: message.height+2*textpad,
+                            ~fill: "gray",
+                            ~line: #'inherit)
+  let need_pad = pad_chunk.ghost()
+  let M = rectangle(~around: @roman{M}.pad(~top: 3, ~horiz: 5), ~fill: alg_box_color, ~line: #'inherit)
+  let iv = rectangle(~around: @t{init vector}.pad(5),
+                     ~fill: "lightblue",
+                     ~line: "blue")
+  fun md5(p :~ Pict):
+    let down = blank(~height: p.height)
+    let F = M
+    let down = connect(~on: down, Find.top(down), Find.bottom(down), ~style: #'arrow, ~line_width: lw,
+                       ~line: "brown")
+    let right = blank(~width: w/8 - F.width)
+    let right = connect(~on: right, Find.left(right), Find.right(right), ~style: #'arrow,
+                        ~line: "blue", ~line_width: lw)
+    let chain = beside(& for List (i: 0..8): beside(right, F), right)
+    let chain = beside(iv, chain).refocus(chain)
+    let chain = beside(chain,
+                       rectangle(~around: @t{finalize}.pad(5),
+                                 ~fill: alg_box_color,
+                                 ~line: #'inherit),
+                       right,
+                       ciphertext(@t{hash})).refocus(chain)
+    stack(p,
+          beside(~sep: w / 8, & for List (i: 0..8): down),
+          chain
+          )
+  let f_box :~ Pict:
+    fun piece(a, n) :~ Pict:
+      rectangle(~around: @romanly{@a@subscript(to_string(n))}, ~width: message.height * 1.5, ~height: message.width / 6,
+                ~fill: "lightblue", ~line: "blue")
+    let A = piece("A", "i")
+    let B = piece("B", "i")
+    let C = piece("C", "i")
+    let D = piece("D", "i")
+    let A1 = piece("A", "i+1")
+    let B1 = piece("B", "i+1")
+    let C1 = piece("C", "i+1")
+    let D1 = piece("D", "i+1")
+    let AG = A1.ghost().launder()
+    let BG = B1.ghost().launder()
+    let CG = C1.ghost().launder()
+    let DG = D1.ghost().launder()
+    let plus = rectangle(~around: @t{ + }, ~fill: "white", ~line: #'inherit)
+    let plus1 = plus.launder()
+    let plus2 = plus.launder()
+    let plus3 = plus.launder()
+    let shift = rectangle(~around: @tt{<<<@romanly{@subscript{i}}}.pad(~horiz: 4), ~fill: "white", ~line: #'inherit)
+    let in = stack(A, B, C, D)
+    let out = beside(stack(AG, BG, CG, DG),
+                     stack(A1, B1, C1, D1))
+    let F = rectangle(~around: @romanly{F@subscript{i}}.pad(~top: 3, ~horiz: 5), ~fill: "lightgreen", ~line: #'inherit)        
+    let K = rectangle(~around: @romanly{K@subscript{i}}.pad(~top: 3, ~horiz: 5), ~fill: "lightgreen", ~line: #'inherit)        
+    let step1 = overlay.top(stack(~sep: 16,
+                                  plus.pad(~top: (A.height - plus.height) / 2),
+                                  F),
+                            in.ghost().launder())
+    let pplus1 = plus1.pad(~top: (A.height - plus1.height) / 2, ~horiz: 16)
+    let pplus2 = stack(~sep: 16,
+                       plus2.pad(~top: (A.height - plus2.height) / 2, ~horiz: 16),
+                       K)
+    let pshift = shift.pad(~top: (A.height - shift.height) / 2, ~horiz: 16)
+    let pplus3 = plus3.pad(~top: (A.height - plus3.height) / 2, ~horiz: 16)
+    let alg = beside.top(in, blank(~width: 64), step1, pplus1, pplus2, pshift, pplus3, blank(~width: 128), out)
+    fun link (p, f, t, col, dx):
+      connect(~on: p, Find.right(f), Find.left(t, ~dx: -dx), ~line: col, ~line_width: lw)
+    fun clink (p, f, t, col, dx):
+      connect(~on: p, Find.left(f, ~dx: -dx), Find.left(t), ~line: col, ~line_width: lw,
+              ~start_angle: 0, ~end_angle: 0, ~style: #'arrow)
+    fun alink (p, f, t, col) :~ Pict:
+      connect(~on: p, Find.right(f), Find.left(t), ~line: col, ~line_width: lw, ~style: #'arrow)
+    fun valink (p, f, t, col) :~ Pict:
+      connect(~on: p, Find.top(f), Find.bottom(t), ~line: col, ~line_width: lw, ~style: #'arrow, ~arrow_size: 8)
+    fun fxlink (p, f, col, dx, F):
+      let (_, y0) = Find.center(f).in(p)
+      let (x, y) = Find.bottom(F).in(p)
+      connect(~on: p, Find.abs(x + dx, y0), Find.abs(x + dx, y), ~line: col, ~line_width: lw,
+              ~style: #'arrow, ~arrow_size: 8)
+    fun flink (p, f, col, dx):
+      fxlink(p, f, col, dx, F)
+    fun incoming(p, f :~ Find, color, fx, fy, tx, ty):
+      let (x, y) = f.in(p)
+      connect(~on: p, Find.abs(x+fx, y+fy), Find.abs(x+tx, y+ty), ~line: color,
+              ~line_width: lw, ~style: #'arrow)
+    let dA = 32
+    let dB = 32
+    let dC = 32
+    let cA = "black"
+    let cD = "yellow"
+    let alg = link(alg, plus3, AG, cA, dA)
+    let alg = link(alg, B, BG, "red", dB)
+    let alg = link(alg, C, CG, "forestgreen", dC)
+    let alg = link(alg, D, DG, cD, 0)
+    let alg = clink(alg, AG, B1, cA, dA)
+    let alg = clink(alg, BG, C1, "red", dB)
+    let alg = clink(alg, CG, D1, "forestgreen", dC)
+    let alg = clink(alg, DG, A1, cD, 0)
+    let alg = flink(alg, B, "red", -8)
+    let alg = flink(alg, C, "forestgreen", 0)
+    let alg = flink(alg, D, cD, 8)
+    let alg = fxlink(alg, B, "red", 0, plus3)    
+    let alg = alink(alg, A, plus, cA)
+    let alg = alink(alg, plus, plus1, cA)
+    let alg = alink(alg, plus1, plus2, cA)
+    let alg = alink(alg, plus2, shift, cA)
+    let alg = alink(alg, shift, plus3, cA)
+    let alg = valink(alg, F, plus, cA)
+    let alg = valink(alg, K, plus2, cA)
+    let alg = rectangle(~around: alg.pad(~top: 32, ~bottom: 16, ~horiz: 32), ~fill: Color(alg_box_color).scale(1.4), ~line: #'inherit)
+    let alg = incoming(alg, Find.left(in), "blue", -64, 0, 0, 0)
+    let alg = incoming(alg, Find.right(out), "blue", 0, 0, 64, 0)
+    let alg = incoming(alg, Find.top(plus1), "brown", 0, -96, 0, 0)
+    let alg = overlay.top(alg, @romanly{M@subscript{i}}.pad(~top: 8))
+    let alg = alg.scale(0.75).pad(32)
+    beside.top(~sep: 16, @para{@M is 64 of}, alg).refocus(alg)
+  fun note_chunk(p):
+    balloon.pin(~on: p,                
+                ~at: Find.top(chunks[0]),
+                ~spike: #'s,
+                @para{64-byte (512-bit) chunk})
+  fun note_pad(p):
+    balloon.pin(~on: p,                
+                ~at: Find.top(pad_chunk),
+                ~spike: #'s,
+                @para{Pad last using 1, 0s, and message length})
+  fun note_state(p):
+    balloon.pin(~on: p,                
+                ~at: Find.top(iv),
+                ~spike: #'se,
+                @para{128 bits})
+  let noted = note_pad(note_chunk(beside(& chunks, pad_chunk)))
+  slide(
+    ~title: "MD5",
+    slide.alts(
+      beside(plaintext(message), need_pad),
+      note_chunk(beside(& chunks, need_pad)),
+      noted,
+      md5(noted),
+      note_state(md5(noted))
+    ),
+    slide.next,
+    f_box.pad(~bottom: -96).translate(0, 48)
+  )
+
+def alice_pw = @tt{d8ef3b7d2e6a8}
+def carol_pw = @tt{a6fdb8307dbc0}
+def bob_pw = carol_pw.launder()
+
+def carol_salt = @tt{8a8721fbb1}
+def bob_salt = @tt{992a6df99a}
+
+def pws_salt:
+  [[@t{user},   @t{salt},  @t{@(«H»)(password+salt)}],
+   [@tt{alice}, @tt{adg3fee684}, @tt{f3b4dd8e2e6a8}],
+   [@tt{bob},   bob_salt, @tt{8307a6fbbdac0}],
+   [@tt{eve},   @tt{1aac7deef0}, @tt{1558e49229a5d}],
+   [@tt{carol}, carol_salt, @tt{07dbc0a99db83}]]
+
+def pws_no_salt:
+  [[@t{user},  @t{@(«H»)(password)}],
+   [@tt{alice}, alice_pw],
+   [@tt{bob},   bob_pw],
+   [@tt{eve},   @tt{9759a5d1558e4}],
+   [@tt{carol}, carol_pw]]
+
+fun pw_table(pws):
+  table(pws,
+        ~pad: 5,
+        ~line: #'inherit)
+
+def password_title = "Hashing and Passwords"
+
+slide(~title: password_title,
+      slide.align(
+        @para{Servers don't want to know your password...},
+        slide.next,
+        slide.right(@para{They want to know that you know it}.colorize("forestgreen"))
+      ),
+      slide.next,
+      blank(32),
+      @para{Store a hash of a password, not the password:},
+      slide.alts(
+        pw_table(pws_no_salt),
+        balloon.pin(~on: pw_table(pws_no_salt),
+                    ~at: Find.right(alice_pw),
+                    ~spike: #'w,
+                    lines(@para{Cannot reconstruct @tt{alice}'s},
+                          @para{password from hash})),
+        balloon.pin(~on: pw_table(pws_no_salt),
+                    ~at: Find.right(carol_pw),
+                    ~spike: #'sw,
+                    lines(@para{Uh oh ---},
+                          @para{Can tell that @tt{bob} and @tt{carol}},
+                          @para{have the same password}))
+      ),                    
+      lines(@para{Server has to know password as you're logging in,},
+            @para{bit it only has to @italic{store} a hash}).colorize("blue").scale(0.8))
+
+slide(~title: password_title,
+      slide.align(
+        @italic{Don't store passwords}.colorize("red"),
+        @italic{Don't store hashed passwords}.colorize("red"),
+        blank(),
+        @para{Store a @defterm{salted hash} of a password:},
+        slide.alts(
+          pw_table(pws_salt),
+          balloon.pin(~on: pw_table(pws_salt),
+                      ~at: Find.bottom(carol_salt),
+                      ~spike: #'n,
+                      @para{Randomly generated when password is set}),
+          [pw_table(pws_salt),
+           para(@{Even if @tt{bob} and @tt{carol} both have the password @tt{passwd},},
+                @romanly{@{@(«H»)(@tt{passwd}+@bob_salt) ≠ @(«H»)(@tt{passwd}+@carol_salt)}})]
+        )
+      ))
+
+slide(~title: "Summary",
+      slide.align(
+        ~sep: 64,
+        slide.left(
+          ~sep: 16,
+          para(@{A @defterm{cryptographic hash function} is a one-way hash function},
+               @{that avoids collisions}),
+          @para{Useful for ensuring message integrity}.pad(~left: 64),
+          @para{Useful for perserving evidence but forgetting details}.pad(~left: 64)
+        ),
+        @para{You should use @defterm{SHA-2}},
+        para(@{Don't manage passwords yourself, but if you do,},
+             @{store only @defterm{salted} @defterm{hashes} @defterm{of} @defterm{passwords}})
+      ))

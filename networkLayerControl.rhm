@@ -1,0 +1,872 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path    
+  "common.rhm" open
+  "layout.rhm"
+
+slide(~title: "Network Layer",
+      slide.align(
+        @para{So far:},
+        @para{@defterm{Data plane}: per-router forwarding/flow rules}.pad(~left: 32),
+        blank(),
+        @para{Today:},
+        @para{@defterm{Control plane}: how rules rules get installed}.pad(~left: 32)
+      ))
+
+def (djikstra_equation,
+     bellman_ford_equation,
+     d_sub_x,
+     d_sub_v):
+  romanly:
+    block:
+      let x = @italic{x}
+      let y = @italic{y}
+      let v = @italic{v}
+      let spc = @tt{ }
+      let d_sub_x = @t{d@subscript(x)}
+      let d_sub_v = @t{d@subscript(v)}
+      values(@t{d@subscript(x)(@y) @spc = @spc min@subscript(v) { @(«d_sub_x»)(@v) + c(@v, @y) }},
+             @t{d@subscript(x)(@y) @spc = @spc min@subscript(v) { c(@x, @v) + @(«d_sub_v»)(@y) }},
+             d_sub_x,
+             d_sub_v)
+
+class Node(name, dx, dy, neighbors :: Map)
+
+def nodes :~ Map.of(String, Node):
+  def u = Node("u",
+               0, 1,
+               { "w": 5, "v": 2, "x": 1 })
+  def v = Node("v",
+               1, 0,
+               { "u": 2, "w": 3, "x": 2 })
+  def x = Node("x",
+               1, 2,
+               { "u": 1, "v": 2, "y": 1, "w": 3 })
+  def w = Node("w",
+               2.5, 0,
+               { "v": 3, "x": 3, "y" : 1, "z": 5, "u": 5 })
+  def y = Node("y",
+               2.5, 2,
+               { "x": 1, "w": 1, "z" : 2 })
+  def z = Node("z",
+               3.5, 1,
+               { "w": 5, "y": 2 })
+  { "u": u, "v": v, "x": x, "w": w, "y": y, "z": z }
+
+def nodes_fully_connected :~ Map.of(String, Node):
+  def all = { "a": 2, "b": 2, "c": 2, "d": 2, "e": 2, "f": 2 }
+  def a = Node("a", 0, 1, all.remove("a"))
+  def b = Node("b", 1, 2, all.remove("b"))
+  def c = Node("c", 2.5, 2, all.remove("c"))
+  def d = Node("d", 1, 0, all.remove("d"))
+  def e = Node("e", 2.5, 0, all.remove("e"))
+  def f = Node("f", 3.5, 1, all.remove("f"))
+  { "a": a, "b": b, "c": c, "d": d, "e": e, "f": f }
+
+def nodes_linear :~ Map.of(String, Node):
+  def a = Node("a", -0.75, 1, { "b": 2 })
+  def b = Node("b", 0.25, 1, { "a": 2, "c": 2 })
+  def c = Node("c", 1.25, 1, { "b": 2, "d": 2 })
+  def d = Node("d", 2.25, 1, { "c": 2, "e": 2 })
+  def e = Node("e", 3.25, 1, { "d": 2, "f": 2 })
+  def f = Node("f", 4.25, 1, { "e": 2 })
+  { "a": a, "b": b, "c": c, "d": d, "e": e, "f": f }
+
+fun graph_pict(nodes:~ Map.of(String, Node), options :~ OptMap) :~ Pict:
+  let S = 192
+  let NS = 96
+  let p = blank(~width: 4.5 * S, ~height: 3 * S)
+  let colors :~ OptMap = options[#'colors] || {}
+  let labels :~ OptMap = options[#'labels] || {}
+  let (node_picts :~ Map.of(Node, Pict)) && {n :~ Node: np :~ Pict, ...}:
+    for Map ((_, n :~ Node): nodes):
+      let c = circle(~size: NS, ~fill: colors[n.name] || "lightblue", ~line: #'inherit)
+      let c:
+        if options[#'start] == n.name
+        | circle(~around: c.pad(3), ~line_width: 2, ~line: "purple").refocus(c)
+        | c
+      values(n, c)
+  let p:
+    for values(p = p) (n: [n, ...],
+                       np: [np, ...]):
+      let color = Color(colors[n.name] || "lightblue")
+      let label_color = if color.red + color.green + color.blue < 300 | "white" | "black"
+      let np:
+        overlay(~vert: #'top,
+                overlay(~vert: #'bottom,
+                        np,
+                        t(n.name).colorize(label_color).pad(~bottom: 2)),
+                Pict.colorize(labels[n.name] || blank(), label_color))
+      pin(~on: p,
+          ~at: Find.abs((n.dx + 0.5) * S - NS/2,
+                        (n.dy + 0.5) * S - NS/2),
+          np)
+  let p:
+    for values(p = p) (n: [n, ...]):
+      for values(p = p) ((oname, dist): n.neighbors):
+        let on = nodes[oname]
+        let onp = node_picts[on]
+        skip_when string_gt(on.name, n.name)
+        let lbl = t(to_string(dist)).scale(0.75)
+        if n.name == "w" && on.name == "u"
+        | overlay(connect(~on: p,
+                          Find.top(onp), ~start_angle: pi/2, ~start_pull: 0.5,
+                          Find.left_top(node_picts[n], ~dx: NS/5, ~dy: NS/5),
+                          ~end_angle: -pi*1/4, ~end_pull: 0.5,
+                          ~order: #'back),
+                  lbl.pad(~horiz: S * 0.9),
+                  ~vert: #'top, ~horiz: #'left)
+        | connect(~on: p,
+                  Find.center(node_picts[n]),
+                  Find.center(onp),
+                  ~label: lbl,
+                  ~order: #'back)
+  let p:
+    for values(p = p) ((name, note): (options[#'notes] || {}) :~ Map):
+      let n = nodes[name]
+      let np = node_picts[n]
+      if n.dx < 2.5
+      | balloon.pin(~on: p,
+                    ~at: Find.left(np),
+                    ~spike: #'e,
+                    note)
+      | balloon.pin(~on: p,
+                    ~at: Find.right(np),
+                    ~spike: #'w,
+                    note)
+  let p:
+    match options[#'iteration]
+    | #false: p
+    | ip: overlay(~horiz: #'right,
+                  ~vert: #'bottom,
+                  p,
+                  ip)
+  fun is_top_right(name):
+    let n = nodes[name]
+    (n.dy < 1) || (n.dx > 3)
+  fun tab_pict([tab_p, _]) :~ Pict:
+    tab_p
+  let is_linear:
+    (for Set ((name, n :~ Node): nodes): n.dy).length() == 1      
+  let p:
+    for values(p = p) ((name, tab): (options[#'tables] || {}) :~ Map):
+      let np = node_picts[nodes[name]]
+      let tab_p = tab_pict(tab)
+      pin(~on: p,
+          ~at: cond
+               | is_linear:
+                   Find.bottom(np, ~dx: -tab_p.width/2, ~dy: 5)
+               | is_top_right(name):
+                   Find.right_top(np, ~dy: -tab_p.height + 10)
+               | ~else:
+                   Find.left_bottom(np, ~dx: -tab_p.width + 10),
+          tab_p)
+  let p:
+    match options[#'table_prop]
+    | #false: p
+    | [from_name, to_name, from_table :~ Pict]:
+        let from_tab = tab_pict((options[#'tables] :~ Map)[from_name])
+        let to_tab = tab_pict((options[#'tables] :~ Map)[to_name])
+        let scoot = scooter(p,
+                            Find.left_top(from_tab),
+                            if is_top_right(to_name)
+                            | Find.left_bottom(to_tab, ~dy: 5)
+                            | Find.left_top(to_tab, ~dy: -from_tab.height - 5),
+                            ~order: fun (n): if n < 0.5 | #'back | #'front,
+                            block:
+                              let tab = from_table.launder()
+                              beside(~vert: #'top,
+                                     ~sep: 5,
+                                     t(from_name).colorize("red").scale(0.75),
+                                     tab).refocus(tab))
+        if options[#'table_note]
+        | scoot(1)
+        | animate(scoot).sustain().time_pad(~before: -1)
+  let p:
+    match options[#'table_note]
+    | #false: p
+    | at_p:
+        balloon.pin(~on: p,
+                    ~at: Find.right(at_p),
+                    ~spike: #'w,
+                    @para{can improve})
+  p
+
+slide(~title: "Finding Routes",
+      graph_pict(nodes, {}))
+
+let dijkstra_title = "Finding Routes with Dijkstra's"
+
+fun dijkstra_slides(nodes:~ Map.of(String, Node),
+                    start,
+                    ~show_select = #true):  
+  recur dijkstra((done :~ Map) && { done_name: [done_dist, done_path], ...} = { },
+                 (gray :~ Map) && { gray_name: [gray_dist, gray_path], ... } = { start: [0, ""] }):
+    fun add_path(p, str):
+      stack(p, t(str).scale(0.75).pad(~top: -10))
+    let options = { #'start: start,
+                    #'colors:
+                      { done_name: "blue", ...,
+                        gray_name: "lightyellow", ... },
+                    #'labels:
+                      { done_name: add_path(t(to_string(done_dist)), done_path),
+                        ...,
+                        gray_name: add_path(t(to_string(gray_dist)).colorize("red"), gray_path),
+                        ... }}
+    slide(~title: dijkstra_title, graph_pict(nodes, options))
+    unless done.length() == nodes.length()
+    | let min_dist = math.min(gray_dist, ...)
+      let (next_name, count_mins):
+        for values(next_name = #false, count_mins = 0) (name: [gray_name, ...],
+                                                        dist: [gray_dist, ...]):
+          if dist == min_dist
+          | values(if !next_name || !string_gt(name, next_name)
+                   | name
+                   | next_name,
+                   count_mins + 1)
+          | values(next_name, count_mins)
+      let new_options :~ Map = options ++ { #'colors: (options[#'colors] :~ Map ++ { next_name: "gold" }) }
+      when show_select
+      | slide(~title: dijkstra_title,
+              graph_pict(nodes,
+                         new_options ++ { #'notes: { next_name:
+                                                       if count_mins == 1
+                                                       | @para{smallest distance}
+                                                       | lines(@para{one of the},
+                                                               @para{smallest distances}) } }))
+      let next_path = (gray[next_name] :~ List)[1]
+      let new_done = done ++ { next_name: gray[next_name] }
+      let new_gray = gray.remove(next_name)
+      let new_gray:
+        for values(new_gray :~ Map = new_gray) ((name, add_dist): nodes[next_name].neighbors):
+          skip_when done.has_key(name)        
+          skip_when (gray.get(name, [#inf, #false]) :~List)[0] <= min_dist + add_dist
+          when show_select && gray.has_key(name)
+          | slide(~title: dijkstra_title,
+                  graph_pict(nodes, new_options ++ { #'notes: { name: @para{can improve} } }))
+          new_gray ++ { name: [min_dist + add_dist,  next_path +& "→" +& name] }
+      dijkstra(new_done, new_gray)
+
+dijkstra_slides(nodes, "u", ~show_select: #true)
+dijkstra_slides(nodes, "x", ~show_select: #true)
+
+block:
+  let x = @romanly{@italic{x}}
+  let y = @romanly{@italic{y}}
+  let v = @romanly{@italic{v}}
+  let spc = @tt{ }
+
+  fun equation_setup_paras(d_sub_x, y0, x, y, v, vv, yy):
+    [@para{@romanly{@(«d_sub_x»)(@y0)} is the shortest distance from @x to @y0},
+     @para{@romanly{c(@vv, @yy)} reports the distance from @vv to immediately connected @yy}]
+
+  slide(~title: "Rationale for Dijkstra's",
+        ~layout: #'top,
+        slide.align(
+          equation_setup_paras(d_sub_x, y, x, y, v, v, y),
+          blank(),
+          slide.center(djikstra_equation),
+          slide.next,
+          blank(),
+          @para{Using @romanly{@italic{v}} ∈ set of nodes for which we've found @romanly{@(«d_sub_x»)(@v)}:},
+          @item{add smallest possible @romanly{@(«d_sub_x»)(@y)} among available @(y)},
+          @item{@lines(@para{we've always picked smallest so far,},
+                       @para{and each next pick is same or longer,},
+                       @para{so we'll never find a smaller route later})}
+        ))
+
+  slide(~title: "Rationale for Bellman-Ford",
+        ~layout: #'top,
+        slide.align(
+          equation_setup_paras(d_sub_x, y, x, v, y, x, v),
+          blank(),
+          slide.center(bellman_ford_equation),
+          slide.next,
+          blank(),
+          @para{Start with @romanly{@(«d_sub_x»)(@y) = c(@x, @y)} where defined, @romanly{@(«d_sub_x»)(@y) = ∞} otherwise},
+          @item{check every @romanly{c(@x, @v) + @(«d_sub_v»)(@y)} and maybe update @romanly{@(«d_sub_x»)(@y)}},
+          @item{@lines(@para{update can only get smaller,},
+                       @para{and steps down are a fixed size,},
+                       @para{so we'll eventually hit bottom everywhere})}
+        ))
+
+// ----------------------------------------
+
+let bellman_ford_title = "Finding Routes with Bellman-Ford"
+
+class Route(dist, via_name)
+
+fun bellman_ford_slides(nodes:~ Map.of(String, Node),
+                        ~bellman_ford_title: bellman_ford_title = bellman_ford_title,
+                        ~show_comm = #true):
+  let { name: Node(_, _, _, { next_node: next_dist, ... }), ... } = nodes
+  let init :~ Map.of(String, Map) = { name: { name: Route(#inf, #false), ... }, ...}
+  let init = init ++ { name: init[name] ++ { name: Route(0, #false), next_node: Route(next_dist, next_node), ... }, ... }
+  let [in_order_name, ...] = [name, ...].sort(string_lt)      
+  recur bellman_ford(tables :~ Map.of(String, Map) = init, iteration = 0):
+    fun bf_graph_pict(options :~ Map):
+      graph_pict(nodes,
+                 options ++ { #'iteration: t("Iteration " +& iteration).colorize("forestgreen") })
+    fun make_table(routes :: Map.of(String, Route),
+                   ~with_dists = #false,
+                   ~color: color = "black"):
+      let [name, ...] = routes.keys().sort(string_lt)
+      fun to_text(s) :~ Pict: t(s).scale(0.6)
+      fun to_dist(Route(n, via)):
+        beside(if n == #inf
+               | to_text("∞")
+               | to_text(to_string(n)),
+               if via
+               | to_text("→" +& via).colorize("blue")
+               | nothing)
+      let spc = tt(" ")
+      fun two_column(l :~ List):
+        if l.length() mod 2 == 0
+        | let [left :~ List, ...] = l.take_left(l.length() div 2)
+          let [right :~ List, ...] = l.take_right(l.length() div 2)
+          [left ++ [spc] ++ right, ...]
+        | two_column(l ++ [[blank(), blank()]])
+      let [dist_p, ...] = [to_dist(routes[name]), ...]
+      let p = table(two_column([[to_text(name), dist_p], ...]),
+                    ~hsep: 5)
+      let p = rectangle(~around: p.pad(~horiz: 5), ~fill: "beige", ~line: color)
+      if with_dists
+      | [p, { name : dist_p, ... }]
+      | p
+    fun tables_to_options({ name: { to_name: dist, ...}, ...}) :~ Map:      
+      { #'tables:
+          { name: make_table({ to_name: dist, ... }, ~with_dists: #true),
+            ... } }
+    when show_comm || iteration == 0
+    | slide(~title: bellman_ford_title,
+            bf_graph_pict(tables_to_options(tables)))
+    let new_tables:
+      for values(new_tables = tables) (at_name: [in_order_name, ...]):
+        for values(new_tables :~ Map.of(String, Map) = new_tables) (via_name: [in_order_name, ...]):
+          let new_at_table = new_tables[at_name]
+          let dist = nodes[at_name].neighbors.get(via_name, #false)
+          skip_when !dist
+          let via_table = tables[via_name]
+          fun make_options(new_at_table, ~is_relevant = #true) :~ Map:
+            (tables_to_options(new_tables ++ { at_name: new_at_table })
+               ++ { #'table_prop: [via_name, at_name, make_table(via_table,
+                                                                 ~color: if is_relevant | "red" | "pink")] })
+          fun communication_slide(is_relevant):
+            slide(~title: bellman_ford_title,
+                  bf_graph_pict(make_options(new_at_table, ~is_relevant: is_relevant)), ~lead_in: #true)
+          let (new_at_table, showed_comm):
+            for values (new_at_table :~ Map = new_at_table,
+                        showed_comm = #false) (for_name: [in_order_name, ...]):
+              if dist + Route.dist(via_table[for_name]) < Route.dist(new_at_table[for_name])
+              | let options = make_options(new_at_table)
+                let dist_p = Map.get(List.get(Map.get(options[#'tables], at_name), 1), for_name)
+                when show_comm
+                | unless showed_comm
+                  | communication_slide(#true)
+                  slide(~title: bellman_ford_title,
+                        bf_graph_pict(options ++ { #'table_note: dist_p }))
+                values(new_at_table ++ { for_name: Route(dist + Route.dist(via_table[for_name]), via_name) },
+                       #true)
+              | values(new_at_table, showed_comm)          
+          when show_comm
+          | cond 
+            | !showed_comm && iteration == 0:
+                // show communicated table that wasn't needed
+                communication_slide(#false)
+            | showed_comm:
+              // show table after last update
+                slide(~title: bellman_ford_title,
+                      bf_graph_pict(make_options(new_at_table)))
+            | ~else: #void
+          new_tables ++ { at_name: new_at_table }
+    slide(~title: bellman_ford_title,
+          graph_pict(nodes,
+                     tables_to_options(new_tables)
+                       ++ { #'iteration: balloon.note(if new_tables == tables
+                                                      | @para{Found fixed point}
+                                                      | @para{Changed, so go again})
+                                           .pad(~right: -64)}))
+    when new_tables != tables
+    | bellman_ford(new_tables, iteration + 1)        
+
+bellman_ford_slides(nodes)
+bellman_ford_slides(~bellman_ford_title: "Worst-Case Iterations for Bellman-Ford",
+                    nodes_linear, ~show_comm: #false)
+
+// ----------------------------------------
+
+block:
+  let picking = @t{picking}
+  let checking = @t{check}
+  let entries = @t{entries}
+  fun make(stage):
+    let in = 16
+    fun complexity(content, conclusion :~ Pict):
+      let p = slide_pict(slide.align(~horiz: #'left, content))
+      beside(~vert: #'baseline,
+             ~sep: 64, 
+             p,
+             @para{⇒ @conclusion.colorize("red")}.time_pad(~before: if stage | 1 | 0))
+
+    let p:
+      slide_pict(
+        slide.align(
+          complexity(
+            [@para{Dijkstra's:},
+             @para{for each of @romanly{N} nodes}.pad(~left: in),
+             @para{visit each of @romanly{N-1} other nodes}.pad(~left: 2*in),
+             @para{where @picking each other node takes @romanly{O(log N)} time}.pad(~left: 3*in)],
+            @romanly{O(N@superscript{2} log N)}),
+          if stage | slide.next | nothing,
+          blank(),
+          complexity(
+            [@para{Bellman-Ford:},
+             @para{for each of @romanly{N} nodes}.pad(~left: in),
+             @para{@checking tables of up to @romanly{M} adjacent nodes}.pad(~left: 2*in),
+             @para{where each table has @romanly{N} @entries}.pad(~left: 3*in),
+             @para{and iterate up to @romanly{N} times}.pad(~left: 4*in)],
+            @romanly{O(M N@superscript{3})})
+        )
+      )
+      
+    p
+
+  let p: make(#true) 
+  let p2:
+    balloon.pin(~on: make(#false),
+                ~at: Find.center(picking),
+                ~spike: #'sw,
+                ~dx: -96,
+                ~dy: 64,
+                @para{Requires global communication})
+  let p3:
+    balloon.pin(~on: p2,
+                ~at: Find.center(checking),
+                ~spike: #'sw,
+                ~dx: -192,
+                ~dy: 64,
+                @para{Can be local and in parallel})
+  let p4:
+    balloon.pin(~on: p3,
+                ~at: Find.center(entries),
+                ~spike: #'sw,
+                ~dx: -192,
+                ~dy: 64,
+                @para{Diff can be much smaller})
+           
+  slide(~title: "Time Complexity",
+        slide.alts(p, p2, p3, p4))
+
+slide(~title: "Applying Graph Algorithms in Networks",
+      slide.align(
+        @para{Dijkstra's = @defterm{link state (LS)}},
+        @para{prominent example: Open Shortest Path First (OSPF)}.pad(~left: 32),
+        blank(64),
+        @para{Bellman-Ford = @defterm{distance vector (DV)}},
+        @para{prominent example: Border Gateway Protocol (BGP)}.pad(~left: 32)
+      ))
+
+runtime_path.def router_png: "images/router.png"
+def router = bitmap(router_png).scale(0.5).pad(~horiz: 5)
+
+let router1_1 = router.launder()
+let router1_2 = router.launder()
+let router1_3 = router.launder()
+let router2_1 = router.launder()
+let router2_2 = router.launder()
+let router2_3 = router.launder()
+let router2_4 = router.launder()
+let router3_1 = router.launder()
+let router3_2 = router.launder()
+let router3_3 = router.launder()
+let router3_4 = router.launder()
+let router3_5 = router.launder()
+
+fun link(p, from, to, ~hilite = #false):
+  connect(~on: p, from, to, ~line_width: if hilite | 6 | 3,
+          ~line: if hilite | "red" | #'inherit)
+
+let as_scale = 0.8
+let as_color = "lightgray"
+
+fun AS(asn, p :~ Pict, ~below = #false):
+  let label = @t{AS@to_string(asn)}
+  let p = stack(~sep: 16,
+                if below | p | label,
+                if below | label | p)
+  let p = p.pad(10)
+  rectangle(~around: p, ~line: #false, ~fill: as_color,
+            ~rounded: -0.1).scale(as_scale)
+
+fun router1_3_to_1(p, ~hilite = #false):
+  link(p, Find.right_bottom(router1_3, ~dx: -10, ~dy: -10), Find.left_top(router1_1, ~dx: 10, ~dy: 10),
+       ~hilite: hilite)
+
+fun router1_2_to_1(p, ~hilite = #false):
+  link(p, Find.left_bottom(router1_2, ~dx: 10, ~dy: -5), Find.right_top(router1_1, ~dx: -10, ~dy: 10),
+       ~hilite: hilite)
+
+fun router1_2_to_router2_1(p, ~hilite = #false):
+  link(p, Find.right(router1_2), Find.left(router2_1),
+       ~hilite: hilite)
+
+fun router2_1_to_3(p, ~hilite = #false):
+  link(p, Find.bottom(router2_1), Find.top(router2_3),
+       ~hilite: hilite)
+
+fun router2_1_to_4(p, ~hilite = #false):
+  link(p, Find.right(router2_1), Find.left(router2_4),
+       ~hilite: hilite)
+
+fun router2_1_to_2(p, ~hilite = #false):
+  link(p, Find.right(router2_1, ~dy: 5), Find.left(router2_2),
+       ~hilite: hilite)
+
+fun router1_1_to_router3_1(p, ~hilite = #false):
+  link(p, Find.top(router3_1), Find.bottom(router1_1),
+       ~hilite: hilite)
+
+fun router3_1_to_2(p, ~hilite = #false):
+  link(p, Find.right(router3_1), Find.left(router3_2),
+       ~hilite: hilite)
+  
+fun router3_2_to_3(p, ~hilite = #false):
+  link(p, Find.right(router3_2), Find.left(router3_3),
+       ~hilite: hilite)
+
+fun router3_3_to_router2_2(p, ~hilite = #false):
+  link(p, Find.bottom(router2_2), Find.top(router3_3),
+       ~hilite: hilite)
+  
+let as1 :~ Pict:
+  let r3 = router1_3
+  let r4 = router.launder()
+  let p:
+    beside(~sep: 50,
+           r3,
+           stack(~sep: 100,
+                 r4,
+                 router1_1),
+           router1_2.pad(~top: 32))
+  let p = link(p, Find.right_top(r3, ~dx: -10, ~dy: 5), Find.left(r4))
+  let p = router1_3_to_1(p)
+  let p = link(p, Find.right(r4), Find.top(router1_2, ~dy: -5))
+  let p = router1_2_to_1(p)
+  AS("151", p)
+
+let as2:
+  let r3 = router2_3
+  let r4 = router2_4
+  let p:
+    beside(~sep: 50,
+           stack(~sep: 50,
+                 router2_1,
+                 r3),
+           stack(~sep: 50,
+                 r4,
+                 router2_2))
+  let p = router2_1_to_3(p)
+  let p = router2_1_to_4(p)
+  let p = router2_1_to_2(p)
+  AS("27", p)
+
+let as3:
+  let r4 = router.launder()
+  let r5 = router3_4
+  let p:
+    stack(
+      ~sep: 50,
+      beside(~sep: 150, router3_1, router3_2, router3_3),
+      beside(~sep: 150, r4, r5),
+    )
+  let p = link(p, Find.right(router3_1), Find.left(router3_2))
+  let p = link(p, Find.right(router3_2), Find.left(router3_3))
+  let p = link(p, Find.bottom(router3_1), Find.top(r4, ~dx: -5))
+  let p = link(p, Find.bottom(router3_2), Find.top(r4, ~dx: 5))
+  let p = link(p, Find.bottom(router3_2, ~dx: 5), Find.top(r5, ~dx: -5))
+  let p = link(p, Find.bottom(router3_3), Find.top(r5, ~dx: 5))
+  AS("382", p, ~below: #true)
+
+let internet_x:
+  let p = stack(~sep: 50,
+                beside(~sep: 50,
+                       as1,
+                       as2),
+                as3)
+  let p = router1_1_to_router3_1(p)
+  let p = router1_2_to_router2_1(p)
+  let p = router3_3_to_router2_2(p) 
+  p
+
+fun hilight_borders(internet):
+  let (lx, ty) = Find.left_top(router1_1).in(internet)
+  let (rx, by) = Find.right_bottom(router1_1).in(internet)
+  let halo :~ Pict:
+    let p = ellipse(~width: rx-lx, ~height: by-ty, ~fill: "gold", ~line: #false)
+    p.pad(~horiz: -5).clip().pad(~horiz: 5)
+  fun hi(p, router):
+    pin(~on: p,
+        ~at: Find.left_top(router),
+        halo.alpha(0.3))
+  let p = internet
+  let p = hi(p, router1_1)
+  let p = hi(p, router1_2)
+  let p = hi(p, router2_1)
+  let p = hi(p, router2_2)
+  let p = hi(p, router3_1)
+  let p = hi(p, router3_3)
+  p
+
+let new_subnet_prefix = @tt{155.98.68.0/23}
+
+let new_internet:
+  let router3_5 = stack(router3_5,
+                        new_subnet_prefix).refocus(router3_5)
+  let router3_5 = router3_5.scale(as_scale)
+  let p = pin(~on: internet_x,
+              ~at: Find.right_bottom(as3, ~dx: -router3_5.width - 10, ~dy: -router3_5.height - 10),
+              router3_5)
+  link(p,
+       Find.right_bottom(router3_4, ~dx: -8, ~dy: -10),
+       Find.left_top(router3_5, ~dx: 8, ~dy: 10))
+
+fun new_msg(content :~ Pict = @para{BGP @new_subnet_prefix},
+            ~dir: dir = #'up) :~ Pict:
+  let p:
+    rectangle(~around: content.scale(0.5).pad(2),
+              ~line: "blue",
+              ~fill: "lightblue")
+  fun add(q, from, to):
+    connect(~on: q, from, to, ~line: "blue", ~style: #'arrow)
+  let q :~ Pict:
+    match dir
+    | #'up:
+        let q = p.pad(~top: 32)
+        add(q, Find.top(p), Find.top(q))
+    | #'down:
+        let q = p.pad(~bottom: 32)
+        add(q, Find.bottom(p), Find.bottom(q))
+    | #'right:
+        let q = p.pad(~right: 32)
+        add(q, Find.right(p), Find.right(q))
+    | #'left:
+        let q = p.pad(~left: 32)
+        add(q, Find.left(p), Find.left(q))
+  q.refocus(p)
+
+let internet:
+  stack(~sep: 32,
+        @para{A network of networks}.colorize("blue"),
+        internet_x).refocus(internet_x)
+
+let internet_hot_msg:
+  let addr = @tt{17.1.2.3}
+  let msg = new_msg(@para{dest: @addr}, ~dir: #'right)
+  let p = pin(~on: new_internet,
+              ~at: Find.top(router1_3, ~dx: -msg.width/2, ~dy: -msg.height-5),
+              msg)
+  let p = pin(~on: p,
+              ~at: Find.right(router2_4),
+              rectangle(~around: addr.scale(0.5),
+                        ~line: #false,
+                        ~fill: "lightgreen"))
+  p
+
+let route_internet:
+  let p = router1_3_to_1(internet_hot_msg, ~hilite: #true)      
+  let p = router1_2_to_1(p, ~hilite: #true)
+  let p = router1_2_to_router2_1(p, ~hilite: #true)
+  let p = router2_1_to_4(p, ~hilite: #true)
+  p
+
+let route_internet_hot_potato:
+  let p = router1_3_to_1(internet_hot_msg, ~hilite: #true)      
+  let p = router1_1_to_router3_1(p, ~hilite: #true)
+  let p = router3_1_to_2(p, ~hilite: #true)
+  let p = router3_2_to_3(p, ~hilite: #true)
+  let p = router3_3_to_router2_2(p, ~hilite: #true)
+  let p = router2_1_to_2(p, ~hilite: #true)
+  let p = router2_1_to_4(p, ~hilite: #true)
+  p
+
+block:
+  let org = @para{some organization}
+  slide(~title: "Applying Graph Algorithms in the Internet",
+        slide.alts(
+          internet,
+          balloon.pin(~on: internet,
+                      ~at: Find.left_top(as1, ~dx: as1.width * 0.3, ~dy: as1.height * 0.25),
+                      ~spike: #'se,
+                      @lines(@para{Autonomous System (AS)},
+                             blank(16),
+                             @para{Managed as a whole by},
+                             switch(org,
+                                    balloon.pin(~on: org,
+                                                ~at: Find.bottom(org),
+                                                ~spike: #'n,
+                                                ~fill: "lightblue",
+                                                lines(@para{picks its own},
+                                                      @para{@defterm{intra-AS} routing,},
+                                                      @para{often OSPF}))))),
+          balloon.pin(~on: hilight_borders(internet),
+                      ~at: Find.right(router2_2),
+                      ~spike: #'w,
+                      block:
+                        let p = @para{@defterm{border gateway}}
+                        switch(p,
+                               balloon.pin(~on: p,
+                                           ~at: Find.bottom(p),
+                                           ~spike: #'n,
+                                           ~fill: "lightblue",
+                                           lines(@para{Must participate},
+                                                 @para{in BGP for},
+                                                 @para{@defterm{inter-AS} routing}))))
+          ))
+  slide(~title: "Adding a Subnet",
+        slide.alts(  
+          balloon.pin(~on: internet_x,
+                      ~at: Find.right(router3_4),
+                      ~spike: #'w,
+                      @para{Really, a whole subnet}),
+          new_internet,
+          block:
+            let p = new_internet
+            let msg = new_msg()
+            let msg2 = msg.launder()
+            fun out(p, router, msg :~ Pict):
+              pin(~on: p,
+                  ~at: Find.top(router, ~dx: -msg.width/2, ~dy: -msg.height-5),
+                  msg)
+            let p = out(p, router3_1, msg)
+            let p = out(p, router3_3, msg2)
+            slide.alts(p,
+                       balloon.pin(~on: p,
+                                   ~at: Find.right(msg2),
+                                   ~spike: #'w,
+                                   lines(
+                                     @para{Acts as a diff on the},
+                                     @para{node's distance table}
+                                   ))),
+          block:
+            let p = new_internet
+            fun out(p, router, msg :~ Pict):
+              pin(~on: p,
+                  ~at: Find.top(router, ~dx: -msg.width/2, ~dy: -msg.height-5),
+                  msg)
+            let p = out(p, router2_1, new_msg(~dir: #'left))
+            let p = out(p, router1_2, new_msg(~dir: #'right))
+            p
+      ))
+  slide(~title: "Hot Potato Routing",
+        slide.alts(
+          internet_hot_msg,
+          route_internet,
+          route_internet_hot_potato,
+          balloon.pin(~on: route_internet_hot_potato,
+                      ~at: Find.left(router1_1),
+                      ~spike: #'ne,
+                      ~dx: 64,
+                      lines(@para{@defterm{Hot potato routing}},
+                            @para{gets the packet out of an AS},
+                            @para{as quickly as possible}))
+        ))
+
+// ----------------------------------------
+
+let as = rectangle(~width: 32, ~height: 32, ~rounded: -0.2, ~line: #false, ~fill: as_color)
+let as1 = as.launder()
+let as2 = as.launder()
+let as3 = as.launder()
+let as4 = as.launder()
+let as5 = as.launder()
+let as6 = as.launder()
+let as7 = as.launder()
+let as8 = as.launder()
+let as9 = as.launder()
+let as10 = as.launder()
+
+let as_graph:
+  let p: beside(~sep: 100,
+                beside(as2, stack(~sep: 90, as1, blank(), as3)),
+                stack(~sep: 50, as8, as9).pad(~top: 25),
+                stack(~sep: 120, as10, as4, blank()),
+                stack(~sep: 100, as5, as6, as7, blank()))
+  let p = link(p, Find.bottom(as1), Find.top(as2))
+  let p = link(p, Find.bottom(as2), Find.top(as3))
+  let p = link(p, Find.right(as1), Find.left(as8))
+  let p = link(p, Find.right(as2), Find.left(as9))
+  let p = link(p, Find.bottom(as8), Find.top(as9))
+  let p = link(p, Find.right(as8), Find.left(as4))
+  let p = link(p, Find.right(as8), Find.left(as10))
+  let p = link(p, Find.right(as9), Find.left(as4))
+  let p = link(p, Find.right(as4), Find.left(as6))
+  let p = link(p, Find.right(as4), Find.left(as7))
+  let p = link(p, Find.bottom(as5), Find.top(as6))
+  let p = link(p, Find.bottom(as6), Find.top(as7))
+  p
+
+fun label_dot(label :~ Pict):
+  let dot = circle(~size: 8, ~fill: "black")
+  beside(~sep: 16, dot, label.scale(0.75)).refocus(dot)
+
+let google_addr = @tt{google.com}
+let google_8_addr = @tt{8.8.8.8}
+
+fun make_google_as_graph(google_addr):
+  let google = label_dot(google_addr)
+  let p = pin(~on: as_graph, ~at: Find.center(as5), google)
+  let p = pin(~on: p, ~at: Find.center(as3), google)
+  p
+
+let google_as_graph = make_google_as_graph(google_addr)
+let google_8_as_graph = make_google_as_graph(google_8_addr)
+  
+let dns_as_graph:
+  let p = google_as_graph
+  let to_google = @para{dest: @google_addr}
+  let g_down = new_msg(to_google, ~dir: #'down)
+  let g_up = new_msg(to_google, ~dir: #'up)
+  let p = pin(~on: p,
+              ~at: Find.left(as2, ~dx: -g_down.width-5),
+              g_down)
+  let p = pin(~on: p,
+              ~at: Find.right(as7, ~dx: 5),
+              g_up)
+  p
+
+let ip_anycast_graph:
+  let p = google_8_as_graph
+  let from_google = @para{BGP: @beside(google_8_addr, @tt{/1})}
+  let g_down = new_msg(from_google, ~dir: #'down)
+  let g_up = new_msg(from_google, ~dir: #'up)
+  let p = pin(~on: p,
+              ~at: Find.right_bottom(as5, ~dy: 5),
+              g_down)
+  let p = pin(~on: p,
+              ~at: Find.left(as3, ~dx: -g_up.width-5),
+              g_up)
+  p
+
+slide(~title: "Finding Distributed Services via DNS",
+      slide.alts(
+        as_graph,
+        google_as_graph,
+        stack(~sep: 16,
+              dns_as_graph,
+              balloon.note(lines(@para{DNS servers can point different parts of the},
+                                 @para{network in different directions}))).refocus(dns_as_graph)
+      ))
+
+slide(~title: "Finding Distributed Services via IP Anycast",
+      slide.alts(
+        google_8_as_graph,
+        ip_anycast_graph,
+        stack(ip_anycast_graph,
+              balloon.note(lines(@para{Forwarding tables acts as a level},
+                                 @para{of indirection for IP addresses},
+                                 @para{to support @defterm{IP anycast}}))).refocus(ip_anycast_graph),
+        stack(ip_anycast_graph,
+              balloon.note(lines(@para{IP anycast works best for DNS and similar,},
+                                 @para{where there's no connection to maintain}))).refocus(ip_anycast_graph)
+      ))

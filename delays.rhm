@@ -1,0 +1,603 @@
+#lang rhombus/static
+import:
+  "layers.rhm"
+  "common.rhm" open
+
+module ~early network ~lang rhombus/static/and_meta:
+  import:
+    rhombus/runtime_path
+    slideshow open
+    pict open
+    "layers.rhm"
+    "common.rhm" open
+
+  export:
+    make_network
+    laptop
+    server
+    router
+    clock
+    magnifying_glass
+    last_magnifying_glass
+    last_router
+
+  runtime_path.def laptop_png: "images/laptop.png"
+  runtime_path.def wifi_png: "images/wifi-ap.png"
+  runtime_path.def router_png: "images/router.png"
+  runtime_path.def server_png: "images/server.png"
+  runtime_path.def magnifying_glass_png: "images/magnifying_glass.png"
+  runtime_path.def clock_png: "images/clock.png"
+
+  def laptop = bitmap(laptop_png).scale(0.2)
+  def wifi = bitmap(wifi_png).scale(0.2)
+  def router = bitmap(router_png).scale(0.5).pad(~horiz: 10)
+  def server = bitmap(server_png).scale(0.2).pad(~horiz: 10)
+  def magnifying_glass = bitmap(magnifying_glass_png).scale(0.2)
+  def clock = bitmap(clock_png).scale(0.3)
+
+  def router0 = router.launder()
+  def router1 = router.launder()
+  def router2 = router.launder()
+  def router3 = router.launder()
+
+  def last_magnifying_glass = magnifying_glass.launder()
+  def last_router = router2
+
+  def pale_yellow = Color("yellow") with (alpha = 0.5)
+
+  def packet :~ Pict:
+    let s = rectangle(~width: 5, ~height: 10, ~fill: "lightblue", ~line: #'inherit)
+    beside(s, s, s, s)
+
+  fun make_network(options :~ Map) :~ Pict:
+    let w = 3  
+    fun add_out(p):
+      if options.get(#'hilite_out, #false)
+      | beside(~sep: -20,
+               p,
+               circle(~size: 48, ~line: #false, ~fill: pale_yellow))
+          .refocus(p)
+      | p
+    fun add_more_out(p, ~color: color = #'inherit, ~half: half = #false):
+      if options.get(#'hilite_inspect, #false)
+      | fun add(p :~ Pict, dir):
+          connect(~on: p,
+                  Find.abs(p.width, p.height/2 + dir*10),
+                  Find.abs(p.width * 1.5, p.height/2 + dir*20),
+                  ~style: #'arrow,
+                  ~line_width: w,
+                  ~line: color)
+        let p = if half | p | add(p, 1)
+        add(p, -1)
+      | p                      
+    fun add_more_in(p):
+      if options.get(#'hilite_queue, #false)
+      | fun add(p :~ Pict, dir):
+          let p = connect(~on: p,
+                          Find.abs(-p.width * 0.5, p.height/2 + dir*20),
+                          Find.abs(0, p.height/2 + dir*10),
+                          ~line_width: w)
+          connect(~on: p,
+                  Find.abs(-p.width * 0.55, p.height/2 + dir*22),
+                  Find.abs(-p.width * 0.5, p.height/2 + dir*20),
+                  ~style: #'arrow,
+                  ~line_width: w)
+        let p = add(add(add(p, 1), -1), -2)
+        balloon.pin(~on: p,
+                    ~at: Find.center(p),
+                    ~spike: #'n,
+                    ~dy: -50,
+                    block:
+                      let e = packet.pad(5)
+                      let q = rectangle(~around: beside(e.ghost(), e.ghost(), e, e, e).pad(5),
+                                        ~fill: "white",
+                                        ~line: #'inherit)
+                      let qx = q.pad(~horiz: 30)
+                      let qx = connect(~on: qx,
+                                       Find.left(qx), Find.left(q),
+                                       ~line_width: w,
+                                       ~style: #'arrow)
+                      let qx = connect(~on: qx,
+                                       Find.right(q), Find.right(qx),
+                                       ~line_width: w,
+                                       ~style: #'arrow)
+                      if options.get(#'explain_queue, #false)
+                      | let explain:
+                          lines(@para{Queue fills when incoming rate},
+                                @para{exceeds outgoing rate})
+                        balloon.pin(~on: qx,
+                                    ~at: Find.left(qx),
+                                    ~spike: #'ne,
+                                    ~dx: 200,
+                                    ~fill: "lightblue",
+                                    cond
+                                    | options.get(#'explain_drop, #false):
+                                        lines(explain,
+                                              t(""),
+                                              @para{Sustained traffic intensity},
+                                              @para{⇒ packets get dropped})
+                                    | ~else:
+                                        explain)
+                      | qx)
+      | p                      
+    fun add_glass(p, magnifying_glass = magnifying_glass):
+      if options.get(#'hilite_inspect, #false)
+      | let magnifying_glass :~ Pict:
+          if options.get(#'tcp, #false)|| options.get(#'udp, #false)
+          | beside(~vert: #'bottom,
+                   if options.get(#'tcp, #false) | @t{TCP} | @t{UDP},
+                   magnifying_glass).refocus(magnifying_glass)
+          | magnifying_glass
+        overlay(p,
+                circle(~around:
+                         overlay(magnifying_glass.pad(~right: -magnifying_glass.width / 3,
+                                                      ~bottom: -magnifying_glass.height / 3),
+                                 packet).pad(10),
+                       ~line: #false,
+                       ~fill: pale_yellow).pad(~top: 50))
+          .refocus(p)
+      | p
+    let p:
+      stack(~sep: 100, ~horiz: #'right,
+            beside(~sep: 100,
+                   add_out(laptop),
+                   add_out(add_glass(wifi)),
+                   add_more_in(add_more_out(add_out(add_glass(router0)))),
+                   blank(),
+                   add_more_out(add_out(add_glass(router1)), ~color: "red", ~half: #true)),
+            beside(~sep: 100,
+                   add_more_out(add_out(add_glass(router2, last_magnifying_glass))),
+                   add_more_out(add_out(add_glass(router3))),
+                   server))
+    let link:
+      if options.get(#'hilite_link, #false)
+      | fun(~on: p, & xs, ~& kws):
+          let p = connect(~on: p, & xs, ~& kws ++ { #'~line: "yellow", #'~line_width: 3 * w })
+          connect(~on: p, & xs, ~& kws)
+      | connect
+    fun wire(p, from, to, ~color: color = "black", ~ttl: ttl = #false):
+      def TTL = ttl && t("TTL")
+      fun to_right(p :~ Pict) :~ Pict:
+        let q = p.pad(~right: 32)
+        connect(~on: q,
+                Find.right(p),
+                Find.right(q),
+                ~style: #'arrow)
+      fun to_left(p :~ Pict) :~ Pict:
+        let q = p.pad(~left: 32)
+        connect(~on: q,
+                Find.left(p),
+                Find.left(q),
+                ~style: #'arrow)
+      fun explain(p :~ Pict) :~ Pict:
+        if options.get(#'ttl_explain, #false)
+        | balloon.pin(~on: p,
+                      ~at: Find.top(TTL),
+                      ~spike: #'s,
+                      @para{TTL is  ``time to live''})
+        | p
+      fun explain_fail(p :~ Pict) :~ Pict:
+        if options.get(#'bounce_explain, #false) && ttl == 0
+        | balloon.pin(~on: p,
+                      ~at: Find.bottom(p),
+                      ~spike: #'ne,
+                      @para{reports where TTL hit 0})
+        | p
+      link(~on: p,
+           Find.right(from),
+           Find.left(to),
+           ~line: color,
+           ~line_width: w,
+           ~label: (ttl
+                      && (options.get(#'ttl, 100) <= ttl)
+                      && (block:
+                            let p = lines(explain(para(TTL, t("= " +& ttl)).scale(0.5)),
+                                          to_right(packet.scale(2))).pad(~bottom: 10)
+                            if options.get(#'bounce, -1) >= ttl
+                            | stack(~sep: 10, p, lines(~horiz: #'right,
+                                                       to_left(packet.scale(2)),
+                                                       explain_fail(t("fail").scale(0.5))))
+                                .refocus(p)
+                            | p)))
+                                  
+    let p = wire(p, laptop, wifi, ~color: "blue", ~ttl: options.get(#'ttl_init, 1) )
+    let p = wire(p, wifi, router0, ~ttl: 0)
+    let p = wire(p, router0, router1)
+    let p = link(~on: p,
+                 Find.right(router1),
+                 Find.left(router2),
+                 ~line: "red",
+                 ~line_width: w,
+                 ~start_angle: -0.1,
+                 ~start_pull: 0.6,
+                 ~end_angle: -0.1,
+                 ~end_pull: 0.6)
+    let p = wire(p, router2, router3)
+    let p = wire(p, router3, server)
+    let p:
+      if options.get(#'traceroute, #false)
+      | stack(~sep: 32,
+              p,
+              @para{@tt{traceroute} uses this trick systematically to explore the network})
+          .refocus(p)
+      | p                       
+    p
+
+import:
+  self!network open
+
+fun delay_slide(options :~ Map) :~ Map:
+  slide(~title: "How Long Will It Take to Get a Response?",
+        make_network(options),
+        t(cond
+          | options.get(#'hilite_link, #false): @defterm{propagation delay}
+          | options.get(#'hilite_out, #false): @defterm{transmission delay}
+          | options.get(#'hilite_inspect, #false): @defterm{processing delay}
+          | options.get(#'hilite_queue, #false): @defterm{queueing delay}
+          | ~else: ""))                                                
+  options
+
+let base_options = delay_slide({ })
+let options = delay_slide(base_options ++ { #'hilite_link: #true })
+let options = delay_slide(base_options ++ { #'hilite_out: #true })
+let options = delay_slide(base_options ++ { #'hilite_inspect: #true })
+let options = delay_slide(base_options ++ { #'hilite_queue: #true })
+
+fun smaller_make_network(options):
+  make_network(options).scale(0.8)
+
+fun fraction(n :~ Pict, d :~ Pict):
+  stack(n,
+        line(~dx: math.max(n.width, d.width)),
+        d)
+
+fun formula(p :: Pict) :~ Pict:
+  p.colorize("blue")
+
+def equals = @t{=}.pad(~horiz: 18)
+
+fun two_step(as, bs):
+  let pa = para(as)
+  let pb = para(bs)
+  slide.alts(beside(pa, pb.ghost()),
+             beside(pa, pb))
+
+def delay_propagation:
+  formula(
+    romanly(
+      beside(@t{@italic{delay}@subscript{@italic{propagation}}},
+             equals,
+             fraction(@para{@italic{scale} × @italic{distance}},
+                      @italic{speed of light}))
+    )
+  )
+
+slide(~title: "Propagation Delay",
+      ~layout: #'top,
+      smaller_make_network({ #'hilite_link: #true }),
+      slide.next,
+      slide.align(@two_step{Time to travel along medium}{, depends on physics},
+                  slide.next,
+                  @item{distance travelled},
+                  slide.next,
+                  @item{speed of link --- some fraction of the speed of light}),
+      slide.next,
+      blank(),
+      delay_propagation)
+
+def delay_transmission:
+  formula(
+    romanly(
+      beside(@t{@italic{delay}@subscript{@italic{transmission}}},
+             equals,
+             fraction(@italic{size},
+                      @italic{R}))
+    )
+  )
+
+slide(~title: "Transmission Delay",
+      ~layout: #'top,
+      smaller_make_network({ #'hilite_out: #true }),
+      slide.next,
+      slide.align(@two_step{Time to convert from bytes to medium}{, depends on device and data},
+                  slide.next,
+                  lines(@item{device rate @italic{R}},
+                        lines(@subitem{fiber, ethernet: 1-400 Gbps},
+                              @subitem{WiFi: 54 Gbps},
+                              @subitem{dial-up: 56.6 Kbps}).scale(0.8)),
+                  slide.next,
+                  @item{packet size}),
+      slide.next,
+      block:
+        let p = delay_transmission
+        p.pad(~top: -p.height * 1.7, ~right: -p.width * 2))
+
+def delay_processing:
+  formula(
+    romanly(
+      beside(@t{@italic{delay}@subscript{@italic{processing}}},
+             equals,
+             @t{0})
+    )
+  )
+
+slide(~title: "Processing Delay",
+      ~layout: #'top,
+      smaller_make_network({ #'hilite_inspect: #true }),
+      slide.next,
+      blank(),
+      slide.align(@two_step{Time to inspect bytes and choose next step}{, depends on device speed},
+                  slide.next,
+                  @para{Typically a few nanoseconds, so we ignore it}),
+      slide.next,
+      blank(),
+      delay_processing)
+
+def delay_queueing:  
+  formula(
+    romanly(
+      beside(@t{@italic{delay}@subscript{@italic{queue}}},
+             equals,
+             @t{???})
+    )
+  )
+
+slide(~title: "Queueing Delay",
+      ~layout: #'top,
+      block:
+        let options = { #'hilite_queue: #true }
+        let explain_options = options ++ { #'explain_queue: #true }        
+        slide.alts(smaller_make_network(options),
+                   smaller_make_network(explain_options),
+                   smaller_make_network(explain_options ++ { #'explain_drop: #true }),
+                   smaller_make_network(options)),
+      blank(),
+      @two_step{Time packets bytes are held in a queue}{, depends on traffic},
+      slide.next,
+      blank(),
+      slide.alts(
+        [formula(romanly(beside(@italic{incoming data rate},
+                                equals,
+                                @t{@italic{average packet size} × @italic{incoming packet rate}}))),
+         slide.next,
+         blank(),
+         formula(romanly(beside(@italic{traffic intensity},
+                                equals,
+                                @fraction(@italic{incoming data rate},
+                                          @italic{R})))),
+         slide.next,
+         slide.alts(@beside(~sep: 20, romanly(@para{@italic{traffic intensity}@t("") @t{≤ 1}}), @t{⇒}, @para{no delay}),
+                    @beside(~sep: 20, romanly(@para{@italic{traffic intensity}@t("") @t{> 1}}), @t{⇒}, @para{delay growing}))],
+        [delay_queueing]))
+
+let delay_prop = romanly(@italic{delay@subscript{propagation}})
+let delay_trans = romanly(@italic{delay@subscript{transmission}})
+let delay_proc = romanly(@italic{delay@subscript{processing}})
+let delay_queue = romanly(@italic{delay@subscript{queueing}})
+let delay_all = romanly(@italic{delay})
+let delay_sum = (formula(
+                   romanly(
+                     beside(delay_all,
+                            equals,
+                            @para(delay_prop,
+                                  @t{+},
+                                  delay_trans,
+                                  @t{+},
+                                  delay_proc,
+                                  @t{+},
+                                  delay_queue))
+                     )
+                 ))
+
+slide(~title: "Total Delay",
+      stack(~sep: 60,
+            delay_sum,                      
+            delay_propagation,
+            delay_transmission,
+            delay_processing,
+            delay_queueing))
+
+fun measure_pict(options :~ Map):
+  let round_trip = options.get(#'round_trip, #false)
+  fun add_clock(p, on):
+    if on || options.get(#'clocks, #false)
+    | stack(~sep: 30, p, clock).refocus(p)
+    | p
+  fun icmp(p):
+    cond
+    | options.get(#'protocol, #false):
+        balloon.pin(~on: p,
+                    ~at: Find.top(p),
+                    ~spike: #'s,
+                    lines(@para{Need a protocol that will},
+                          @para{bounce data to a client}))
+    | options.get(#'icmp, #false):
+        balloon.pin(~on: p,
+                    ~at: Find.top(p),
+                    ~spike: #'s,
+                    lines(@t{ICMP}))
+    | ~else: p
+  let p = beside(~sep: 500,
+                 add_clock(laptop, round_trip),
+                 add_clock(icmp(server), #false))
+  let p = connect(~on: p,
+                  Find.right(laptop),
+                  Find.left(server),
+                  ~style: #'arrow,
+                  ~line_width: 3,
+                  ~label: options.get(#'ping, #false) && @t{ping},
+                  ~label_dy: -5)
+  let p:
+    if round_trip
+    | connect(~on: p,
+              Find.left(server, ~dy: 20),
+              Find.right(laptop, ~dy: 20),
+              ~style: #'arrow,
+              ~line_width: 3,
+              ~label: options.get(#'pong, #false) && @t{pong},
+              ~label_dy: 40)
+    | p
+  let p:
+    if options.get(#'rtt, #false)
+    | stack(~sep: 32,
+            p,
+            @para{Round-trip time (RTT)},
+            blank(),
+            block:
+              let p = @para{Run as the @tt{ping} command}
+              if options.get(#'ping_exe, #false)
+              | p
+              | p.ghost()).refocus(p)
+    | p
+  p
+
+fun measure_slide(options) :~ Map:
+  slide(~title: "What Can We Measure?",
+        measure_pict(options))
+  options
+
+let no_options = measure_slide({})
+let no_options = measure_slide({ #'clocks: #true })
+let options = measure_slide({ #'round_trip: #true })
+let options = measure_slide(options ++ { #'rtt: #true })
+let no_options = measure_slide(options ++ { #'protocol: #true })
+let options = measure_slide(options ++ { #'icmp: #true })
+let options = measure_slide(options ++ { #'ping: #true })
+let options = measure_slide(options ++ { #'pong: #true })
+let options = measure_slide(options ++ { #'ping_exe: #true })
+
+fun tt_lines(s, ...) :~ Pict:
+  lines(tt(s), ...)
+
+slide(
+  @tt_lines(
+    "laptop$ ping www.cs.utah.edu"
+    "PING wp.wpenginepowered.com (141.193.213.10): 56 data bytes"
+    "64 bytes from 141.193.213.10: icmp_seq=0 ttl=51 time=35.962 ms"
+    "64 bytes from 141.193.213.10: icmp_seq=1 ttl=51 time=28.266 ms"
+    "64 bytes from 141.193.213.10: icmp_seq=2 ttl=51 time=34.257 ms"
+    "64 bytes from 141.193.213.10: icmp_seq=3 ttl=51 time=37.075 ms"
+    "64 bytes from 141.193.213.10: icmp_seq=4 ttl=51 time=135.983 ms"
+    "^C"
+    "--- wp.wpenginepowered.com ping statistics ---"
+    "5 packets transmitted, 5 packets received, 0.0% packet loss"
+    "round-trip min/avg/max/stddev = 28.266/54.309/135.983/40.950 ms"
+  )
+)
+
+block:
+  let title = "Inferring Delay Components"
+  def prop_color = "beige"
+  def trans_color = "lightblue"
+  def queue_color = "pink"
+  def sep = 5
+  fun delays(a, b, c):
+    def H = 16
+    def S = 1
+    beside(rectangle(~width: a * S, ~height: H, ~fill: prop_color, ~line: #'inherit),
+           rectangle(~width: b * S, ~height: H, ~fill: trans_color, ~line: #'inherit),
+           rectangle(~width: c * S, ~height: H, ~fill: queue_color, ~line: #'inherit),
+           t("  " +& (a + b + c) +& "ms").scale(0.5))
+  slide(~title: title,
+        slide.align(
+          @para{Supposed that we take 5 pings using a packet of size 100:},
+          stack(~horiz: #'left,
+                ~sep: sep,
+                delays(100, 100, 10),
+                delays(100, 100, 0),
+                delays(100, 100, 13),
+                delays(100, 100, 7),
+                delays(100, 100, 17)),
+          @para{and for the same destination, 5 pings using a packet of size 200:},
+          stack(~horiz: #'left,
+                ~sep: sep,
+                delays(100, 200, 5),
+                delays(100, 200, 32),
+                delays(100, 200, 0),
+                delays(100, 200, 17),
+                delays(100, 200, 1)),
+          slide.next,          
+          @para{Each measurement is a @formula(delay_all)}
+        ),
+        blank(50),
+        slide.alts(
+          delay_sum.scale(0.75),
+          block:
+            let p = delay_sum
+            let p = balloon.pin(~on: p,
+                                ~at: Find.top(delay_prop),
+                                ~spike: #'s,
+                                ~fill: prop_color,
+                                @para{the same for every packet})
+            let p = balloon.pin(~on: p,
+                                ~at: Find.bottom(delay_trans),
+                                ~spike: #'n,
+                                ~fill: trans_color,
+                                @para{proportional to packet length})
+            let p = balloon.pin(~on: p,
+                                ~at: Find.top(delay_proc),
+                                ~spike: #'s,
+                                ~fill: "lightgray",
+                                @para{treat as 0})
+            let p = balloon.pin(~on: p,
+                                ~at: Find.bottom(delay_queue),
+                                ~spike: #'n,
+                                ~fill: queue_color,
+                                @para{assume 0 in shortest})
+            p.scale(0.75)
+        ))
+
+slide(layers.pict(layers.make(~apps: @para{Firefox, @tt{ping}, ...},
+                              ~transports: "TCP, UDP, ICMP, ...")))
+
+fun traceroute_slide(options) :~ Map:
+  slide(~title: "Can We Get Any Information About a Route?",
+        make_network(options))
+  options
+
+let options = traceroute_slide({})
+let ttl_options = traceroute_slide(options ++ { #'ttl: 64, #'ttl_init: 64 })
+let ttl_options = traceroute_slide(ttl_options ++ { #'ttl_explain: #true })
+let options = traceroute_slide(options ++ { #'ttl: 1 })
+let options = traceroute_slide(options ++ { #'ttl: 0 })
+let options = traceroute_slide(options ++ { #'bounce: 0 })
+let options = traceroute_slide(options ++ { #'bounce: 1 })
+let options = traceroute_slide(options ++ { #'bounce_explain: #true })
+let options = traceroute_slide(options ++ { #'traceroute: #true })
+
+slide(
+  (@tt_lines(
+     "laptop$ traceroute www.cs.utah.edu"
+     "traceroute: Warning: www.cs.utah.edu has multiple addresses; using 141.193.213.10"
+     "traceroute to wp.wpenginepowered.com (141.193.213.10), 64 hops max, 52 byte packets"
+     " 1  10.0.0.1 (10.0.0.1)  11.987 ms  4.197 ms  4.602 ms"
+     " 2  100.93.170.195 (100.93.170.195)  15.651 ms"
+     "    100.93.170.194 (100.93.170.194)  18.858 ms"
+     "    100.93.170.195 (100.93.170.195)  16.754 ms"
+     " 3  po-333-417-rur501.saltlakecity.ut.utah.comcast.net (96.216.76.73)  16.825 ms"
+     "    po-333-418-rur502.saltlakecity.ut.utah.comcast.net (96.216.76.81)  15.903 ms"
+     "    po-333-417-rur501.saltlakecity.ut.utah.comcast.net (96.216.76.73)  18.208 ms"
+     "...."
+     "15  50.242.151.238 (50.242.151.238)  33.149 ms"
+     "    172.69.132.4 (172.69.132.4)  39.945 ms"
+     "    66.208.229.106 (66.208.229.106)  42.951 ms"
+     "16  141.193.213.10 (141.193.213.10)  33.762 ms"
+     "    172.71.156.2 (172.71.156.2)  60.377 ms"
+     "    141.193.213.10 (141.193.213.10)  32.911 ms"
+  )).scale(0.75)
+)
+
+slide(~title: "Latency vs. Throughput",
+      @item{@defterm{Latency} ⇒ how long you have to wait for one small thing},
+      slide.next,
+      @para{a time, such as milliseconds},
+      @para{RTT can help us understand latency},
+      slide.next,
+      blank(),
+      @item{@defterm{Throughput} ⇒ how long you have to wait for everything},
+      slide.next,
+      @para{a rate, such as bytes per second},
+      lines(
+        @para{mailing a box of flash drives can have very high throughput,},
+        @para{but also high latency}
+      ))

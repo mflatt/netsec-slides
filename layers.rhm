@@ -1,0 +1,77 @@
+#lang rhombus/static
+
+import:
+  "common.rhm" open
+
+export:
+  make
+  pict
+  rename:
+    layer_color as color
+
+def layer_color = "crimson"
+def highlight_layer_color = "darkorange"
+
+fun make(~apps = @para{Firefox, @tt{ping}, ...},
+         ~transports = "TCP, UDP, ...") :~ List.of(List):
+  [["application", apps, ""],
+   ["transport", transports, @italic{socket}],
+   ["network", "IP", blank()],
+   ["link", "ethernet, WiFi, ...", @italic{driver}],
+   ["physical", "electrons, photons, ...", @italic{hardware}]]
+
+fun pict([[layer_str, examples, interface], ...],
+         ~adjust: adjust = fun (p, i): p,
+         ~adjust_interface: adjust_intf = fun (p, i): p,
+         ~interfaces = #false,
+         ~highlight: highlight = #false,
+         ~show_numbers = #false,
+         ~show_examples = #true,
+         ~dpad: dpad = 0) :~ Pict:
+  let n = [layer_str, ...].length()
+  let [layer, ...] = [t(layer_str), ...]
+  let [interface, ...] = [t(interface), ...]
+  let width = math.max(layer.width, ..., interface.width, ...)
+  fun widen(p :~ Pict) :~ Pict:
+    let dw = (width - p.width) / 2
+    p.pad(~horiz: dw)
+  let [label, ...] = [widen(layer), ...]
+  fun pick_color(layer_str):
+    if highlight == layer_str
+    | highlight_layer_color
+    | layer_color
+  fun maybe(b, p): if b | p | nothing
+  let [layer, ...] = [beside(~sep: 20,
+                             rectangle(~around: label.pad(3+dpad).colorize("white"),
+                                       ~fill: pick_color(layer_str),
+                                       ~line: #'inherit),
+                             maybe(show_examples, @para(examples))),
+                      ...]
+  let [layer, ...] = for List (layer: [layer, ...], i: 0..): adjust(layer, i)
+  if interfaces
+  | let [intf :~ Pict, ...] = [widen(interface), ...]
+    let [intf :~ Pict, ...] = for List (intf: [intf, ...], i: 0..): adjust_intf(intf, i)
+    fun arrows(q :~ Pict):
+      if q.height == 0
+      | q
+      | let p = q.pad(~vert: q.height / 2)
+        let p = connect(~on: p,
+                        Find.top(q),
+                        Find.top(p),
+                        ~style: #'arrow)
+        let p = connect(~on: p,
+                        Find.bottom(q),
+                        Find.bottom(p),
+                        ~style: #'arrow)
+        if interfaces is_a Real
+        | p.scale(1, interfaces)            
+        | p
+    let [intf, ...] = [arrows(intf), ...]
+    stack(~horiz: #'left, & List.append([intf, layer], ...).drop_left(1))
+  | stack(~horiz: #'left, layer, ...)
+
+module main:
+  slide(pict(make(),
+             ~interfaces: #true,
+             ~highlight: "link"))
+  

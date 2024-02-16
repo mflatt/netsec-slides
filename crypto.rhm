@@ -1,0 +1,732 @@
+#lang rhombus/static/and_meta
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+
+module ~early key ~lang rhombus/static/and_meta:
+  import:
+    rhombus/runtime_path
+    "common.rhm" open
+    lib("pict/face.rkt") as rkt_face
+  export:
+    key
+    key2
+    ciphertext_color
+    ciphertext
+    plaintext
+    textpad
+    alg_color
+    alg_box_color
+    alice
+    bob
+    eve
+    eve_face
+    mallory
+    mallory_unscaled
+
+  runtime_path.def key_png: "images/key.png"
+  runtime_path.def key2_png: "images/key2.png"
+
+  def key = bitmap(key_png).scale(0.2)
+  def key2 = bitmap(key2_png).scale(0.2)
+
+  def ciphertext_color = "blue"
+
+  def textpad = 5
+  fun plaintext(p :~ Pict) :~ Pict: rectangle(~around: p.pad(textpad), ~refocus: #'around, ~fill: "beige", ~line: #'inherit)
+  fun ciphertext(p :~ Pict) :~ Pict: rectangle(~around: p.pad(textpad).colorize("white"), ~refocus: #'around, ~fill: ciphertext_color, ~line: #'inherit)
+
+  def alg_color = "purple"
+  def alg_box_color = "plum"
+
+  fun face(mood) :~ Pict: Pict.from_handle(rkt_face.face(mood)).scale(0.5)
+
+  def alice = stack(face(#'happy),
+                    @t{Alice})
+  def bob = stack(face(#'happy),
+                  @t{Bob})
+  def mean_face :~ Pict:
+    Pict.from_handle(rkt_face.#{face*}(#'angry, #'plain, #false, rkt_face.#{default-face-color}, 0)).scale(0.5)
+  def eve_face = mean_face.launder()
+  def eve = stack(eve_face.scale(0.5), @t{Eve})
+  def mallory_unscaled = stack(mean_face.launder(), @t{Mallory})
+  def mallory = stack(mean_face.launder().scale(0.6), @t{Mallory})
+
+import self!key open
+
+runtime_path.def xkcd_png: "images/xkcd_alice_bob.png"
+runtime_path.def laptop_png: "images/laptop.png"
+runtime_path.def router_png: "images/router.png"
+
+def laptop = bitmap(laptop_png).scale(0.2)
+def router = bitmap(router_png).scale(0.4)
+        
+slide(~title: "Cryptography",
+      @para(@{@defterm{Cryptography}: secure communication in}            
+            @{the presence of adversaries}),
+      blank(64),
+      block:
+        let laptop1 = laptop.launder()
+        let laptop2 = laptop.launder()
+        let p_plain:
+          beside(~sep: 500,
+                 beside(alice, laptop1),
+                 beside(laptop2, bob))
+        let lw = 5
+        fun link(p, from, to) :~ Pict:
+          connect(~on: p, Find.right(from), Find.left(to), ~line_width: lw)
+        let p_direct = link(p_plain, laptop1, laptop2)
+        let r1 = router.launder()
+        let r2 = router.launder()
+        let r3 = router.launder()
+        let p:
+          overlay(p_plain, beside(~sep: 32, blank(), r1, r2, r3, blank(), ))
+        let p = link(p, laptop1, r1)
+        let p = link(p, r1, r2)
+        let p = link(p, r2, r3)
+        let p = link(p, r3, laptop2)
+        let p_routers = p
+        let p_eve = connect(~on: overlay.top(eve,
+                                             p_routers.pad(~top: 64)).refocus(p_routers),
+                            Find.bottom(eve),
+                            Find.top(r2),
+                            ~line_width: lw)
+        fun shady(p :~ Pict) :~ Pict:
+          let p = p.scale(0.4)
+          overlay(p,
+                  rectangle(~around: p.ghost().pad(16),
+                            ~line: #false,
+                            ~fill: Color("gray") with (alpha = 0.3)))
+        let alice2 = alice.launder()
+        let bob2 = bob.launder()
+        let laptop21 = laptop.launder()
+        let laptop22 = laptop.launder()        
+        let p:
+          overlay(p_plain,
+                  beside.top(~sep: 0,
+                             shady(beside(laptop21, bob2)),
+                             mallory.translate(0, 64),
+                             shady(beside(alice2, laptop22))))
+        let p = link(p, laptop1, laptop21)
+        let p = link(p, laptop22, laptop2)
+        let p_mitm = p
+        slide.alts(
+          p_direct,
+          stack(~sep: 128,
+                p_direct,
+                beside(@para{In this class, @italic{crypto} is short for @italic{cryptography},},
+                       @t{ },
+                       @para{not @italic{cryptocurrency} or @italic{cryptoanalysis}}).scale(0.75).colorize("blue"))
+            .refocus(p_direct),
+          p_routers,
+          p_eve,
+          balloon.pin(~on: p_eve,
+                      ~at: Find.right(eve_face),
+                      ~spike: #'w,
+                      @para{@defterm{evesdropper}}),
+          p_mitm,
+          balloon.pin(~on: p_mitm,
+                      ~at: Find.top(mallory),
+                      ~spike: #'s,
+                      ~dy: 128,
+                      @para{@defterm{man in the middle (MITM)}}),
+          
+        ))
+      
+
+slide(~title: "Alice and Bob",
+      beside(~sep: 128,
+             bitmap(xkcd_png).scale(0.75),
+             @tt{https://xkcd.com/1323/}))
+
+fun back(p :~ Pict): p.sustain().time_pad(~before: -1)
+fun forward(p :~ Pict): p.time_pad(~before: 1)
+
+slide(~title: "Cryptography Application Goals",
+      slide.align(
+        forward(@para{@back(@defterm{Confidentiality}): only intended recipient can read a message}),
+        slide.next,
+        blank(),
+        forward(@para{@back(@defterm{Integrity}): received message is unchanged from sender}),
+        slide.next,
+        blank(),
+        forward(@para{@back(@defterm{Authenticity}): identity of each communicating party can be confirmed}),
+        slide.next,
+        blank(),
+        forward(@para{@back(@defterm{Non-repudiation}): parties cannot deny previous commitments})
+      ),
+      slide.next,
+      blank(32),
+      beside.topline(@para{Assume that attackers},
+                     @tt{ },
+                     stack.left(
+                       ~sep: 8,
+                       @para{are capable of evesdropping,},
+                       @para{are capable of MITM,},
+                       @para{know your algorithms, and},
+                       @para{have NSA-scale compute power}
+                     )).pad(~bottom: -64))
+
+let meet = "MEET ME AT THE CLOCK TOWER"
+let meet_in = "MEET ME IN THE CLOCK TOWER"
+
+fun rot(s :~ String, n = 13):
+  let A = Char.to_int("A"[0])
+  let Z = Char.to_int("Z"[0])
+  let a = Char.to_int("a"[0])
+  let z = Char.to_int("z"[0])
+  String.append(
+    & (for List (i: 0..s.length()):
+         let c = s[i]
+         cond
+         | Char.to_int(c) >= A && Char.to_int(c) <= Z:
+             let v = Char.to_int(c) + n
+             to_string(Char.from_int(if v > Z | v - 26 | v))
+         | Char.to_int(c) >= a && Char.to_int(c) <= z:
+             let v = Char.to_int(c) + n
+             to_string(Char.from_int(if v > z | v - 26 | v))
+         | ~else:
+             to_string(c))
+  )
+
+fun pad_string(s :~ String, n) :~ String:
+  if s.length() mod n == 0
+  | s
+  | pad_string(s ++ " ", n)  
+
+fun mat(s :~ String, n = 4):
+  String.append(
+    & (for List:
+         each:
+           i: 0 .. n
+         each:
+           j: 0 .. s.length()/n
+         let idx = i + j*n
+         if idx >= s.length()
+         | ""
+         | to_string(s[idx]))
+  )
+
+fun true_xor(s :~ String, seed, ~rounds: rounds = 2):
+  let enum = " ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%"
+  let map:
+    for Map (i: 0..32):
+      values(enum[i], i)
+  let values (new_seed, chars):
+    for values(seed = seed, accum :~ List = []) (i: 0..s.length()):
+      let val = map[s[i]]
+      let new_seed = seed bits.xor val
+      values(new_seed, accum.add(to_string(enum[new_seed])))
+  let s = String.append(&chars)
+  if rounds == 1
+  | s
+  | xor(s, new_seed, ~rounds: rounds - 1)
+
+let char_map = " ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+let char_values:
+  for Map (i: 0 .. char_map.length()):
+    values(char_map[i], i)
+
+fun xor(s :~ String, seed, ~rounds: rounds = 2, ~get_seed = #false):
+  let values (new_seed, chars):
+    for values(seed = seed, accum :~ List = []) (i: 0..s.length()):
+      let val = char_values[s[i]]
+      let new_seed = (seed + val) mod char_map.length()
+      values(new_seed, accum.add(to_string(char_map[new_seed])))
+  let s = String.append(&chars)
+  if rounds == 1
+  | if get_seed
+    | values (s, new_seed)
+    | s
+  | xor(s, new_seed, ~rounds: rounds - 1, ~get_seed: get_seed)
+
+fun ciphertext_pict(options :~ OptMap):
+  fun show(key, p :~ Pict) :~ Pict:
+    if options[key] | p | p.ghost()
+  let plain = plaintext(@tt(meet))
+  let cipher = ciphertext(@tt(rot(meet, 13)))
+  let plain2 = plain.launder()
+  let cipher2 = cipher.launder()
+  let key2 :~ Pict:
+    let key :~ Pict = if options[#'asymmetric] | key2 | key
+    key.launder().scale(-1, 1).pad(~right: key.width, ~left: key.width)
+  let p = stack(~sep: 64,
+                alice,
+                show(#'plaintext, plain),
+                show(#'ciphertext, cipher))
+  let p2 = stack(~sep: 64,
+                 bob,
+                 show(#'plaintext_recv, plain2),
+                 show(#'ciphertext_send, cipher2))
+  let p:
+    beside(~sep: 200, p, p2)
+  let p:
+    if options[#'ciphertext]
+    | connect(~on: p, Find.bottom(plain), Find.top(cipher), ~style: #'arrow,
+              ~line: alg_color,
+              ~line_width: 3,
+              ~label: show(#'algorithm, block:
+                                          let p = @para{algorithm plus @defterm{key} @key}.colorize(alg_color)
+                                          let p = p.pad(~right: -p.width)
+                                          beside(~sep: 32,
+                                                 @defterm{encrypt},
+                                                 p)
+                                            .refocus(p)))
+    | p
+  let p:
+    if options[#'ciphertext_send]
+    | connect(~on: p, Find.top(cipher2), Find.bottom(plain2), ~style: #'arrow,
+              ~line: alg_color,
+              ~line_width: 3,
+              ~label: show(#'key, block:
+                                    let p = key2.pad(~left: -key.width)
+                                    beside(~sep: 32,
+                                           p,
+                                           @defterm{decrypt})
+                                      .refocus(p)))
+    | p
+  let p:
+    if options[#'plaintext_send]
+    | connect(~on: p, Find.right(plain), Find.left(plain2), ~style: #'arrow)
+    | p
+  let p:
+    if options[#'ciphertext_send]
+    | connect(~on: p, Find.right(cipher), Find.left(cipher2), ~style: #'arrow)
+    | p
+  let p:
+    if options[#'plaintext_explain]
+    | balloon.pin(~on: p,
+                  ~at: Find.top(plain, ~dx: -96),
+                  ~spike: #'s,
+                  ~sprout: 0.8,
+                  @defterm{plaintext})
+    | p
+  let p:
+    if options[#'ciphertext_explain]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(cipher),
+                  ~spike: #'n,
+                  @defterm{ciphertext})
+    | p
+  let p:
+    if options[#'eve]
+    | stack(~sep:32,
+            p,
+            beside(~sep: 16,
+                   eve,
+                   @para{knows @(@t{algorithm}.colorize(alg_color)) but not @(key2.launder())})
+              .refocus(eve))
+        .refocus(p)
+    | p
+  let p:
+    if options[#'symmetric] || options[#'asymmetric] || options[#'shared]
+    | let desc:
+        cond
+        | options[#'asymmetric]:
+            balloon.note(lines(@para{Different but mathematically linked:},
+                               @para{@defterm{asymmetric} keys},
+                               @para{e.g., public vs. private keys}))  
+        | options[#'symmetric]:
+            balloon.note(lines(@para{Same or easily derived key:},
+                               @para{@defterm{symmetric} key}))
+        | ~else:
+            balloon.note(lines(@para{@defterm{shared secret}}))
+      let p: overlay.top(desc, p)
+      fun link(p, to, dx):
+        connect(~on: p, Find.bottom(desc, ~dx: dx), Find.top(to), ~line: "gold", ~line_width: 4)
+      link(link(p, key, -5), key2, 5)
+    | p
+  p
+
+fun ciphertext_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: "Ciphers, Algorithms, Keys",
+        ciphertext_pict(options))
+  options
+
+let options :~ OptMap = {}
+let options = ciphertext_slide(options ++ { #'plaintext })
+let options = ciphertext_slide(options ++ { #'plaintext_send, #'plaintext_recv })
+let options = ciphertext_slide(options ++ { #'plaintext_explain })
+let options = ciphertext_slide(options.remove(#'plaintext_send) ++ { #'ciphertext })
+let options = ciphertext_slide(options ++ { #'ciphertext_explain })
+let options = ciphertext_slide(options ++ { #'ciphertext_send })
+let options = ciphertext_slide(options ++ { #'algorithm })
+let options = ciphertext_slide(options ++ { #'key })
+let options = ciphertext_slide(options ++ { #'eve })
+let options = ciphertext_slide(options ++ { #'shared })
+let options = ciphertext_slide(options ++ { #'symmetric })
+let options = ciphertext_slide(options ++ { #'asymmetric })
+
+fun flip(p :~ Pict) :~ Pict:
+  p.scale(-1, 1).pad(~right: p.width, ~left: p.width)
+
+let spc = @tt{ }
+
+block:
+  let PT = plaintext(@romanly{plaintext})
+  let CT = ciphertext(@romanly{ciphertext})
+  slide(~title: "Encrypt and Decrypt",
+        blank(),
+        slide.align(
+          @para{Encryption can use any @(block:
+                                           let p = @t{function}
+                                           switch(p,
+                                                  balloon.pin(~on: p,
+                                                              ~at: Find.right(p),
+                                                              ~spike: #'w,
+                                                              ~sprout: 0.8,
+                                                              @lines(@para{@italic{function} in the mathematical sense},
+                                                                     @para{i.e., deterministic}))))},
+          slide.center(@para{@romanly{@(«@t{Enc}.colorize(alg_color)»)(@PT, @key) = @CT}}),
+          @para{that can be reversed by a decryption function},
+          slide.center(@para{@romanly{@(«@t{Dec}.colorize(alg_color)»)(@CT, @flip(key)) = @PT}})
+        ),
+        slide.next,
+        blank(32),
+        block:
+          let guessing = @t{guessing}
+          let guessing:
+            switch(guessing,
+                   balloon.pin(~on: guessing,
+                               ~at: Find.bottom(guessing),
+                               ~spike: #'n,
+                               ~sprout: 0.8,
+                               @para{A good algorithm is one where this @defterm{brute force} strategy is the only one}))
+          slide.align(
+            @para{Goals:},
+            @para{@spc functions that make @CT look random},
+            @para{@spc functions with enough @t{@(key)s} to making @guessing impractical}
+          ))
+
+slide(~title: "Attack Modes",
+      ~horiz: #'left,
+      @para(@{@defterm{Ciphertext only}: attacker has only}
+            @{ciphertext to work from, but maybe many of them}),
+      blank(),
+      @para(@{@defterm{Known plaintext}: attacker has an example}
+            @{plaintext and matching ciphertext to work from}),
+      blank(),
+      @para(@{@defterm{Chosen plaintext}: attacker can get its own}
+            @{plaintext encoded to its ciphertext}))
+
+let hello_world = "HELLO WORLD"
+
+let substitution_title = "Substitution"
+
+fun ceasar_cipher_slide(amt, options :~ OptMap) :~ OptMap:
+  slide(~title:
+          block:
+            let p = @titlely(substitution_title)
+            if options[#'explain]
+            | p
+            | p.time_pad(~before: 1),
+        ~name: "Substitution",
+        block:
+          let p = slide_pict(@ciphertext(tt(rot(hello_world, amt))),
+                             if options[#'explain_immediate] | nothing | slide.next,
+                             @plaintext(tt(hello_world)))
+          fun ct(s) :~ Pict: tt(s).pad(~horiz: 10)
+          let tab:
+            table(~line: "black",
+                  ~hsep: 0,
+                  [[@ct{A}, ct(rot("A", amt))],
+                   [@ct{B}, ct(rot("B", amt))],
+                   [@ct{C}, ct(rot("C", amt))],
+                   [@ct{D}, ct(rot("D", amt))],
+                   [@ct{E}, ct(rot("E", amt))],
+                   [@ct{F}, ct(rot("F", amt))],
+                   [@ct{G}, ct(rot("G", amt))],
+                   [@ct{H}, ct(rot("H", amt))],
+                   [@ct(@t{...}), @ct(@t{...})],
+                   [@ct{X}, ct(rot("X", amt))],
+                   [@ct{Y}, ct(rot("Y", amt))],
+                   [@ct{Z}, ct(rot("Z", amt))]])
+          let name :~ Pict: @t("Ceasar cipher")
+          let tab:
+            if options[#'explain]
+            | let explain:
+                stack(
+                  @para{@(@name.colorize(alg_color))},
+                  @para{@key = @to_string(amt)},
+                  @para{@flip(key) = @to_string(-amt)}
+                )
+              let explain:
+                if options[#'name]
+                | balloon.pin(~on: explain,
+                              ~at: Find.bottom(explain),
+                              ~spike: #'n,
+                              @para{a.k.a. @(options[#'name])})
+                | explain
+              switch(
+                if options[#'explain_immediate] | nothing | tab,
+                beside(~sep: 32, tab, explain).refocus(tab)
+              )
+            | tab
+          let p:
+            beside(~sep: 96,
+                   & (if options[#'explain_immediate]
+                      | [p, tab]
+                      | sequential(~duration: #'sustain,
+                                   p,
+                                   tab))).refocus(p)
+          let p:
+            if options[#'key_size]
+            | stack(~horiz: #'right,
+                    ~sep: 64,
+                    p,
+                    balloon.note(switch(
+                                   @para{With only 26 possible keys guessing is easy},
+                                   slide_pict(
+                                     slide.align(
+                                       block:
+                                         let p = @para{Can treat @romanly{N} letters in a row as base-26 digits:}
+                                         p,
+                                       slide.center(@romanly{@tt{HEL} = 8 × 26@superscript{2} + 5 × 26 + 12}),
+                                       @para{That gives us @romanly{26@superscript{N}} keys})
+                                   )
+                                 ))).refocus(p)
+            | p
+          p)
+  options
+
+let options = ceasar_cipher_slide(1, {})
+let options = ceasar_cipher_slide(2, options ++ { #'explain })
+let options = ceasar_cipher_slide(13, options ++ { #'explain_immediate } ++ { #'name: "ROT13" })
+let options = ceasar_cipher_slide(13, options ++ { #'key_size })
+
+slide(~title: substitution_title,
+      @ciphertext(tt(rot(hello_world, 13))),
+      blank(64),
+      slide.align(
+        @para{Substitution creates @defterm{confusion}},
+        blank(),
+        @para{But substitution by itself is weak, because it preserves patterns:},
+        @item{Commonly used letters ⇒ commonly used replacements},
+        @item{Local patterns like ``ll'' in ``hello'' ⇒ local patterns in ciphertext}
+      ))
+
+fun columns(s :~ String, n):
+  for List(j: 0 .. s.length() / n):
+    for List(i: 0..n):
+      let idx = i + j*n
+      let p: tt(to_string(if idx >= s.length() | "□"[0] | s[idx])).pad(~horiz: 5)
+      if i == 0
+      | rectangle(~around: p, ~fill: "lightblue", ~line: #false).refocus(p)
+      | p
+
+slide(~title: "Permutation",
+      @para{A permutation can create @defterm{diffusion} to break up local patterns:}.pad(~right: 96),
+      blank(),
+      plaintext(tt(meet)),
+      block:
+        let p = table(~line: "black", ~hsep: 0, columns(meet, 4))
+        let px = balloon.pin(~on: p,
+                             ~at: Find.right(p),
+                             ~spike: #'w,
+                             ~fill: "lightblue",
+                             @para{@key = number of columns})
+        switch(p,
+               px,
+               beside(~sep: 64,
+                      @balloon.note(lines(@para{Other examples of permutations:},
+                                          @para{@spc shifting with wraparound},
+                                          @para{@spc shuffling deterministically})),
+                      px).refocus(px)),
+      ciphertext(tt(mat(meet, 4))))
+
+fun diff(s1 :~ String, s2 :~ String, ~sep: sep = 0):
+  cond
+  | s1 == "": blank()
+  | s1[0] == s2[0]: beside.baseline(~sep: sep,
+                                    tt(s2.substring(0, 1)),
+                                    diff(s1.substring(1), s2.substring(1), ~sep: sep))
+  | ~else: beside.baseline(~sep: sep,
+                           tt(s2.substring(0, 1)).colorize("red"),
+                           diff(s1.substring(1), s2.substring(1), ~sep: sep))
+           
+fun subst_permute_combo(options :~ OptMap) :~ OptMap:
+  let this_meet = if options[#'change] | meet_in | meet
+  slide(~title: "Substitution plus Permutation",
+        @para{Combining substitution and permutation is even better:}.pad(~right: 96),
+        blank(),
+        plaintext(diff(meet, this_meet)),
+        tt(rot(meet, 13)),
+        block:
+          let p = table(~line: "black", ~hsep: 0, columns(rot(this_meet, 13), 4))
+          let p:
+            if options[#'key]
+            | beside(~sep: 64,
+                     p,
+                     balloon.note(@para{@key is ⟨columns, rotation⟩},
+                                  ~fill: "lightblue"))
+                .refocus(p)
+            | p
+          if options[#'delta]
+          | beside(~sep: 64,
+                   balloon.note(lines(@para{Still, small changes in plaintext trigger},
+                                      @para{only small changes in ciphertext})),
+                   p)
+              .refocus(p)
+          | p,        
+        ciphertext(diff(mat(rot(meet, 13), 4), mat(rot(this_meet, 13), 4))))
+  options
+
+let options = subst_permute_combo({})
+let options = subst_permute_combo(options ++ { #'key })
+let options = subst_permute_combo(options ++ { #'change })
+let options = subst_permute_combo(options ++ { #'delta })
+
+fun show_values(init, s :: String, top :~ Pict, ~sep: sep) :~ Pict:
+  let bx = @tt{X}.ghost()
+  fun mk(n, ~plain = #false):
+    let p = stack( if plain | top.ghost() | top, t(to_string(n))).scale(0.5)
+    let p = overlay(bx, p).refocus(bx)
+    if plain
+    | p
+    | stack(p, line(~dx: p.width - 4)).refocus(p)
+  let main:
+    beside.baseline(~sep: sep,
+                    & for List (i: 0..s.length()):
+                      mk(char_values[s[i]]),
+                    blank())
+  if init
+  | beside.baseline(~sep: sep,
+                    block:
+                      let k = mk(init, ~plain: #true)
+                      rectangle(~around: beside(~sep: 8, key, k).pad(~horiz: 4),
+                                ~refocus: k,
+                                ~fill: "lightblue",
+                                ~line: #false),
+                    main).refocus(main)
+  | main
+                  
+
+fun xor_slide(options :~ OptMap) :~ OptMap:
+  let this_meet = if options[#'change] | meet_in | meet
+  let rounds = options[#'rounds] || 1
+  let seed1 = 5
+  let (meet_1, seed2) = xor(meet, seed1, ~rounds: 1, ~get_seed: #true)
+  let (meet_2, _) = xor(meet_1, seed2, ~rounds: 1, ~get_seed: #true)
+  let sep = 10
+  let extra = show_values(#false, meet_2, @t{=}, ~sep: sep)
+  let p:
+    stack(
+      ~sep: 32,
+      plaintext(diff(meet, this_meet, ~sep: sep)),
+      show_values(seed1, meet, @t{+}, ~sep: sep),
+      show_values(#false, meet_1, if rounds == 2 | @t{+} | @t{=}, ~sep: sep),
+      if rounds == 2 | extra | nothing,
+      ciphertext(diff(xor(meet, seed1, ~rounds: rounds), xor(this_meet, seed1, ~rounds: rounds), ~sep: sep)),
+      if rounds == 2 | nothing | extra.ghost()
+    )
+  let p = p.scale(1.4)
+  let p :~ Pict:
+    if options[#'reversible]
+    | stack(~sep: -32,
+            p,
+            @balloon.note(block:
+                            let p = lines(
+                              @para{Can decrypt because + is reversible},
+                              @para{The xor operation has the same property}
+                            )
+                            switch(p,
+                                   balloon.pin(~on: p,
+                                               ~at: Find.right(p),
+                                               ~spike: #'w,
+                                               ~fill: "lightblue",
+                                               lines(@para{but needs to be combined},
+                                                     @para{with other techniques})))))
+        .refocus(p)
+    | p
+  slide(~title: "Chaining",
+        block:
+          let p1 = @para{More @defterm{diffusion} via running total mod 27 ⇒ each position affects all later}
+          let p2 = @para{Could run it twice to make every position affect all positions...}
+          if rounds == 1
+          | overlay(p1, p2.ghost())
+          | overlay(p2, p1.ghost()),
+        blank(),
+        p)
+  options
+
+let options = xor_slide({})
+let aside_options = xor_slide(options ++ { #'reversible })
+let options = xor_slide(options ++ { #'change })
+let options = xor_slide(options ++ { #'rounds: 2 })
+
+fun step(s):
+  let p = t(s).scale(0.7).colorize(alg_color)
+  let q = p.pad(~top: 8, ~bottom: 24)
+  let q = connect(~on: q, Find.top(q), Find.top(p), ~line: alg_color)
+  let q = connect(~on: q, Find.bottom(p), Find.bottom(q), ~style: #'arrow, ~line: alg_color)
+  q
+
+fun xor_combo2_slide(options :~ OptMap) :~ OptMap:
+  let this_meet = if options[#'change] | meet_in | meet
+  fun combo(meet): mat(rot(xor(meet, 5), 13), 4)
+  slide(
+    ~title: "Chaining plus Substitution plus Permutation",
+    plaintext(diff(meet, this_meet)),
+    @step{accumulate},
+    diff(xor(meet, 5), xor(this_meet, 5)),
+    @step{substitute},
+    diff(rot(xor(meet, 5), 13), rot(xor(this_meet, 5), 13)),
+    @step{permute},
+    ciphertext(diff(combo(meet), combo(this_meet)))
+  )
+  options
+
+let options = xor_combo2_slide({})
+let options = xor_combo2_slide(options ++ { #'change })
+
+slide(~title: "Key Size",
+      slide.left(
+        para(@{Substitution, permutation, and chaining are useful building blocks,},
+             @{and our example combination generates results that @italic{look}},
+             @{random, but there's an easy way to see that it's insecure}),
+        blank(),
+        slide.center(@para{@key = @rectangle(~around: @t{⟨rotation, columns, init⟩}, ~fill: "lightblue", ~line: #false)}),
+        slide.next,
+        blank(),
+        @para{Assuming that up to 32 columns makes sense:},
+        slide.center(@para{26 × 32 × 27 @spc = @spc 22,464 possible keys}),
+        slide.next,
+        blank(),
+        @para{So, @defterm{key size} is going to be an important metric}
+      ))
+
+slide(~title: "Block Size",
+      slide.left(
+        para(@{For a long enough message, typically you want to encode},
+             @{only small parts at a time, as opposed to keeping the whole},
+             @{message in memory to rearrange all the bytes}),
+        slide.next,
+        blank(),
+        para(@{As our permutation example shows, though, it's useful to},
+             @{be able to mix large chunks to create confusion}),
+        slide.next,
+        blank(),
+        @para{So, @defterm{block size} is going to be an important metric}
+      ))
+
+slide(~title: "Summary",
+      slide.left(
+        stack.left(
+          ~sep: 16,
+          @para{Goals are},
+          @item{@defterm{confidentiality}},
+          @item{@defterm{Integrity}},
+          @item{@defterm{Authenticity}},
+          @item{@defterm{Non-repudiation}}
+        ),
+        blank(),
+        stack.left(
+          ~sep: 16,
+          @para{Some building blocks:},
+          @item{Substitution to create @defterm{confusion}},
+          @item{Permutation to create @defterm{diffusion}},
+          @item{Chaining to increase @defterm{diffusion}}
+        ),
+        blank(),
+        @para{Results depend on @defterm{key size} and @defterm{block size}}
+      ))

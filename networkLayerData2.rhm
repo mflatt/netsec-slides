@@ -1,0 +1,476 @@
+#lang rhombus/static/and_meta
+
+import:
+  "common.rhm" open
+  "networkLayerData.rhm"!subnet.subnet
+  "delays.rhm"!network as delays
+  "layout.rhm"
+
+fun highlight(p, field :~ Pict) :~ Pict:
+  let r = rectangle(~around: field.ghost(),                    
+                    ~fill: "yellow",
+                    ~line: #false)
+  pin(~on: p, ~at: Find.left_top(field), r, ~order: #'back)
+
+let version_field = layout.field(4, @t{version})
+let v4_header_length_field = layout.field(4, lines(@t{header}, @t{length}))
+let tos_field = layout.field(8, @t{type of service})
+let datagram_length_field = layout.field(16, @t{datagram length})
+
+let frag_row = layout.row(layout.field(16, @t{identifier}),
+                          layout.field(3, @t{flags}),
+                          layout.field(13, @t{fragmentation offset}))
+let ttl_field = layout.field(8, @t{time-to-live})
+let v4_protocol_field = layout.field(8, lines(@t{upper-layer}, @t{protocol}))
+let ipv4_checksum_field = layout.field(16, @t{header checksum})
+let options_field = layout.field(32, @t{options}, ~varies: #true)
+
+let ipv4_header:
+  layout.record(
+        layout.row(version_field,
+                   v4_header_length_field,
+                   tos_field,
+                   datagram_length_field),
+        frag_row,
+        layout.row(ttl_field,
+                   v4_protocol_field,
+                   ipv4_checksum_field),
+        layout.row(layout.field(32, @t{source address})),
+        layout.row(layout.field(32, @t{destination address})),
+        layout.row(options_field)
+  )
+
+let ipv4_no_bits:
+  layout.record(
+        ipv4_header,
+        layout.row(layout.field(32, @t{data}, ~height: 3, ~varies: #true)),        
+  )
+
+let ipv4:
+  layout.record(
+        ~bits: 32,
+        ipv4_no_bits,
+  )
+
+slide(~title: "IPv4 Packet Format",
+      slide.alts(
+        ipv4,
+        balloon.pin(~on: ipv4,
+                    ~at: Find.left(version_field, ~dx: 5),
+                    ~spike: #'e,
+                    @para{4}),
+        balloon.pin(~on: highlight(ipv4, ipv4_header),
+                    ~at: Find.left(v4_header_length_field, ~dx: 5),
+                    ~spike: #'e,
+                    ~dx: 96,
+                    ~dy: 16,
+                    @para{Usually 20 bytes}),
+        balloon.pin(~on: ipv4,
+                    ~at: Find.left(tos_field, ~dx: 5),
+                    ~spike: #'e,
+                    ~dx: ipv4.width / 3,
+                    ~dy: 16,
+                    @lines(@para{Can be used to prioritize},
+                           @para{some traffic})),
+        balloon.pin(~on: highlight(ipv4, ipv4_no_bits),
+                    ~at: Find.right(datagram_length_field, ~dx: -5),
+                    ~spike: #'w,
+                    @para{Total size}),
+        balloon.pin(~on: highlight(ipv4, frag_row),
+                    ~at: Find.left(frag_row, ~dx: 5),
+                    ~spike: #'e,
+                    lines(@para{Allows splitting a packet,},
+                          @para{in case it's too large for},
+                          @para{some link layer})),
+        balloon.pin(~on: ipv4,
+                    ~at: Find.left(ttl_field, ~dx: 5),
+                    ~spike: #'e,
+                    lines(@para{Remaining allowed hops})),
+        balloon.pin(~on: ipv4,
+                    ~at: Find.left(v4_protocol_field, ~dx: 5),
+                    ~spike: #'e,
+                    ~dx: ipv4.width / 3,
+                    lines(@para{TCP, UDP, etc.})),
+        balloon.pin(~on: highlight(ipv4, ipv4_header),
+                    ~at: Find.right(ipv4_checksum_field, ~dx: -5),
+                    ~spike: #'w,
+                    lines(@para{Like TCP, but only header})),
+        balloon.pin(~on: ipv4,
+                    ~at: Find.right(options_field, ~dx: -5),
+                    ~spike: #'w,
+                    lines(@para{Optional options field},
+                          @para{complicates processing})),
+        
+      ))
+
+slide(~title: "Dealing with IPv4's Limited Address Space",
+      slide.align(
+        @para{There are enough IPv4 addresses that each U.S. home, say, can have one},      
+        @para{There are not enough for each @italic{device} in each U.S. home}
+      ),
+      slide.next,
+      blank(64),
+      slide.align(
+        @para{Solutions:},
+        @item{use a larger address space: @bold{IPv6}},
+        @item{make many IPv4 hosts look like one: @bold{NAT}}
+      ))
+
+let addr_interior = @romanly{@italicly{addr}@subscript{inside}}
+let addr_exterior = @romanly{@italicly{addr}@subscript{outside}}
+let port_interior = @romanly{@italicly{port}@subscript{inside}}
+let port_exterior = @romanly{@italicly{port}@subscript{outside}}
+
+let nat_desc = @para{A @defterm{NAT} router translates TCP and UDP packets to convert}
+let not_well_known_ports = @para{Does not work for well-known ports}
+let assumes_inside = @para{Assumes communication starts from inside}
+
+let port_interior_steps:
+  switch(port_interior,
+         balloon.pin(~on: port_interior,
+                     ~at: Find.right_bottom(port_interior),
+                     ~spike: #'nw,
+                     switch(not_well_known_ports,
+                            assumes_inside)))
+
+let nat_title = "Network Address Translation (NAT)"
+
+slide(~title: nat_title,
+      slide.align(
+        @para{IPv4 level: endpoint is a 32-bit address},
+        @para{TCP/UDP level: endpoint is a ⟨32-bit address, 16-bit port number⟩},
+        slide.next,
+        blank(32),
+        nat_desc,
+        slide.center(@romanly{⟨@addr_interior, @port_interior_steps⟩}.pad(~right: 96)),
+        overlay(~horiz: #'left, @para{to}, nat_desc.ghost()),
+        slide.center(@romanly{⟨@addr_exterior, @port_exterior⟩}.pad(~right: 96)),
+        @para{where @addr_exterior is always the same}
+        )
+        
+      )
+
+let inside3_addr = @tt{10.0.1.7}
+let www_addr = @tt{141.193.213.10}
+let int_addr = @tt{10.0.0.1}
+let ext_addr = @tt{193.2.3.4}
+
+let laptop3 = delays.laptop.launder()
+
+let home_net:
+  let p = subnet(delays.laptop, delays.laptop, laptop3,
+                 @tt{10.0.1.5},
+                 @tt{10.0.1.6},
+                 inside3_addr,
+                 int_addr,
+                 @tt{10.0.0.0/8},
+                 "lightgreen",
+                 delays.router,
+                 {})
+  let out:
+    let out = line(~dx: 200, ~line_width: 3)
+    stack(~horiz: #'left, ext_addr.scale(0.75), out).refocus(out)
+  pin(~on: p, ~at: Find.right(delays.router), out)
+
+let spc = @tt{ }
+
+fun packet(src, src_port, dest, dest_port,
+           ~dir: dir = #'right,
+           ~color: color = "lightblue",
+           ~pad: pad_pkt = fun (p): p) :~ Pict:
+  let p = rectangle(~around: pad_pkt(lines(if src_port
+                                           | @para{src: @src @spc @tt(to_string(src_port))}
+                                           | @para{src: @src},
+                                           if dest_port
+                                           | @para{dest: @dest @spc @tt(to_string(dest_port))}
+                                           | @para{dest: @dest}).pad(10).scale(0.6)),
+                    ~line: "blue",
+                    ~fill: color)
+  let q = p.pad(~left: if dir== #'right | 0 | 32, ~right: if dir== #'right | 32 | 0)
+  connect(~on: q,
+          if dir == #'right | Find.right(p) | Find.left(p),
+          if dir == #'right | Find.right(q) | Find.left(q),
+          ~line: "blue", ~style: #'arrow).refocus(p)
+
+block:
+  let orig_port = 7743
+  let new_port = 11115
+  let orig_out = packet(inside3_addr, orig_port, www_addr, 80)
+  let new_out = packet(ext_addr, new_port, www_addr, 80)
+  let orig_in = packet(www_addr, 80, ext_addr, new_port, ~dir: #'left)
+  let new_in = packet(www_addr, 80, inside3_addr, orig_port, ~dir: #'left)
+  let orig_out_start = orig_out.ghost().launder()
+  let orig_out_end = orig_out.ghost().launder()
+  let home_net = pin(~on: home_net,
+                     ~at: Find.left_top(laptop3, ~dx: orig_out.width * -1/2, ~dy: orig_out.height * -2/3),
+                     orig_out_start)
+  let home_net = pin(~on: home_net,
+                     ~at: Find.left_bottom(int_addr, ~dx: orig_out.width * -1/3),
+                     orig_out_end)
+  let orig_scooter = scooter(home_net,
+                             Find.left_top(orig_out_start),
+                             Find.left_top(orig_out_end),
+                             orig_out)
+  let new_out_done:
+    pin(~on: orig_scooter(1),
+        ~at: Find.right_top(orig_out, ~dx: 40),
+        new_out)
+  let new_out_table:
+    let tbl = table([[@t{inside}, @t{outside}],
+                     [@para{@inside3_addr @spc @tt(to_string(orig_port))}, tt(to_string(new_port))]],
+                    ~pad: 5,
+                    ~line: #'inherit)
+    let t = stack(@t{translation table},
+                  rectangle(~around: tbl, ~line: #false, ~fill: "beige"))
+    let p:
+      overlay(~horiz: #'right,
+              ~vert: #'top,
+              new_out_done.pad(~top: 32, ~right: t.width),
+              t).refocus(new_out_done)
+    connect(~on: p, Find.left_bottom(t), Find.top(delays.router))
+  let orig_in_arrive:
+    pin(~on: new_out_table,
+        ~at: Find.left_top(new_out, ~dy: new_out.height * -2.5),
+        orig_in)
+  let new_in_g = new_in.ghost()
+  let new_in_arrive:
+    pin(~on: orig_in_arrive,
+        ~at: Find.left_top(orig_out, ~dy: orig_out.height * -2.5),
+        new_in_g)
+  let new_scooter = scooter(new_in_arrive,
+                            Find.left_top(new_in_g),
+                            Find.left_top(orig_out_start),
+                            new_in)  
+  slide(~title: nat_title,
+        blank(),
+        switch(animate(orig_scooter).sustain(),
+               new_out_done,
+               new_out_table,
+               orig_in_arrive,
+               animate(new_scooter).sustain()))
+
+slide(~title: "NAT Issues",
+      slide.align(
+        not_well_known_ports,
+        assumes_inside,
+        slide.next,
+        blank(),
+        @para{Mixes transport and network layers}))
+
+slide(~title: "IPv6",
+      @para{128-bit addresses instead of 32-bit addresses},
+      blank(),
+      @tt{172.217.164.4},
+      @para{vs.},
+      slide.alts(
+        block:
+          let p = @tt{2607:f8b0:4025:0815:0000:0000:0000:2004}
+          slide.alts(
+            p,
+            balloon.pin(~on: p,
+                        ~at: Find.bottom(p),
+                        ~spike: #'n,
+                        @para{Eight 16-bit numbers in hexadecimal})
+          ),
+        block:
+          let abbrev = @tt{815}
+          let seq = @tt{::}
+          let p = @tt{2607:f8b0:4025:@abbrev@(seq)2004}
+          slide.alts(
+            p,
+            
+            balloon.pin(~on: p,
+                        ~at: Find.bottom(seq),
+                        ~spike: #'n,
+                        lines(@para{Up to one contiguous sequence of},
+                              @para{@tt{:}-separated @tt{0000}s can be omitted})),
+            balloon.pin(~on: p,
+                        ~at: Find.bottom(abbrev),
+                        ~spike: #'n,
+                        @para{Leading @tt{0}s can be dropped}),
+            [p,
+             blank(32),
+             @para{Loopback is @tt{::1} (instead of @tt{127.0.0.1})}]
+          )
+      ))
+
+slide(~title: "Looking up an IPv6 Address",
+      slide.align(
+        @verbatim{
+$ dig www.google.com A
+....
+www.google.com.		216	IN	A	172.217.164.4
+....
+}.scale(0.75),
+        slide.next,
+        blank(),
+        @verbatim{
+$ dig www.google.com AAAA
+....
+www.google.com.		250	IN	AAAA	2607:f8b0:4025:803::2004
+....
+}.scale(0.75)
+      ))
+
+let traffic_class_field = layout.field(8, @t{traffic class})
+let flow_label_field = layout.field(20, @t{flow label})
+
+let payload_length_field = layout.field(16, @t{payload length})
+let ipv6_data_field = layout.row(layout.field(32, @t{data}, ~height: 3, ~varies: #true))
+
+let next_hdr_field = layout.field(8, @t{next hdr})
+let hop_limit_field = layout.field(8, @t{hop limit})
+
+let ipv6:
+  layout.record(
+    ~bits: 32,
+    layout.row(version_field,
+               traffic_class_field,
+               flow_label_field),
+    layout.row(payload_length_field,
+               next_hdr_field,
+               hop_limit_field),
+    layout.row(layout.field(32, lines(~horiz: #'center, @t{source address}, @t{(128 bits)}),
+                            ~height: 4)),
+    layout.row(layout.field(32, lines(~horiz: #'center, @t{destination address}, @t{(128 bits)}), ~height: 4)),
+    ipv6_data_field
+  )
+
+slide(~title: "IPv6 Packet Format",
+      slide.alts(
+        ipv6,
+        balloon.pin(~on: ipv6,
+                    ~at: Find.left(version_field, ~dx: 5),
+                    ~spike: #'e,
+                    @para{6}),
+        balloon.pin(~on: ipv6,
+                    ~at: Find.left(traffic_class_field, ~dx: 5),
+                    ~spike: #'e,
+                    ~dx: ipv6.width / 5,
+                    ~dy: 16,
+                    @lines(@para{Same as ``type of service''})),
+        balloon.pin(~on: ipv6,
+                    ~at: Find.right(flow_label_field, ~dx: -5),
+                    ~spike: #'w,
+                    lines(@para{To identify related packets;},
+                          @para{like traffic class,},
+                          @para{use is up to routers})),
+        balloon.pin(~on: highlight(ipv6, ipv6_data_field),
+                    ~at: Find.left(payload_length_field, ~dx: 5),
+                    ~spike: #'e,
+                    @lines(@para{Length in bytes},
+                           @para{after header})),
+        balloon.pin(~on: ipv6,
+                    ~at: Find.right(next_hdr_field, ~dx: -5),
+                    ~spike: #'w,
+                    ~dx: -ipv6.width / 3,
+                    lines(@para{TCP, UDP, etc.})),
+        balloon.pin(~on: ipv6,
+                    ~at: Find.right(hop_limit_field, ~dx: -5),
+                    ~spike: #'w,
+                    lines(@para{Remaining allowed hops})),
+
+      ))
+
+slide(~title: "Switching to IPv6",
+      slide.align(
+        @para{Why don't we all switch to IPv6?},
+        blank(),
+        slide.next,
+        @para{@italic{Everything} has to change:},
+        @item{router hardware},
+        @item{router software},
+        @item{name-resolver protocols},
+        @item{operating-system drivers and services},
+        @item{configuration tools},
+        @item{applications with thin abstractions}
+      ))
+
+fun mixed_network(options :~ OptMap):
+  let az = 0.75
+  let r1_addr = @tt{2604:c340::122}.scale(az)
+  let r2_addr = @tt{125.2.32.5}.scale(az)
+  let r3_addr = @tt{29.55.0.2}.scale(az)
+  let r4_addr = @tt{2607:f8b0:803::2004}.scale(az)
+  fun label(p, l):
+    stack(p, l).refocus(p)
+  let router1 = label(delays.router.launder(),
+                      r1_addr)
+  let router2 = label(delays.router.launder(),
+                      r2_addr)
+  let router5 = delays.router.launder()
+  let router3 = label(delays.router.launder(),
+                      r3_addr)
+  let router4 = label(delays.router.launder(),
+                      r4_addr)
+  let p1 = beside(~sep: 150, router1, router2)
+  let p2 = beside(~sep: 150, router3, router4)
+  let p = stack(~horiz: #'left,
+                ~sep: 70,
+                p1,
+                router5.pad(~left: p1.width * 1.2),
+                p2.pad(~left: p1.width * 1.8))
+  fun link(p, r1, r2, v):
+    let color = if v == 6 | "forestgreen" | "firebrick"
+    connect(~on: p,
+            if r1 is_a Find | r1 | Find.right(r1),
+            if r2 is_a Find | r2 | Find.left(r2),
+            ~line: color,
+            ~label: t("IPv" +& v).colorize(color).pad(~left: 32),
+            ~line_width: 3)
+  let p = link(p, router1, router2, 6)
+  let p = link(p, router2, Find.top(router5), 4)
+  let p = link(p, Find.bottom(router5), router3, 4)
+  let p = link(p, router3, router4, 6)
+  let p = balloon.pin(~on: p,
+                      ~at: Find.right_top(router2),
+                      ~spike: #'sw,
+                      @para{This node can cooperate with...})
+  let p = balloon.pin(~on: p,
+                      ~at: Find.left_bottom(router3),
+                      ~spike: #'ne,
+                      @para{... this node to implement a @defterm{tunnel}})
+  let pkt = packet(r1_addr, #false, r4_addr, #false, ~color: "lightgreen")
+  let wrapper_pkt = packet(r2_addr, #false, r3_addr, #false,
+                           ~pad: fun (p :~ Pict): p.pad(5, ~right: pkt.width + 5))
+  let pkt_g1 = pkt.launder().ghost()
+  let pkt_g2 = pkt.launder().ghost()
+  let pkt_g3 = pkt.launder().ghost()
+  let pkt_g4 = pkt.launder().ghost()
+  let p = pin(~on: p,
+              ~at: Find.left_top(router1, ~dy: -pkt.height),
+              pkt_g1)
+  let p = pin(~on: p,
+              ~at: Find.bottom(router2, ~dx: -pkt.width/2),
+              pkt_g2)
+  let p = pin(~on: p,
+              ~at: Find.top(router3, ~dx: -pkt.width/2, ~dy: -pkt.height),
+              pkt_g3)
+  let p = pin(~on: p,
+              ~at: Find.top(router4, ~dx: -pkt.width/2, ~dy: -pkt.height),
+              pkt_g4)
+  fun r2_scooter(pkt):
+    scooter(p, Find.left_top(pkt_g1), Find.left_top(pkt_g2), pkt)  
+  let pkt_scooter = r2_scooter(pkt)
+  fun wrapped_pkt(n):
+    overlay(~horiz: #'right,
+            wrapper_pkt.alpha(n),
+            pkt.pad(~right: 5)).refocus(pkt)
+  fun r3_scooter(pkt):
+    scooter(p, Find.left_top(pkt_g2), Find.left_top(pkt_g3), pkt)  
+  fun r4_scooter(pkt):
+    scooter(p, Find.left_top(pkt_g3), Find.left_top(pkt_g4), pkt)  
+  switch(animate(pkt_scooter),
+         animate(fun (n):
+                   r2_scooter(wrapped_pkt(n))(1)),
+         animate(fun (n):
+                   r3_scooter(wrapped_pkt(1))(n)),
+         animate(fun (n):
+                   r3_scooter(wrapped_pkt(1-n))(1)),
+         animate(r4_scooter(pkt)).sustain())
+            
+slide(~title: "Tunnelling",
+      lines(@para{What if you have hosts that are happy to talk IPv6,},
+            @para{but all routes involve IPv4?}),
+      blank(64),
+      mixed_network({}))

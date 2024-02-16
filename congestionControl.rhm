@@ -1,0 +1,682 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  pict open
+  slideshow open
+  "common.rhm" open
+  "state_machine.rhm" open
+  "layers.rhm"
+
+let pi = math.pi
+
+let rtt_est = romanly(@t{RTT@subscript{@italic{est}}})
+let rtt_now = romanly(@t{RTT@subscript{@italic{measured}}})
+let spc = @tt{ }
+
+let var_est = romanly(@t{var@subscript{@italic{est}}})
+
+slide(~title: "TCP Timeout",
+      @para(~full: #true){TCP timeout uses an estimate of @roman{RTT} and its variance:},
+      @romanly(@t{timeout @spc = @spc @rtt_est @spc + @spc 4 × @var_est}),
+      slide.next,
+      blank(32),
+      @item(~full: #true){@rtt_est is an exponentially weighted moving average:},
+      romanly(@t{@rtt_est @spc = @spc (1-α) × @(rtt_est) @spc + @spc α × @(rtt_now)}),
+      slide.next,
+      @para(~full: #true, ~horiz: #'right){TCP uses @roman{α = @frac(@roman{1}, @roman{8})}}.colorize("blue").scale(0.8),
+      slide.next,
+      @item(~full: #true){@var_est is similarly weighted:},
+      romanly(@t{@var_est @spc = @spc (1-β) × @(var_est) @spc + @spc β × ⎸@(rtt_now) - @(rtt_est)⎸}),
+      slide.next,
+      @para(~full: #true, ~horiz: #'right){TCP uses @roman{β = @frac(@roman{1}, @roman{4})}}.colorize("blue").scale(0.8))
+
+slide(~title: "TCP Congestion Control",
+      slide.align(
+        ~horiz: #'left,
+        block:
+          let rwnd = @tt{rwnd}
+          let p:
+            @para{@bold{Flow control} relies on @spc @rwnd @spc and @spc @roman{@tt{window} ≤ @tt{rwnd}}}
+          slide.alts(p,
+                     balloon.pin(~on: p,
+                                 ~at: Find.top(rwnd),
+                                 ~spike: #'s,
+                                 @para{from TCP header}),
+                     [p,
+                      blank(),
+                      @para{@bold{Congestion control} uses @spc @tt{cwnd} @spc and @spc @roman{@tt{window} ≤ @tt{cwnd}}}]),
+        slide.next,
+        block:
+          let MSS = @tt{MSS}
+          let ssthresh = @tt{ssthresh}
+          let p:
+            stack(~horiz: #'left,
+                  ~sep: 32,
+                  @item{start @tt{cwnd} at maximum segment size, @MSS},
+                  @item{grow until @ssthresh, which starts large, but can adapt})
+          slide.alts(p,
+                     balloon.pin(~on: p,
+                                 ~at: Find.right(MSS),
+                                 ~spike: #'w,
+                                 @para{about 1.5KB}),
+                     balloon.pin(~on: p,
+                                 ~at: Find.bottom(ssthresh),
+                                 ~spike: #'n,
+                                 @para{start at 64KB}))
+      ))
+      
+
+block:
+  let dot = blank()
+  let c1 = dot.launder()
+  let c2 = dot.launder()
+  let c3 = dot.launder()
+  let s1 = dot.launder()
+  let s2 = dot.launder()
+  let s3 = dot.launder()
+  let p = beside(~sep: 300,
+                 ~vert: #'top,
+                 stack(~sep: 32,
+                       @bold{sender}.colorize(layers.color),
+                       stack(~sep: 100,
+                             c1,
+                             c2,
+                             c3)),
+                 stack(~sep: 80,
+                       @bold{receiver}.colorize(layers.color),
+                       stack(~sep: 100,
+                             s1,
+                             s2,
+                             s3)))
+  fun connects(p, from, to, dy, n):
+    let p = connect(~on: p,
+                    Find.center(from, ~dy: dy),
+                    Find.center(to, ~dy: dy),
+                    ~style: #'arrow)
+    if n == 1
+    | p
+    | connects(p, from, to, dy + 20, n-1)
+  let p = connects(p, c1, s1, 0, 1)
+  let p = connects(p, s1, c2, 5, 1)
+  let p2 = connects(p, c2, s2, 10, 2)
+  let p2 = connects(p2, s2, c3, 15, 2)
+  let p3 = connects(p2, c3, s3, 20, 4)
+  let p = beside(~sep: 100,
+                 & sequential(
+                   ~duration: #'sustain,
+                   switch(p, p2, p3),
+                   stack(~horiz: #'left,
+                         ~sep: 32,
+                         & sequential(
+                           ~duration: #'sustain,
+                           @para{Initially, @tt{cwnd = MSS}},
+                           lines(~horiz: #'right,
+                                 @para{After each ACK, @tt{cwnd += MSS}},
+                                 @para{⇒ double @tt{cwnd} each @roman{RTT}}),
+                           lines(@para{End slow start when},
+                                 @para{@tt{cwnd = ssthresh}})))))
+  slide(~title: "TCP Slow Start",
+        p)
+
+fun tcp_state_machine(options :~ OptMap) :~ OptMap:
+  let slow_start_label = lines(~horiz: #'center, @t{Slow}, @t{start})
+  let cong_avoid_label = lines(~horiz: #'center, @t{Congestion}, @t{avoidance})
+  let fast_recov_label = lines(~horiz: #'center, @t{Fast}, @t{recovery})
+  fun same(a, b :~ Pict) :~ Pict: overlay(a, b.ghost())
+  let slow_start_label = same(slow_start_label, cong_avoid_label)
+  let fast_recov_label = same(fast_recov_label, cong_avoid_label)
+  let label_scale = 0.75
+  let act_scale = 0.5
+  let slow_start = state(slow_start_label.scale(label_scale), ~color: "pink")
+  let cong_avoid = state(cong_avoid_label.scale(label_scale), ~line_width: 3)
+  let fast_recov = state(fast_recov_label.scale(label_scale), ~color: "lightgreen")
+  let entry = blank()
+
+  let details = options[#'details]
+  fun detail_only(p :~ Pict): if details | p | p.ghost()
+  let cwnd = options[#'cwnd] || details
+  fun cwnd_only(p :~ Pict): if cwnd | p | p.ghost()
+
+  let timeout_cond = @tt{timeout}
+  let timeout_actions = @lines(@tt{ssthresh = cwnd/2},
+                               @tt{cwnd = MSS},
+                               detail_only(lines(@tt{dupACKs = 0},
+                                                 @tt{resend_mssing()})))
+  let dup_acks_cond = @tt{dupACKs == 3}
+  let dup_acks_actions = lines(@tt{ssthresh = cwnd/2},
+                               @tt{cwnd = ssthresh+3×MSS},
+                               detail_only(@tt{resend_mssing()}))
+
+  let action_fade = 0.3
+
+  let p = pin(~on: stack(~sep: 200,
+                         beside(~sep: 300, slow_start, cong_avoid),
+                         fast_recov),
+              ~at: Find.abs(-slow_start.width * 3/4, 0),
+              entry)
+  let p = edge(p,
+               entry, 0,
+               slow_start, pi * 0.9,
+               nothing,
+               lines(cwnd_only(lines(@tt{cwnd = MSS},
+                                     @tt{ssthresh = 64kb})),
+                     detail_only(lines(@tt{dupACKs = 0}))),
+               ~scale: act_scale,
+               ~dx: -1,
+               ~dy: -0.2,
+               ~cond_sep: #false)
+  // slow_start self
+  let p = edge(p,
+               slow_start, pi * 0.35,
+               slow_start, pi * 0.1,
+               @tt{new ACK},
+               lines(@tt{cwnd = cwnd+MSS},
+                     detail_only(lines(@tt{dupACKs = 0},
+                                       @tt{send_new()}))),
+               ~start_pull: 0.7,
+               ~end_pull: 0.7,
+               ~scale: act_scale,
+               ~dx: 0.4,
+               ~dy: -1.0 + (if cwnd && !details | 0.5 | 0.0),
+               ~enable: cwnd)
+  let p = edge(p,
+               slow_start, pi * 0.5,
+               slow_start, pi * 0.85,
+               @tt{duplicate ACK},
+               @tt{dupACKs++},
+               ~start_pull: 0.7,
+               ~end_pull: 0.7,
+               ~scale: act_scale,
+               ~dx: -0.4,
+               ~dy: -1.7,
+               ~enable: details)
+  let p = edge(p,
+               slow_start, pi * -0.6,
+               slow_start, pi * 0.95,
+               timeout_cond,
+               timeout_actions,
+               ~start_pull: 0.7,
+               ~end_pull: 0.7,
+               ~scale: act_scale,
+               ~dx: -1.0,
+               ~dy: 0.0,
+               ~enable: cwnd)
+  // slow_start <=> cong_avoid
+  let p = edge(p,
+               slow_start, pi * 0.05,
+               cong_avoid, pi * 0.95,
+               @tt{cwnd > ssthresh},
+               nothing,
+               ~scale: act_scale,
+               ~dy: -1.6)
+  let p = edge(p,
+               cong_avoid, pi * -0.95,
+               slow_start, pi * -0.05,
+               timeout_cond,
+               cwnd_only(timeout_actions.alpha(action_fade)),
+               ~scale: act_scale,
+               ~dy: 0.65)
+  // slow_start <=> fast_recov
+  let p = edge(p,
+               slow_start, pi * -0.55,
+               fast_recov, pi * 1.05,
+               dup_acks_cond,
+               cwnd_only(dup_acks_actions),
+               ~scale: act_scale,
+               ~dx: -0.8,
+               ~dy: 1)
+  let p = edge(p,
+               fast_recov, pi * 0.95,
+               slow_start, pi * -0.45,
+               timeout_cond,
+               cwnd_only(timeout_actions.alpha(action_fade)),
+               ~scale: act_scale,
+               ~dx: 0.4,
+               ~dy: 0.0)
+  // cong_avoid <=> fast_recov
+  let p = edge(p,
+               cong_avoid, pi * -0.45,
+               fast_recov, pi * -0.05,
+               dup_acks_cond,
+               cwnd_only(dup_acks_actions.alpha(action_fade)),
+               ~scale: act_scale,
+               ~dx: 0.8,
+               ~dy: 0.7)
+  let p = edge(p,
+               fast_recov, pi * 0.05,
+               cong_avoid, pi * -0.55,
+               @tt{new ACK},
+               cwnd_only(lines(@tt{cwnd = ssthresh},
+                               detail_only(@tt{dupACKs = 0}))),
+               ~scale: act_scale,
+               ~dx: -0.3,
+               ~dy: -0.4)
+  // cong_avoid self
+  let p = edge(p,
+               cong_avoid, pi * 0.45,
+               cong_avoid, pi * 0.05,
+               @tt{new ACK},
+               lines(@tt{cwnd = cwnd+@frac(@tt{MSS}, @tt{cwnd})×MSS},
+                     detail_only(lines(@tt{dupACKs = 0},
+                                       @tt{send_new()}))),
+               ~scale: act_scale,
+               ~start_pull: 0.8,
+               ~end_pull: 0.8,
+               ~dx: 0.9,
+               ~dy: -0.6,
+               ~enable: cwnd)
+  let p = edge(p,
+               cong_avoid, pi * -0.05,
+               cong_avoid, pi * -0.35,
+               @tt{duplicate ACK},
+               @tt{dupACKs++},
+               ~start_pull: 0.7,
+               ~end_pull: 0.7,
+               ~scale: act_scale,
+               ~dx: 0.9,
+               ~dy: 0.3,
+               ~enable: details)
+  // fast_recov self
+  let p = edge(p,
+               fast_recov, pi * -0.55,
+               fast_recov, pi * -0.85,
+               @tt{duplicate ACK},
+               lines(@tt{cwnd = cwnd+MSS},
+                     detail_only(@tt{send_new()})),
+               ~scale: act_scale,
+               ~start_pull: 0.8,
+               ~end_pull: 0.8,
+               ~dx: -1.0,
+               ~dy: 0.1,
+               ~enable: cwnd)
+
+  let p = p.pad(~top: 64)
+  p
+
+fun tcp_state_machine_slide(options):  
+  slide(~title: "TCP Connection States",
+        ~layout: #'tall,
+        tcp_state_machine(options))
+
+tcp_state_machine_slide({})
+tcp_state_machine_slide({ #'cwnd: #true })
+tcp_state_machine_slide({ #'details: #true })
+
+let plot:
+  let slow_start = "red"
+  let cong_avoid = "blue"
+  let fast_recov = "forestgreen"
+  let pts = [[1, 1, slow_start],
+             [2, 2, slow_start],
+             [3, 4, slow_start],
+             [4, 8, cong_avoid],
+             [5, 9, cong_avoid],
+             [6, 10, cong_avoid],
+             [7, 11, cong_avoid],
+             [8, 12, fast_recov],
+             [9, 7, cong_avoid],
+             [10, 8, cong_avoid],
+             [11, 9, cong_avoid],
+             [12, 10, cong_avoid],
+             [13, 11, fast_recov],
+             [14, 8, cong_avoid],
+             [15, 9, cong_avoid],
+             [16, 10, cong_avoid],
+             [17, 11, cong_avoid],
+             [18, 12, fast_recov],
+             [19, 9, cong_avoid],
+             [20, 10, cong_avoid],
+             [21, 11, cong_avoid],
+             [22, 12, cong_avoid],
+             [23, 13, fast_recov],
+             [24, 8, cong_avoid],
+             [25, 9, cong_avoid]]
+  let sx = 20
+  let sy = 20
+  let W = 25
+  let H = 16
+  let p = blank(~width: W * sx, ~height: H * sy)
+  let p :~ Pict:
+    recur loop (p = p, [x0, y0, color] = pts[0], pts = pts.drop_left(1)):
+      match pts
+      | []: p
+      | [[x, y, next_color], & pts]:
+          let p = connect(~on: p,
+                          Find.abs(x0 *sx, (H - y0) * sy),
+                          Find.abs(x *sx, (H - y) *sy),
+                          ~line_width: 3,
+                          ~line: color)
+          loop(p, [x, y, next_color], pts)
+  let exline = line(~dx: 32, ~line_width: 3).lift(10)
+  let key:
+    table([[exline.colorize(slow_start), @t{slow start}.colorize(slow_start)],
+           [exline.colorize(cong_avoid), @t{convengestion avoidance}.colorize(cong_avoid)],
+           [exline.colorize(fast_recov), @t{fast recovery}.colorize(fast_recov)]])
+  let p = stack(~horiz: #'right,
+                beside(@tt{cwnd}.rotate(pi/2), line(~dy: p.height), p),
+                stack(line(~dx: p.width),
+                      @t{time}))
+  beside(~sep: 32, ~vert: #'top,
+         p,
+         key.scale(0.80).pad(~top: -64)).refocus(p)
+
+slide(~title: @titlet{@tt{cwnd } Adjustment over Time},
+      blank(64),
+      plot,
+      slide.next,
+      blank(),
+      slide.alts(
+        balloon.note(@para{Additive increase, multiplicative decrease (AIMD)}),
+        balloon.note(@para{Expect average @tt{cwnd} to be 75% of maximum}),
+        balloon.note(@para{@italic{Fair}, because multiple senders tend toward same rate}),
+      ))
+
+let issues_title = "Issues with TCP"
+
+runtime_path.def laptop_png: "images/laptop.png"
+runtime_path.def wifi_png: "images/wifi-ap.png"
+runtime_path.def router_png: "images/router.png"
+runtime_path.def server_png: "images/server.png"
+runtime_path.def magnifying_glass_png: "images/magnifying_glass.png"
+runtime_path.def clock_png: "images/clock.png"
+runtime_path.def mobile_phone_png: "images/mobile_phone.png"
+runtime_path.def cell_tower_png: "images/cell_tower.png"
+runtime_path.def car_png: "images/car.png"
+runtime_path.def desk_png: "images/desk.png"
+
+def laptop = bitmap(laptop_png).scale(0.2)
+def wifi = bitmap(wifi_png).scale(0.2)
+def mobile_phone = bitmap(mobile_phone_png).scale(0.3)
+def cell_tower = bitmap(cell_tower_png).scale(0.2)
+def car = bitmap(car_png).scale(0.2)
+def desk = bitmap(desk_png).scale(0.15)
+def router = bitmap(router_png).scale(0.5).pad(~horiz: 10)
+def server = bitmap(server_png).scale(0.15).pad(~horiz: 10)
+def magnifying_glass = bitmap(magnifying_glass_png).scale(0.2)
+
+fun problem(s): para(s).colorize("firebrick")
+
+let mp1 = mobile_phone.ghost()
+let mp2 = mobile_phone.ghost()
+
+let wifi_addr = @tt{10.18.230.214}
+let cell_addr = @tt{172.9.15.132}.colorize("red")
+  
+fun parking_lot() :~ Pict:
+  let w = 3
+  let p = stack(~sep: 50,
+                beside(~sep: 200,
+                       stack(~sep: 50, stack(~sep: 5, desk, mp1), wifi),
+                       stack(~sep: 50, stack(~sep: 5, car, mp2), cell_tower)),
+                server)
+  let p = connect(~on: p,
+                  Find.bottom(wifi),
+                  Find.top(server, ~dx: -5),
+                  ~line_width: w)
+  let p = connect(~on: p,
+                  Find.bottom(cell_tower),
+                  Find.top(server, ~dx: 5),
+                  ~line_width: w)
+  let (wx, wy) = Find.left_top(mp1).in(p)
+  let (cx, cy) = Find.left_top(mp2).in(p)
+  fun make(n):
+    let p = pin(~on: p,
+                ~at: Find.abs(n*cx + (1 - n)*wx, n*cy + (1 - n)*wy),
+                beside(~sep: 5,
+                       ~vert: #'bottom,
+                       mobile_phone,
+                       if n > 0.5 | cell_addr | wifi_addr).refocus(mobile_phone))
+    let p = connect(~on: p,
+                    Find.bottom(mobile_phone),
+                    Find.top(if n > 0.5 | cell_tower | wifi),
+                    ~line_width: w)
+    p
+  switch(animate(make, ~sustain_edge: #'after).sustain(),
+         balloon.pin(~on: make(1),
+                     ~at: Find.bottom(cell_addr),
+                     ~spike: #'n,
+                     ~sprout: 0.2,
+                     @para{New IP ⇒ must reconnect}))
+  
+slide(~title: issues_title,
+      ~layout: #'top,
+      stack(~sep: 64,
+            @problem{Parking-lot problem},
+            parking_lot()))
+
+fun stream(p :~ Pict, color,
+           ~drop: drop = #false,
+           ~wait: wait = drop && drop+1,
+           ~delay: delay = 0,
+           ~skip: skip = 0,
+           ~until: until = #false) :~ Pict:
+  let p = p.scale(1.5).colorize("white").pad(5)
+  let p = p.pad(~right: p.width)
+  let w = 32
+  let n = (p.width + (w-1)) div w
+  let box = rectangle(~width: w, ~height: p, ~line: "white", ~fill: color)
+  overlay(~horiz: #'left,
+          beside(& for List (i: 0..delay):
+                   box.ghost(),
+                 & for List (i: 0..n):
+                   let b:
+                     cond
+                     | drop == i: box.ghost()
+                     | wait && i >= wait: box.alpha(0.5)
+                     | ~else: box
+                   let skip = if until && i >= until | 0 | skip
+                   if skip == 0
+                   | b
+                   | beside(b, & for List (i: 0..skip): box.ghost())),
+          if skip == 0
+          | p
+          | p.ghost())
+
+slide(~title: issues_title,
+      ~layout: #'top,
+      @problem{Head-of-line problem},
+      @para(~full: #true){A typical web page needs multiple files:},
+      blank(),         
+      slide.alts(
+        [beside(stream(@t{html}, "red"),
+                stream(@t{css}, "blue"),
+                stream(@t{png}, "green"),
+                stream(@t{png}, "purple")),
+         slide.next,
+         blank(),
+         @para(~full: #true){Getting parts in order can delay the whole page}],
+        [beside(stream(@t{html}, "red", ~drop: 5),
+                stream(@t{css}, "blue", ~wait: 0),
+                stream(@t{png}, "green", ~wait: 0),
+                stream(@t{png}, "purple", ~wait: 0)),
+         blank(),
+         @para(~full: #true){A dropped packet delays everything further}],
+        [overlay(~horiz: #'left,
+                 stream(@t{html}, "red", ~skip: 3, ~until: 5),
+                 stream(@t{css}, "blue", ~delay: 1, ~skip: 3),
+                 stream(@t{png}, "green", ~delay: 2, ~skip: 3),
+                 stream(@t{png}, "purple", ~delay: 3, ~skip: 3)),
+         blank(),
+         @para(~full: #true){HTTP/2 allows interleaving within a reply...}],
+        [overlay(~horiz: #'left,
+                 stream(@t{html}, "red", ~drop: 4, ~skip: 3, ~until: 5),
+                 stream(@t{css}, "blue", ~wait: 4, ~delay: 1, ~skip: 3),
+                 stream(@t{png}, "green", ~wait: 4, ~delay: 2, ~skip: 3),
+                 stream(@t{png}, "purple", ~wait: 4, ~delay: 3, ~skip: 3)),
+         blank(),
+         @para(~full: #true){but that doesn't solve the dropped-packet problem}],
+        [stack(~sep: 50,
+               ~horiz: #'left,
+               stream(@t{html}, "red"),
+               stream(@t{css}, "blue"),
+               stream(@t{png}, "green"),
+               stream(@t{png}, "purple")).scale(0.75),
+         blank(),
+         @para(~full: #true){Multiple connections work, but each takes time to set up}]
+      ))
+
+fun handshake(options :~ OptMap) :~ Pict:
+  let dot = blank()
+  let c1 = dot.launder()
+  let c2 = dot.launder()
+  let c3 = dot.launder()
+  let c4 = dot.launder()
+  let s1 = dot.launder()
+  let s2 = dot.launder()
+  let s3 = dot.launder()
+  let p = beside(~sep: options[#'sep] || 300,
+                 ~vert: #'top,
+                 stack(~sep: 32,
+                       block:
+                         let h = @bold{client}.colorize(layers.color)
+                         if options[#'no_headers]
+                         | h.ghost()
+                         | h,
+                       stack(~sep: 100,
+                             c1,
+                             c2,
+                             c3,
+                             c4)),
+                 stack(~sep: 80,
+                       block:
+                         let h = @bold{server}.colorize(layers.color)
+                         if options[#'no_headers]
+                         | h.ghost()
+                         | h,
+                       stack(~sep: 100,
+                             s1,
+                             s2,
+                             s3)))
+  fun connects(p, from, to, dy, label):
+    let from = Find.center(from, ~dy: dy)
+    let to = Find.center(to, ~dy: dy)
+    let p = connect(~on: p,
+                    from,
+                    to,
+                    ~style: #'arrow,
+                    ~label: rotate_for(label, from, to, p).translate(0, -10))
+    p
+  let p:
+    let c :~ Pict = options[#'client] || blank()
+    pin(~on: p, ~at: Find.center(c1, ~dx: -c.width-5, ~dy: -c.height/2), c)
+  let p = connects(p, c1, s1, 0, options[#'init] || @tt{SYN})
+  let p = connects(p, s1, c2, 5, ((options[#'init_ack] || @tt{SYN}) :~ Pict).rotate(pi))
+  let p:
+    if options[#'ssl]
+    | let p = connects(p, c2, s2, 10, options[#'ssl_next] || @t{SSL begin})
+      let p = connects(p, s2, c3, 15, options[#'ssl_next] || @t{SSL setup}.rotate(pi))
+      p
+    | let p = connects(p, c2, s2, 10, options[#'data] || @t{data})
+      p
+  if options[#'ssl_more]
+  | let p = connects(p, c3, s3, 20, options[#'ssl_next] || @t{SSL setup})
+    let p = connects(p, s3, c4, 25, options[#'ssl_next] || @t{...}.rotate(pi))
+    p
+  | p
+
+slide(~title: issues_title,
+      ~layout: #'top,
+      @problem{Handshake hell},
+      blank(),
+      slide.alts(handshake({}),
+                 handshake({ #'ssl: #true,
+                             #'ssl_more: #true })))
+
+import:
+  "delays.rhm"!network.make_network
+  
+slide(~title: issues_title,
+      ~layout: #'top,
+      @problem{Ossification},
+      blank(),
+      make_network({ #'hilite_inspect: #true, #'tcp: #true }))
+
+let quic_title = "QUIC"
+
+slide(~title: quic_title,
+      @para{@bold{QUIC}: Quick UDP Internet Connections},
+      blank(32),
+      slide.alts(
+        stack(~sep: 48,
+              ~horiz: #'left,
+              @item{implemented in Chrome in 2012},
+              @item{standardized in 2021 as RFC 9000},
+              @item{implemented in major browsers}),
+        block:
+          let dropped_packet = @item{can interleave files without dropped-packet interactions}
+          stack(~sep: 48,
+                ~horiz: #'left,
+                @item{builds on UDP},
+                block:
+                  let p = @item{connection-oriented based on a connection ID}
+                  let p = overlay(~horiz: #'left,
+                                  p, dropped_packet.ghost())
+                  @lines(~horiz: #'right,
+                         p,
+                         @para{not host and port}.scale(0.8)).refocus(p),
+                @item{built-in encryption, covers more headers},
+                dropped_packet)
+      ))
+
+block:
+  let sep = 500
+  let conn_id = @tt{connID=@romanly(@italic{C})}.pad(~right: 16)
+  let ssl_begin = @t{SSL begin}
+  let orig:
+    handshake({ #'sep: sep,
+                #'client: wifi_addr,
+                #'init: @t{@conn_id @ssl_begin},
+                #'init_ack: @t{@conn_id SSL setup},
+                #'data: @t{@conn_id SSL begin},
+                #'ssl: #true,
+                #'ssl_next: @t{...}})
+  let cont:
+    stack(orig,
+          handshake({ #'sep: sep,
+                      #'no_headers: #true,
+                      #'client: cell_addr,
+                      #'init: @t{@conn_id data},
+                      #'init_ack: @t{@conn_id data},
+                      #'data: @t{@conn_id data} })
+            .pad(~top: -96))
+  
+  slide(~title: quic_title,
+        slide.alts(orig,
+                   balloon.pin(~on: orig,
+                               ~at: Find.top(ssl_begin),
+                               ~spike: #'s,
+                               @para{built-in encryption moves setup along}),
+                   cont,
+                   balloon.pin(~on: cont,
+                               ~at: Find.bottom(cell_addr),
+                               ~spike: #'n,
+                               ~sprout: 0.2,
+                               ~dy: -144,
+                               lines(
+                                 @para{Connection ID allows continue without setup},
+                                 @para{from a new client address}))))
+
+slide(~title: quic_title,
+      @para{Concurrent streams are handled at the packet level within a connection},
+      blank(),
+      block:
+        let top = stream(@t{html}, "red", ~drop: 3, ~skip: 3, ~until: 5)
+        let p:
+          rectangle(
+            ~around:
+              stack(~sep: 5,
+                    ~horiz: #'left,
+                    top,
+                    stream(@t{css}, "blue", ~delay: 1, ~skip: 3),
+                    stream(@t{png}, "green", ~delay: 2, ~skip: 3),
+                    stream(@t{png}, "purple", ~delay: 3, ~skip: 3)).pad(~right: 64).pad(16),
+            ~line: #false,
+            ~fill: "lightblue")
+        slide.alts(p,
+                   balloon.pin(~on: p,
+                               ~at: Find.center(top, ~dx: 48),
+                               ~spike: #'n,
+                               ~dy: -p.height,
+                               @para{Dropped packet does not stall other streams})))
+

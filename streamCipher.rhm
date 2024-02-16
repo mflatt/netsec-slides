@@ -1,0 +1,715 @@
+#lang rhombus/static/and_meta
+import:
+  rhombus/runtime_path
+  rhombus/random open
+  rhombus/draw
+  "common.rhm" open
+  "crypto.rhm"!key open
+
+runtime_path.def clock_png: "images/clock_small.png"
+runtime_path.def house_png: "images/house_small.png"
+def secret_bm = draw.Bitmap.from_file(clock_png)
+def secret2_bm = draw.Bitmap.from_file(house_png)
+
+unless secret_bm.width == secret2_bm.width && secret_bm.height == secret2_bm.height
+| error("size mismatch")
+
+slide(~title: "Random Numbers",
+      slide.align(
+        ~horiz: #'right,
+        para(@{Our goal is to turn a plaintext into a ciphertext that looks @italic{random}}),
+        slide.next,
+        para(@{... but isn't really random})
+      ),
+      slide.next,
+      blank(64),
+      @para{Doesn't that sound like a pseudo-random number generator (@defterm{PRNG})?})
+
+fun make_rand(~a = #false, ~b = #false) :~ Random:
+  Random(Array(a || 100, 2, 3, b || 400, 5, 6))
+
+def my_rand = make_rand()
+
+fun random(n):
+  to_string(my_rand.random(n))
+
+slide(~title: "PRNGs",
+      @verbatim{
+        @(nonarchival(@tt{> random.seed(74658319934)}.time_pad(~before: 1), 0))
+        > random(256)
+        @random(256)
+        > random(256)
+        @random(256)
+        > random(256)
+        @random(256)
+        > random(256)
+        @random(256)
+        > random(256)
+        @random(256)
+        > random(256)
+        @random(256)
+      })
+
+fun make_rand_bm(bstr :: Bytes, from = #false, ~b: r_b = #false):
+  let bstr = bstr.copy()
+  let r = make_rand(~b: r_b)
+  for (i: 0 .. bstr.length()):
+    let v:
+      match from
+      | from :: Bytes: from[i]
+      | ~else: r.random(256)
+    bstr[i] := bstr[i] bits.xor v
+  def new_bm = draw.Bitmap(secret_bm.width, secret_bm.height)
+  new_bm.set_argb_pixels(bstr)
+  values (bstr, new_bm)
+
+def (_, rand_bm) = make_rand_bm(Bytes.make(secret_bm.width * secret_bm.height * 4))
+
+def (rand_secret_bytes, rand_secret_bm) = make_rand_bm(secret_bm.argb_pixels())
+def (_, secret_again_bm) = make_rand_bm(rand_secret_bytes)
+
+def (rand_secret2_bytes, rand_secret2_bm) = make_rand_bm(secret2_bm.argb_pixels())
+def (_, rand_mix_bm) = make_rand_bm(rand_secret2_bytes, rand_secret_bytes)
+
+def (_, randx_bm) = make_rand_bm(Bytes.make(secret_bm.width * secret_bm.height * 4), ~b: 77)
+def (rand_secret2x_bytes, rand_secret2x_bm) = make_rand_bm(secret2_bm.argb_pixels(), ~b: 77)
+def (_, rand_mixx_bm) = make_rand_bm(rand_secret2x_bytes, rand_secret_bytes)
+
+def (rand_mangled_secret_bytes, rand_mangled_secret_bm):
+  let bstr = Bytes.copy(rand_secret_bytes)
+  for (i: 0 .. bstr.length()):
+    when i mod 4 > 0
+    | bstr[i] := 255 - bstr[i]
+  def new_bm = draw.Bitmap(secret_bm.width, secret_bm.height)
+  new_bm.set_argb_pixels(bstr)
+  values(bstr, new_bm)
+def (_, secret_mangled_bm) = make_rand_bm(rand_mangled_secret_bytes)
+
+fun bm(bm :: draw.Bitmap) :~ Pict:
+  dc(fun (dc :: draw.DC, dx, dy):
+       dc.bitmap(bm, ~dx: dx, ~dy: dy),
+     ~width: bm.width,
+     ~height: bm.height)
+
+fun subscriptx(s): subscript(s).colorize("red")
+fun romanx(s): roman(s).colorize("red")
+
+def K = @romanly{K}.colorize("orange")
+def K_0 = @romanly{@K@subscriptx{0}}
+def K_1 = @romanly{@K@subscriptx{1}}
+def K_i = @romanly{@K@subscriptx{i}}
+
+def PT = @plaintext(@romanly{PT})
+def CT = @ciphertext(@romanly{CT})
+
+def PT_i = @plaintext(@romanly{PT@subscriptx{i}})
+def CT_i = @ciphertext(@romanly{CT@subscriptx{i}})
+
+def PT_a = @plaintext(@romanly{PT@subscript{a}})
+def CT_a = @ciphertext(@romanly{CT@subscript{a}})
+def PT_b = @plaintext(@romanly{PT@subscript{b}})
+def CT_b = @ciphertext(@romanly{CT@subscript{b}})
+
+let xor_op: @roman{⊕}
+
+slide(~title: "Stream Cipher",
+      slide.left(
+        lines(@para{Let @K = @K_0, @K_1, ... @K_i, .... be a sequence of random numbers},
+              @para{that is generated from a @rectangle(~around: @para{seed @key},
+                                                        ~refocus: #'around,
+                                                        ~fill: "lightblue",
+                                                        ~line: #false)}),
+        slide.next,
+        blank(),
+        @para{The @romanx{i}th ciphertext @CT element from the @romanx{i}th plaintext @PT element:},
+        slide.center(
+          block:
+            let p = @romanly{@CT_i = @PT_i @xor_op @K_i}
+            balloon.pin(~on: p,
+                        ~at: Find.bottom(xor_op),
+                        ~spike: #'nw,
+                        @para{xor}.time_clip())
+        ),
+        slide.next,
+        @para{Since @romanly{⊕} is its own inverse:},
+        slide.center(@romanly{@PT_i = @CT_i ⊕ @K_i}),
+        slide.next,
+        blank(),
+        @para{Treating @xor_op as mapping over sequences},
+        slide.center(@romanly{@CT = @PT ⊕ @K}),
+        slide.center(@romanly{@PT = @CT ⊕ @K})        
+      ))
+
+fun enmat(p :~ Pict) :~ Pict:
+  rectangle(~around: p.pad(5), ~line: #false, ~fill: "white")
+
+fun note_key(p, key):
+  stack.left(key, p).refocus(p)
+
+fun image_slide(options :~ OptMap, adjust = values) :~ OptMap:
+  let rand1 = bm(rand_bm)
+  let rand2 = rand1.launder()
+  let ct1 = ciphertext(enmat(bm(rand_secret_bm)))
+  let ct2 = ct1.launder()
+  let p:    
+    stack(~sep: 128,
+          beside(~sep: 32,
+                 plaintext(enmat(bm(secret_bm))),
+                 @roman{⊕}.scale(2),
+                 note_key(rand1, key),
+                 @roman{=}.scale(2).ghost(!options[#'plus]),
+                 ct1.ghost(!options[#'plus])),
+          beside(~sep: 32,
+                 ct2,
+                 @roman{⊕}.scale(2),
+                 note_key(rand2, key),
+                 @roman{=}.scale(2).ghost(!options[#'plus2]),
+                 plaintext(enmat(bm(secret_again_bm))).ghost(!options[#'plus2])).ghost(!options[#'revert]))
+  let p:
+    if options[#'revert]
+    | let p = connect(~on: p,
+                      Find.bottom(rand1, ~dy: 5),
+                      Find.top(rand2, ~dy: -5),
+                      ~style: #'arrow,
+                      ~line: "blue",
+                      ~line_width: 4)
+      let p = connect(~on: p,
+                      Find.bottom(ct1, ~dy: 5),
+                      Find.top(ct2, ~dy: -5),
+                      ~style: #'arrow,
+                      ~line: "purple",
+                      ~line_width: 4,
+                      ~start_angle: pi * -1/2,
+                      ~end_angle: pi * -1/2)
+      p
+    | p
+  slide(~title: "Stream Cipher on an Image",
+        adjust(p))
+  options
+
+let options = image_slide({}, nonarchival)
+let options = image_slide(options ++ { #'plus }, nonarchival)
+let options = image_slide(options ++ { #'revert }, nonarchival)
+let options = image_slide(options ++ { #'plus2 })
+
+fun answer(p :~ Pict):
+  slide.right(
+    block:
+      let p = p.scale(0.75).colorize("blue")
+      p.pad(~top: -p.height + 5)
+  )
+
+fun oops(s): bold(s).colorize("brown")
+
+slide(~title: "Well, That Was Easy!",
+      slide.left(
+        @para{Why aren't we done?},
+        slide.next,
+        blank(64),
+        @para{@oops{Problem #1}: it turns out that @roman{⊕} uses up a key},
+        answer(@para{unless the PRNG has an extra feature making it more general}),
+        slide.next,
+        blank(),
+        @para{@oops{Problem #2}: we're getting confidentiality, but not integrity},
+        answer(@para{so, need to combine with something else, not today}),
+        slide.next,
+        blank(),
+        @para{@oops{Problem #3}: we need a really good PRNG},
+        answer(@para{a general building block, so we'll look more today})
+      ))
+
+fun image_mix_slide(options :~ OptMap, adjust = values) :~ OptMap:
+  let rand1 = bm(rand_bm)
+  let rand2 = bm(if options[#'x] | rand_bm | randx_bm)
+  let ct1 = ciphertext(enmat(bm(rand_secret_bm)))
+  let ct2 = ct1.launder()
+  let c2t1 = ciphertext(enmat(bm(if options[#'x] | rand_secret2x_bm | rand_secret2_bm)))
+  let c2t2 = c2t1.launder()
+  let key_again = if options[#'x] | key2 | key.launder()
+  let p:
+    stack(~sep: 16,
+          ~horiz: #'right,
+          beside(~sep: 32,
+                 plaintext(enmat(bm(secret_bm))),
+                 @roman{⊕}.scale(2),
+                 note_key(rand1, key),
+                 @roman{=}.scale(2),
+                 ct1),
+          overlay(@roman{⊕}.scale(2).ghost(!options[#'mix]),
+                  blank(~width: rand1.width)),
+          beside(~sep: 32,
+                 plaintext(enmat(bm(secret2_bm))),
+                 @roman{⊕}.scale(2),
+                 note_key(rand2, key_again),
+                 @roman{=}.scale(2),
+                 c2t1).ghost(!options[#'second]),
+          overlay(@roman{=}.scale(2).ghost(!options[#'mix]),
+                  blank(~width: rand1.width)),
+          plaintext(enmat(bm(if options[#'x] | rand_mixx_bm | rand_mix_bm))).ghost(!options[#'answer])).scale(0.8)
+  let p:
+    if options[#'formula]
+    | let f:
+        @lines(@para{@CT_a = @PT_a @xor_op @K},
+               @para{@CT_b = @PT_b @xor_op @K},
+               beside.topline(@para{@CT_a @xor_op @CT_b},
+                              @t{ },
+                              @lines(@para{= @PT_a @xor_op @K @xor_op @PT_b @xor_op @K},
+                                     @para{= @PT_a @xor_op @PT_b})))
+      overlay.bottom_left(p,
+                          f.pad(~left: -f.width/2,
+                                ~bottom: -32))
+    | p
+  let p:
+    if options[#'misuse] || options[#'nonce]
+    | balloon.pin(~on: p,
+                  ~at: Find.left(key_again),
+                  ~spike: #'se,
+                  ~dx: 128,
+                  ~fill: if options[#'misuse] | "gold" | "lightblue",
+                  if options[#'misuse]
+                  | @para{Don't use the same key twice!}
+                  | block:
+                      let p = @para{@key2 = @key + @defterm{nonce}?}
+                      switch(
+                        nonarchival(p),
+                        balloon.pin(~on: p,
+                                    ~at: Find.bottom(p),
+                                    ~spike: #'n,
+                                    ~dy: -208,
+                                    lines(
+                                      ~horiz: #'right,
+                                      @para{Only if the PRNG specifically supports it!},
+                                      @para{ChaCha is one such PRNG}.scale(0.75)
+                                    ))
+                      ))
+    | p
+  slide(~title: (if options[#'x] | "Potentially Correct Use" | "Misuse") +& " of Stream Cipher and Key",
+        adjust(p))
+  options
+
+let options = image_mix_slide({}, nonarchival)
+let options = image_mix_slide(options ++ { #'second }, nonarchival)
+let options = image_mix_slide(options ++ { #'mix }, nonarchival)
+let ans_options = image_mix_slide(options ++ { #'answer }, nonarchival)
+let options = image_mix_slide(ans_options ++ { #'formula }, nonarchival)
+let options = image_mix_slide(options ++ { #'misuse })
+let options = image_mix_slide(ans_options ++ { #'x }, nonarchival)
+let options = image_mix_slide(options ++ { #'nonce })
+
+fun magled_image_slide(options :~ OptMap, adjust = values) :~ OptMap:
+  let rand1 = bm(rand_bm)
+  let rand2 = rand1.launder()
+  let ct1 = ciphertext(enmat(bm(rand_secret_bm)))
+  let ct2:
+    if options[#'mangle]
+    | let p = ciphertext(enmat(bm(rand_mangled_secret_bm)))
+      let q:
+        beside(~sep: 32,
+               rectangle(~around: enmat(p.launder().ghost()).pad(1)),
+               @roman{-}.scale(2),
+               p)
+      let q = rectangle(~around: q.pad(16), ~fill: "lightgray", ~line: #false)
+      let q = stack.left(mallory, q).refocus(q)
+      q.refocus(p)
+    | ct1.launder()
+  let p:    
+    stack(~sep: 128,
+          beside(~sep: 32,
+                 plaintext(enmat(bm(secret_bm))),
+                 @roman{⊕}.scale(2),
+                 note_key(rand1, key),
+                 @roman{=}.scale(2),
+                 ct1),
+          beside(~sep: 32,
+                 ct2,
+                 @roman{⊕}.scale(2),
+                 note_key(rand2, key),
+                 @roman{=}.scale(2),
+                 plaintext(enmat(bm(if options[#'mangle] | secret_mangled_bm  | secret_again_bm)))))
+  let p = connect(~on: p,
+                  Find.bottom(rand1, ~dy: 5),
+                  Find.top(rand2, ~dy: -5),
+                  ~style: #'arrow,
+                  ~line: "blue",
+                  ~line_width: 4)
+  let p = connect(~on: p,
+                  Find.bottom(ct1, ~dy: 5),
+                  Find.top(ct2, ~dy: -5),
+                  ~style: #'arrow,
+                  ~line: "purple",
+                  ~line_width: 4,
+                  ~start_angle: pi * -1/2,
+                  ~end_angle: pi * -1/2)
+  let p:
+    if options[#'something_else]
+    | let n:
+        balloon.note(lines(@para{Again, we'll need more ingredients...}))
+      stack.right(~sep: 32,
+                  p,
+                  n.pad(~right: -n.width/2))
+        .refocus(p)
+    | p
+  slide(~title: "Stream Cipher Lack of Integrity",
+        adjust(p))
+  options
+
+let options = magled_image_slide({}, nonarchival)
+let options = magled_image_slide(options ++ { #'mangle }, nonarchival)
+let options = magled_image_slide(options ++ { #'something_else })
+
+slide(~title: "Creating a Really Good PRNG",
+      slide.left(
+        para(@{We need a @italic{crytographically secure} PRNG (@defterm{CSPRNG})}),
+        blank(),
+        @item{Cannot predict next output from previous outputs},
+        @item{Passes statistical randomness tests},
+        slide.next,
+        blank(),
+        @item{Cannot use current state to predict @italic{previous} output}
+      ))
+
+fun make_box(w, h) :~ Pict:
+  let c = Color("lightgray") with (alpha = 0.5)
+  let f = rectangle(~width: w, ~height: h, ~fill: c, ~line: #false)
+  let t = rectangle(~width: w, ~height: 16, ~fill: c.scale(1.4), ~line: #false).shear(-2, 0)
+  let r = rectangle(~width: 32, ~height: h, ~fill: c.scale(0.95), ~line: #false).shear(0, -0.5)
+  stack.left(t, beside.bottom(f, r).pad(~top: -16))
+
+def cube = make_box(64, 64)
+
+fun encube(content) :~ Pict:
+  overlay(cube.scale(2), content)
+  
+block:
+  let c1 = encube(stack(@tt{01010}, @tt{11011}, @tt{01100}))
+  let c2 = encube(stack(@tt{11010}, @tt{01011}, @tt{01111}))
+  let c3 = encube(stack(@tt{00001}, @tt{10101}, @tt{01101}))
+  fun rand(out):
+    let p = @tt{random()}.pad(~left: 5)
+    let q = p.pad(~horiz: 32)
+    let q = connect(~on: q, Find.right(p), Find.right(q), ~style: #'arrow)
+    let q = connect(~on: q, Find.left(p), Find.left(q))
+    let p = q.colorize("blue").scale(0.8)
+    let q = stack(~sep: 48, p, out)
+    connect(~on: q, Find.bottom(p), Find.top(out), ~line: "blue", ~style: #'arrow, ~arrow_size: 16*0.8)
+  let s1 = @tt{1010}
+  let s2 = @tt{0100}
+  let p = beside(~sep: 16, c1, rand(s1), c2, rand(s2), c3)
+  let inside = @para{@roman{N} bits}
+  let samp = @para{@roman{M} bits}
+  let c_samp = @para{@roman{C} samples}
+  let p = pin(~on: p,
+              ~at: Find.top(c1, ~dx: -inside.width/2, ~dy: -inside.height - 16),
+              inside)
+  let p = pin(~on: p,
+              ~at: Find.bottom(s1, ~dx: -samp.width/2, ~dy: 16),
+              samp)
+  let p = pin(~on: p,
+              ~at: Find.bottom(s2, ~dx: -c_samp.width, ~dy: 48),
+              c_samp)
+  let p:
+    let (_, t) = Find.top(inside).in(p)
+    let (_, b) = Find.bottom(c_samp).in(p)
+    p.pad(~top: -t, ~bottom: b - p.height)
+    
+  slide(~title: "PRNG",
+        p,
+        blank(32),
+        @para{@romanly{2@superscript{N}} possible states},
+        @para{@romanly{2@superscript{C × M}} possible sequences},
+        @para{⇒ lots of overlap when @romanly{C × M ≫ N}})
+
+block:
+  let sc = cube.scale(0.25)
+  let sep = 8
+  let cubes :~ List.of(List):
+    for List (i: 0..16):
+      for List (j: 0..16):
+        sc.launder()
+  let tab = table(cubes,
+                  ~vsep: sep,
+                  ~hsep: sep)
+  let startx = 8
+  let starty = 1
+  fun add_start(tab, startx, starty):
+    pin(~on: tab,
+        ~at: Find.center(cubes[startx][starty], ~dx: -5, ~dy: -5),
+        circle(~size: 10, ~fill: "blue", ~line: #false))
+  let states = [[2, 3], [5, 7], [10, 11],
+                [6, 9], [3, 11], [12, 13],
+                [8, 1]]
+  fun mk(len):
+    let (p, _, _):
+      let tab = add_start(tab, startx, starty)
+      for values(tab = tab, px = startx, py = starty) ([x, y]: states.take_left(len)):
+        values(connect(~on: tab,
+                       Find.center(cubes[px][py]),
+                       Find.center(cubes[x][y]),
+                       ~line: "blue",
+                       ~style: #'arrow),
+               x,
+               y)
+    p
+  let p = switch(& for List (i: 0..states.length()+1): mk(i))
+  fun add_back(p):
+    let [x, y] = states[1]
+    let [px, py] = states[2]
+    connect(~on: p,
+            Find.center(cubes[px][py], ~dx: -5),
+            Find.center(cubes[x][y], ~dx: -5),
+            ~line: "red",
+            ~style: #'arrow,
+            ~line_width: 3)
+  let all_starts:
+    let r = make_rand()  
+    for values (p = mk(0)) (i: 0..64):
+      add_start(p, r.random(16), r.random(16)) 
+
+  slide(~title: "PRNG States",
+        switch(
+          nonarchival(p),
+          block:
+            let p = mk(states.length())
+            beside(~sep: 32,
+                   p,
+                   balloon.note(lines(
+                                  @para{Cycle is inevitable, but},
+                                  @para{we want it to be as long},
+                                  @para{as possible}
+                                )))
+              .refocus(p),
+          block:
+            let p = mk(states.length())
+            beside(~sep: 32,
+                   add_back(p),
+                   balloon.note(lines(
+                                  @para{CSPRNG implies that},
+                                  @para{you can't reverse an arrow},
+                                  @para{even if you see the state}
+                                )))
+              .refocus(p),
+          block:
+            let p = all_starts
+            beside(~sep: 32,
+                   p,
+                   balloon.note(lines(
+                                  @para{Key to initialize usually},
+                                  @para{@roman{< N} bits, so only},
+                                  @para{some starts are possible}
+                                )))
+              .refocus(p),
+          
+        ))
+
+class RC4(s :: List, i, j)
+
+let rc4_init_state:
+  RC4(for List (i: 0..256): i, 0, 0)
+
+macro 'swap($a, $b)':
+  'block:
+     let tmp = $a
+     $a := $b
+     $b := tmp'
+
+fun rc4_init(RC4(s, i, j), key :: String):
+  def S = for Array (v: s): v
+  def key = "Key"
+  fun V(ch): Char.to_int(ch)
+  let mutable j = j
+  for (i: 0..256):
+    j := (j + S[i] + V(key[i mod key.length()])) mod 256
+    swap(S[i], S[j])
+  RC4(S.to_list(), 0, 0)
+
+fun rc4_next_byte(RC4(s, i, j)):
+  def S = for Array (v: s): v
+  let mutable i = i
+  let mutable j = j
+  i := (i + 1) mod 256
+  j := (j + S[i]) mod 256
+  swap(S[i], S[j])
+  let t = (S[i] + S[j]) mod 256
+  let K = S[t]
+  values(K,
+         RC4(S.to_list(), i, j))
+
+fun rc4_slide(rc4_state, desc):
+  let RC4(s, i, j) = rc4_state
+  let W = 8
+  let max_p = @tt{255}.ghost()
+  let sc = 0.35
+  let cells :~ List.of(List):
+    for List (i: 0..256/W):
+      for List (j: 0..W):
+        overlay(tt(to_string(s[i*W+j])), max_p).scale(sc)
+  let tab:
+    table(~hsep: 10,
+          ~vsep: 5,
+          cells)
+  let i_color = "red"
+  let j_color = "blue"
+  let tab:
+    pin(~on: tab,
+        ~at: Find.top_left(cells[i div W][i mod W]),
+        rectangle(~around: max_p.scale(sc), ~line: i_color))
+  let tab:
+    pin(~on: tab,
+        ~at: Find.top_left(cells[j div W][j mod W], ~dx: -2, ~dy: -2),
+        rectangle(~around: max_p.scale(sc).pad(2), ~line: j_color))
+  let tab:
+    stack(~sep: 5,
+          beside(~sep: 32,
+                 tt("i = " +& i).colorize(i_color),
+                 tt("j = " +& j).colorize(j_color)).scale(1.4*sc),
+          tab)
+  let cube = make_box(tab.width + 16, tab.height + 16)
+  let state = overlay(cube, tab)
+    
+  slide(~title: "Historical PRNG: RC4",
+        beside(~sep: 64, state, desc).refocus(state).pad(~right: 2 * state.width))
+
+rc4_slide(rc4_init_state,
+          stack(~sep: 48,
+                @para{RC4 is ``Ron's Code''},
+                lines(
+                  @para{Used in the 1990s, but several},
+                  @para{vulnerabilities have been found,},
+                  @para{so don't use it}
+                )))
+          
+
+rc4_slide(rc4_init_state,
+          @verbatim{def S = Array(0..255)
+                    def i = 0
+                    def j = 0})
+
+fun make_init_code(show_key = #false) :~ Pict:
+  @verbatim{
+    @(block:
+        let p = @tt{def key = "Secret"}.ghost(!show_key)
+        if show_key
+        | switch(p,
+                 balloon.pin(~on: p,
+                             ~at: Find.top(p, ~dx: p.width * 0.2),
+                             ~spike: #'s,
+                             ~sprout: 0.3,
+                             @para{any length, but between 5 and 16 bytes is common}))
+        | p)
+
+    j := 0
+    for (i: 0..255):
+      j := (j + S[i] + key[i % key.length]) % 256
+      swap(S[i], S[j])
+
+    i := 0
+    j := 0
+  }
+
+rc4_slide(rc4_init_state,
+          block:
+            let p = make_init_code().scale(0.8)
+            stack(~sep: 32,
+                  p,
+                  @para{This and later code based on @tt{https://en.wikipedia.org/wiki/RC4}}.scale(0.5).colorize("blue"))
+              .refocus(p))
+let rc4_secret_state = rc4_init(rc4_init_state, "Secret")
+rc4_slide(rc4_secret_state,
+          make_init_code(#true).scale(0.8))
+
+fun next_byte_code(result):
+  @verbatim{
+    def next_byte():
+      i := (i+1) mod 256
+      j := (j+S[i]) mod 256
+      swap(S[i], S[j])
+      return S[(S[i] + S[j]) mod 256]
+
+    @(@tt{next_byte() = @to_string(result)}.ghost(!result))
+  }
+
+rc4_slide(rc4_secret_state,
+          next_byte_code(#false))
+
+let rc4_last_state:
+  for values(rc4_state = rc4_secret_state) (i: 0..4):
+    let (rc4_result, rc4_next_state) = rc4_next_byte(rc4_state)
+    rc4_slide(rc4_next_state,
+              next_byte_code(rc4_result))
+    rc4_next_state
+
+rc4_slide(rc4_last_state,
+          lines(
+            @para{Vulnerabilities include},
+            @item{first few bytes expose key},
+            @item{bias in consecutive pairs},
+            @item{bias toward repeating pairs}
+          ))
+
+let chacha:
+  let biggest = @tt{"expa"}.ghost()
+  fun box(p :~ Pict, c):
+    overlay(rectangle(~around: biggest.pad(~horiz: 5), ~fill: c, ~line: #false),
+            p)
+  fun gray(p): box(p, "lightgray")
+  fun blue(p): box(p, "gold")
+  fun red(p :~ Pict): box(p.colorize("white"), "firebrick")
+  fun green(p :~ Pict): box(p.colorize("white"), "forestgreen")
+  fun keypart(n): "" // @tt{[@n]}
+  let p:
+    table(~hsep: 0,
+          ~vsep: 0,
+          ~line: "black",
+          ~order: #'back,
+          [[gray(@tt{"expa"}),
+            gray(@tt{"nd 3"}),
+            gray(@tt{"2-by"}),
+            gray(@tt{"te k"})],
+           [blue(@italic{key@keypart{0}}),
+            blue(@italic{key@keypart{1}}),
+            blue(@italic{key@keypart{2}}),
+            blue(@italic{key@keypart{3}})],
+           [blue(@italic{key@keypart{4}}),
+            blue(@italic{key@keypart{5}}),
+            blue(@italic{key@keypart{6}}),
+            blue(@italic{key@keypart{7}})],
+           [red(@italic{counter}),
+            red(@italic{counter}),
+            green(@italic{nonce}),
+            green(@italic{nonce})]])
+  let p:
+    overlay(make_box(p.width + 48, p.height + 48), p)
+  beside(~vert: #'bottom,
+         ~sep: 32,
+         p,
+         @tt{https://en.wikipedia.org/wiki/Salsa20}.colorize("blue").scale(0.4))
+    .refocus(p)
+
+def QR:
+  @verbatim{
+    quarter_round(a, b, c, d):
+      a += b; d ⊕= a; d <<<= 16
+      c += d; b ⊕= c; b <<<= 12
+      a += b; d ⊕= a; d <<<= 8
+      c += d; b ⊕= c; b <<<= 7
+  }.scale(0.9)
+
+slide(~title: "Modern PRNG: ChaCha",
+      @tt{chacha(@italic{key}, @italic{counter}, @italic{nonce}) → @t{PRNG}},
+      blank(),
+      chacha,
+      slide.next,
+      blank(16),
+      @para{Applied alternately to columns then diagonals:}.pad(~right: 32),
+      QR)
+
+slide(~title: "Summary",
+      slide.left(
+        @para{@defterm{Stream ciphers} use a PRNG plus ⊕},
+        blank(),
+        @para{Don't reuse a single key},
+        blank(),
+        @para{Confidentiality only; need more layers for other goals},
+        blank(),
+        @para{Modern CSPRNGs use a mixture of <<< and ⊕ on internal state}
+      ))

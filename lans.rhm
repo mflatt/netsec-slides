@@ -1,0 +1,968 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  pict/radial.cloud
+  draw
+  "common.rhm" open
+  "layers.rhm"
+  "linkLayer.rhm"!pkt
+  "delays.rhm"!network as delays
+  "networkLayerData.rhm"!subnet as network_layer
+  "layout.rhm"
+
+runtime_path.def switch_png: "images/switch.png"
+def switchbox = bitmap(switch_png).pad(~horiz: 5)
+
+let thistle_ip = @tt{155.98.69.112}
+let ipv6_addr = @tt{2607:f8b0:4025::2004}
+let laptop_mac = @tt{A4-CF-99-90-44-DE}
+let router_mac = @tt{00-00-0C-9F-F0-C4}
+let www_addr = @tt{141.193.213.10}
+let thistle_mac = @tt{38-60-77-A8-6C-77}
+
+let spc = @tt{ }
+let MAC = @t{MAC}
+
+block:
+  fun p(options :~ OptMap):
+    fun show(key, val :~ Pict):
+      if options[key] | val | val.ghost()
+    let p:
+      @stack(
+        ~sep: 24
+        ~horiz: #'left,
+        @para{Network addresses as @bold{IP} addresses:}
+        show(#'example, @para{@spc @thistle_ip --- 32 bytes})
+        show(#'example, @para{@spc @ipv6_addr --- 128 bytes})
+        show(#'org, @para{Hierarchical by proximity})
+        show(#'setup, @para{Needs to be configured})
+        blank(32)
+        @para{Link addresses as @bold{MAC} (medium access control) addresses:}
+        show(#'example, @para{@spc @laptop_mac --- 48 bytes})
+        show(#'org, @para{Limited structure / hierarchical by manufacturer})
+        show(#'setup, @para{Interface always knows its @MAC @spc @(@para{more like an @italic{identity} than an @italic{address}}.scale(0.75))})
+      )
+    let p:
+      if options[#'phone]
+      | balloon.pin(~on: p,
+                    ~at: Find.top(MAC),
+                    ~spike: #'sw,
+                    @para{Phones may randomize identity, though})
+      | p
+    let p:
+      if options[#'ifconfig]
+      | overlay(p, ~horiz: #'right,
+                balloon.note(@para{MAC addresses are shown by @tt{ifconfig}},
+                             ~fill: "lightblue")
+                  .pad(~right: -128))
+      | p
+    p
+  fun do_slide(options) :~ OptMap:
+    slide(~title: "Network vs. Link Addresses",
+          p(options))
+    options
+  let options = do_slide({})
+  let options = do_slide(options ++ { #'example })
+  let options = do_slide(options ++ { #'org })
+  let options = do_slide(options ++ { #'setup })
+  let aside_options = do_slide(options ++ { #'phone })
+  let options = do_slide(options ++ { #'ifconfig })
+  #void
+
+fun mk_pkt(options :~ OptMap):
+  let p = pkt.pkt_up_to_layers(4, options).scale(1.4)
+  let p:
+    if options[#'lan] || options[#'subnet] || options[#'router]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(pkt.dest_addr),
+                  ~spike: #'n,
+                  if options[#'router]
+                  | @para{Out of LAN ⇒ need router's MAC}                    
+                  | let LAN = @defterm{Local-area network (LAN)}
+                    let p = @para{In @LAN ⇒ need host's MAC}
+                    if options[#'lan]
+                    | p
+                    | balloon.pin(~on: p,
+                                  ~at: Find.bottom(LAN),
+                                  ~spike: #'n,
+                                  ~fill: "lightblue",
+                                  @para{Link layer analog to network layer @defterm{subnet}}))
+    | p
+  p
+
+slide(~title: "Address Resolution Protocol (ARP)",
+      block:
+        let options :~ OptMap = { #'dest : #true }
+        let unk_options = options ++ { #'unknown_dest }
+        slide.alts(
+          mk_pkt(unk_options),
+          mk_pkt(unk_options ++ { #'lan }),
+          mk_pkt(unk_options ++ { #'subnet }),
+          mk_pkt(unk_options ++ { #'router }),
+          mk_pkt(options)
+        ),
+      slide.next,
+      blank(32),
+      @para{@defterm{ARP} is a LAN protocol to get IP → MAC mappings},
+      slide.next,
+      @para{Uses @tt{FF-FF-FF-FF-FF-FF} broadcast address})
+
+fun mac_ip(m, i) :~ Pict: lines(~horiz: #'center, m, i)
+
+let rains_ip = @tt{155.98.68.106}
+let router_ip = @tt{155.98.68.1}
+
+let thistle_addr = mac_ip(thistle_mac,
+                          thistle_ip)
+let shanghai_addr = mac_ip(@tt{B8-27-EB-48-34-19},
+                           @tt{155.98.69.200})
+let rains_addr = mac_ip(laptop_mac,
+                        rains_ip)
+let soc_untrusted_addr = mac_ip(router_mac,
+                                router_ip)
+let soc_untrusted_prefix = @tt{155.98.68.0/23}
+
+let not_soc_prefix = @tt{155.0.0.0/8}
+let other_prefix = @tt{117.12.0.0/16}
+
+let laptop1 = delays.laptop.launder()
+let laptop2 = delays.laptop.launder()
+let laptop3 = delays.laptop.launder()
+let router1 = delays.router.launder()
+
+fun make_subnet(rains_addr) :~ Pict:
+  network_layer.subnet(laptop1, laptop2, laptop3,
+                       thistle_addr,
+                       shanghai_addr,
+                       rains_addr,
+                       soc_untrusted_addr,
+                       soc_untrusted_prefix,
+                       "lightgreen",
+                       router1,
+                       {})
+
+let pre_dhcp_subnet = make_subnet(laptop_mac)
+let subnet = make_subnet(rains_addr.refocus(laptop_mac))
+let known_subnet:
+  let tab:
+    table([[@t{IP}, @t{MAC}],
+           [router_ip, router_mac]],
+          ~pad: 4,
+          ~line: "black")
+  let tab = tab.scale(0.5)
+  let p: beside(~sep: 32, ~vert: #'bottom,
+                tab.pad(~bottom: 1.5 * laptop3.height),
+                subnet)
+           .refocus(subnet)
+  connect(~on: p, Find.right(tab), Find.left(laptop3))
+  
+
+fun dhcp_request(step):
+  let p:
+    pkt.pkt_ize([lines(@bold{Ethernet},
+                       @para{src: @(if step == #'discover
+                                    | laptop_mac
+                                    | router_mac)},
+                       @para{dest: @(if step == #'discover
+                                     | @tt{FF-FF-FF-FF-FF-FF}
+                                     | laptop_mac)}),
+                 lines(@bold{IP},
+                       @para{src: @(if step == #'discover
+                                    | @tt{0.0.0.0}
+                                    | router_ip)},
+                       @para{dest: @(if step == #'discover
+                                     | @tt{255.255.255.255}
+                                     | rains_ip)}),
+                 lines(@bold{UDP},
+                       @para{src port: @(if step == #'discover
+                                         | @tt{68}
+                                         | @tt{69})},
+                       @para{dest port: @(if step == #'discover
+                                          | @tt{69}
+                                          | @tt{68})}),
+                 if step == #'discover
+                 | @para{DHCP discover}
+                 | lines(@para{DHCP offer},
+                         @para{you: @rains_ip},                         
+                         @para{router: @router_ip})]).scale(0.5)
+  p.pad(~left: -p.width/2).pad(~left: if step == #'discover | 0 | -64)
+
+let arp_whois:
+  let p:
+    pkt.pkt_ize([lines(@bold{Ethernet},
+                       @para{src: @laptop_mac},
+                       @para{dest: @tt{FF-FF-FF-FF-FF-FF}}),
+                 lines(@bold{ARP},
+                       @para{who has @router_ip})]).scale(0.5)
+  p.pad(~left: -p.width/2)
+
+let arp_iam:
+  let p:
+    pkt.pkt_ize([lines(@bold{Ethernet},
+                       @para{src: @tt{FF-FF-FF-FF-FF-FF}},
+                       @para{dest: @laptop_mac}),
+                 lines(@bold{ARP},
+                       @para{I have @router_ip})]).scale(0.5)
+  p.pad(~left: -p.width/2)
+
+let http_fetch:
+  let p:
+    pkt.pkt_ize([lines(@bold{Ethernet},
+                       @para{src: @laptop_mac},
+                       @para{dest: @router_mac}),
+                 lines(@bold{IP},
+                       @para{src: @rains_ip},
+                       @para{dest: @www_addr}),
+                 lines(@bold{UDP},
+                       @para{src port: @tt{7741}},
+                       @para{dest port: @tt{80}}),
+                 lines(@tt{GET / HTTP/1.1},
+                       @tt{Host: wwwcs.utah.edu"})]).scale(0.5)
+  p.pad(~left: -p.width/2)
+
+let top_options :~ OptMap = { #'router_top: #true }
+
+slide(~title: "From DHCP to ARP to HTTP",
+      slide.alts(
+        pre_dhcp_subnet,
+        balloon.pin(~on: pre_dhcp_subnet,
+                    ~at: Find.left(laptop3),
+                    ~spike: #'e,
+                    @para{New host on LAN/subnet}),
+        network_layer.broadcast(pre_dhcp_subnet, laptop1, dhcp_request(#'discover), laptop2, laptop3, router1,
+                                top_options),
+        network_layer.broadcast(pre_dhcp_subnet, #false, dhcp_request(#'offer), #false, laptop3, router1,
+                                top_options ++ { #'reverse }),
+        subnet,
+        balloon.pin(~on: subnet,
+                    ~at: Find.right(laptop3),
+                    ~spike: #'w,
+                    ~dx: -64,
+                    switch(lines(@para{Has IP address, and knows},
+                                 @para{subnet prefix and router IP}),
+                           block:
+                             let p = @para{Does not know any subnet MACs, yet}
+                             switch(p,
+                                    balloon.pin(~on: p,
+                                                ~at: Find.bottom(p),
+                                                ~spike: #'n,
+                                                ~fill: "lightblue",
+                                                lines(@para{Could broadcast to reach router,},
+                                                      @para{but that's too noisy if done often}))))),
+        network_layer.broadcast(subnet, laptop1, arp_whois, laptop2, laptop3, router1,
+                                top_options),
+        network_layer.broadcast(subnet, laptop1, arp_iam, laptop2, laptop3, router1,
+                                top_options ++ { #'reverse }),
+        known_subnet,
+        network_layer.broadcast(known_subnet, #false, http_fetch, #false, laptop3, router1,
+                                top_options),
+        block:
+          let note = balloon.note(@para{Use @tt{arp} to see accumulated IP → MAC table},
+                                  ~fill: "lightblue")
+          let note = note.pad(~right: -note.width/2)
+          overlay(~horiz: #'right, ~vert: #'bottom, known_subnet, note)
+      ))
+
+// ------------------------------------------------------------
+
+fun to_right(p :~ Pict) :~ Pict:
+  let q = p.pad(~right: 32)
+  connect(~on: q, Find.right(p), Find.right(q), ~style: #'arrow, ~line: "blue")
+
+fun to_left(p :~ Pict) :~ Pict:
+  let q = p.pad(~left: 32)
+  connect(~on: q, Find.left(p), Find.left(q), ~style: #'arrow, ~line: "blue")
+
+fun switch_pict(options :~ OptMap):
+  let d1 = blank()
+  let d2 = blank()
+  let d3 = blank()
+  let d4 = blank()
+  let id1 = blank()
+  let id2 = blank()
+  let id3 = blank()
+  let id4 = blank()
+  let cd1 = blank()
+  let cd2 = blank()
+  let cd3 = blank()
+  let cd4 = blank()
+  let p = switchbox
+  let p:
+    if options[#'hub]
+    | p.rotate(pi)
+    | p
+  fun corners(p, lt, lb, rt, rb) :~ Pict:
+    let p = overlay.top_left(p, lt)
+    let p = overlay.bottom_left(p, lb)
+    let p = overlay.top_right(p, rt)
+    let p = overlay.bottom_right(p, rb)
+    p
+  let p = corners(p, id1, id2, id3, id4)
+  let p = corners(p.pad(~horiz: 50, ~vert: 25), cd1, cd2, cd3, cd4)
+  let p = corners(p.pad(~horiz: 100), d1, d2, d3, d4)
+  fun link(p, a, b, c):
+    if options[#'ports]
+    | let w = 3
+      let p = connect(~on: p, Find.center(a), Find.center(b), ~line_width: w)
+      let p = connect(~on: p, Find.center(b), Find.center(c), ~line_width: w)
+      p
+    | p
+  let p = link(p, id1, cd1, d1)
+  let p = link(p, id2, cd2, d2)
+  let p = link(p, id3, cd3, d3)
+  let p = link(p, id4, cd4, d4)
+  fun linkno(p, id, n, ~dx: dx):
+    if options[#'ports]
+    | let s = t(to_string(n))
+      pin(~on: p,
+          ~at: Find.top(id, ~dy: -s.height - 2, ~dx: dx - s.width/2),
+          s.scale(0.75))
+    | p
+  let p = linkno(p, id1, 1, ~dx: -10)
+  let p = linkno(p, id2, 2, ~dx: -10)
+  let p = linkno(p, id3, 3, ~dx: 10)
+  let p = linkno(p, id4, 4, ~dx: 10)
+  let dy = 20
+  let p:
+    if options[#'incoming]
+    | let incoming :~ Pict = to_right(options[#'incoming])
+      let p:
+        pin(~on: p,
+            ~at: Find.center(d1, ~dx: -incoming.width - 5, ~dy: -incoming.height * 2/3 - dy),
+            incoming)
+      let p:
+        if options[#'out3]
+        | pin(~on: p,
+              ~at: Find.center(d3, ~dx: 5, ~dy: -incoming.height * 2/3 - dy),
+              incoming)
+        | p
+      let p:
+        if options[#'out4]
+        | pin(~on: p,
+              ~at: Find.center(d4, ~dx: 5, ~dy: -incoming.height * 2/3 + dy),
+              incoming)
+        | p
+      let incoming :~ Pict = to_left(options[#'incoming])        
+      let p:
+        if options[#'out2]
+        | pin(~on: p,
+              ~at: Find.center(d2, ~dx: -incoming.width - 5, ~dy: -incoming.height * 2/3 + dy),
+              incoming)
+        | p
+      p
+    | p
+  let p:
+    if options[#'incoming4]
+    | let incoming :~ Pict = to_left(options[#'incoming4])
+      let p:
+        pin(~on: p,
+            ~at: Find.center(d4, ~dx: 5, ~dy: -incoming.height * 2/3 + dy),
+            incoming)
+      let p:
+        if options[#'out1]
+        | pin(~on: p,
+              ~at: Find.center(d1, ~dx: -incoming.width - 5, ~dy: -incoming.height * 2/3 - dy),
+              incoming)
+        | p      
+      p
+    | p    
+  let p:
+    if options[#'record1]
+    | let tab:
+        table([[@t{MAC}, @t{link}],
+               [laptop_mac, @t{1}],
+               & (if options[#'record2]
+                  | [[thistle_mac, @t{4}]]
+                  | [])],
+              ~pad: 4,
+              ~line: "black")
+      let p:
+        stack(~sep: 64, p, tab).refocus(p)
+      connect(~on: p, Find.bottom(switchbox), Find.top(tab))
+    | p
+  p
+
+fun switch_slide(options :~ OptMap, adj = fun (p): p) :~ OptMap:
+  slide(~title: if options[#'hub] | "Hubs" | "Switches",
+        adj(switch_pict(options)))
+  options
+
+let switch_broadcast:
+  pkt.pkt_ize([lines(@bold{Ethernet},
+                     @para{src: @laptop_mac},
+                     @para{dest: @tt{FF-FF-FF-FF-FF-FF}})]).scale(0.75)
+
+let switch_specific:
+  pkt.pkt_ize([lines(@bold{Ethernet},
+                     @para{src: @laptop_mac},
+                     @para{dest: @thistle_mac})]).scale(0.75)
+
+let switch_specific2:
+  pkt.pkt_ize([lines(@bold{Ethernet},
+                     @para{src: @thistle_mac},
+                     @para{dest: @laptop_mac})]).scale(0.75)
+
+let options = switch_slide({})
+let options = switch_slide(options ++ { #'ports })
+let b_options = switch_slide(options ++ { #'incoming: switch_broadcast })
+let b_options = switch_slide(b_options ++ { #'out2, #'out3, #'out4 })
+let s_options = switch_slide(options ++ { #'incoming: switch_specific })
+let aside_options = switch_slide(s_options,
+                                 fun (p):
+                                   balloon.pin(~on: p,
+                                               ~at: Find.bottom(switchbox),
+                                               ~spike: #'n,
+                                               ~dy: -64,
+                                               block:
+                                                 let p:
+                                                   @para{Which link goes to the dest MAC?}
+                                                 switch(
+                                                   p,
+                                                   balloon.pin(
+                                                     ~on: p,
+                                                     ~at: Find.bottom(p),
+                                                     ~spike: #'n,
+                                                     ~fill: "lightgreen",
+                                                     lines(
+                                                       @para{Instead of having to configure a switch,},
+                                                       @para{rely on the fact that some earlier broadcast},
+                                                       @para{was needed for anyone to find another MAC}
+                                                     )
+                                                   )
+                                                 )))
+let b_options = switch_slide(options ++ { #'incoming: switch_broadcast })
+let b_options = switch_slide(b_options ++ { #'record1 })
+let b_options = switch_slide(b_options ++ { #'out2, #'out3, #'out4 })
+let b_options = switch_slide(options ++ { #'record1 : #true,
+                                          #'incoming4: switch_specific2 })
+let b_options = switch_slide(b_options ++ { #'record2 })
+let b_options = switch_slide(b_options ++ { #'out1 })
+let b_options = switch_slide(options ++ { #'hub: #true },
+                             fun (p):
+                               balloon.pin(~on: p,
+                                           ~at: Find.top(switchbox),
+                                           ~spike: #'n,
+                                           ~dy: -64,
+                                           lines(
+                                             @para{A @defterm{hub} is older technology},
+                                             @para{that just broadcasts everything}
+                                           )))
+let b_options = switch_slide(b_options ++ { #'incoming: switch_specific })
+let b_options = switch_slide(b_options ++ { #'out2, #'out3, #'out4 })
+let b_options = switch_slide(b_options,
+                             fun (p):
+                               stack(~sep: 128,
+                                     p,
+                                     @balloon.note(@para{Switch vs. hub: always choose a switch}))
+                                 .refocus(p))
+
+let router1 = delays.router.launder()
+let router2 = delays.router.launder()
+let router3 = delays.router.launder()
+let switchbox1 = switchbox.launder()
+let switchbox2 = switchbox.launder()
+let switchbox3 = switchbox.launder()
+
+fun
+| connects(p): p
+| connects(p, [from, to], cs, ...):
+    connects(connect(~on: p, from, to, ~line_width: 3), cs, ...)
+
+fun router_vs_switch(options :~ OptMap):
+  fun show(key, p :~ Pict):
+    if options[key] | p | p.ghost()
+  beside(
+    ~vert: #'top,
+    ~sep: 128,
+    stack(~sep: 24,
+          @t{Router},
+          delays.router,
+          blank(),
+          stack(~sep: 24,
+                ~horiz: #'left,
+                show(#'config, @item(~bullet: minus){Must configure}),
+                show(#'route, @item(~bullet: plus){Prefix routing}),
+                show(#'topology, @item(~bullet: plus){Any topology})),
+          blank(),
+          show(#'topology,
+               connects(beside(~sep: 128,
+                               stack(~sep: 64,
+                                     router1,
+                                     router2),
+                               router3).scale(0.75),
+                        [Find.bottom(router1), Find.top(router2)],
+                        [Find.right(router2, ~dx: -5), Find.left(router3, ~dx: 5, ~dy: 5)],
+                        [Find.right(router1, ~dx: -5), Find.left(router3, ~dx: 5, ~dy: -5)]))),
+    stack(~sep: 24,
+          @t{Switch},
+          switchbox,
+          blank(),
+          stack(~sep: 24,
+                ~horiz: #'left,
+                show(#'config, @item(~bullet: plus){Infers routing}),
+                show(#'route, @item(~bullet: minus){Entry per address}),
+                show(#'topology, @item(~bullet: minus){Tree topology only})),
+          blank(),
+          show(#'topology, 
+               connects(stack(~sep: 64,
+                              switchbox1,
+                              beside(~sep: 128,
+                                     switchbox2,
+                                     switchbox3)).scale(0.75),
+                        [Find.bottom(switchbox1, ~dx: -5), Find.top(switchbox2)],
+                        [Find.bottom(switchbox1, ~dx: 5), Find.top(switchbox3)])))
+  )
+
+let router_vs_switch_title = "Router vs. Switch"
+
+fun router_vs_switch_slide(options :~ OptMap) :~ OptMap:  
+  slide(~title: router_vs_switch_title,
+        router_vs_switch(options))
+  options
+      
+let options = router_vs_switch_slide({})
+let options = router_vs_switch_slide(options ++ { #'config })
+let options = router_vs_switch_slide(options ++ { #'route })
+let options = router_vs_switch_slide(options ++ { #'topology })
+
+let dpad = 10
+
+fun comm_step(name, icon, ls):
+  let ls = layers.pict(ls, ~show_examples: #false, ~dpad: dpad)
+  stack(~sep: 20,
+        lines.center(name, icon),
+        ls).refocus(ls)
+
+fun lace(ps :: List.of(Pict)):
+  let sep = 64
+  let all = beside.bottom(~sep: sep, &ps)
+  let h = all.height / 5
+  let w = ps[0].width
+  let path = draw.Path()
+  path.move_to([w - h/2, all.height - ps[0].height + h/2])
+  path.arc([w - h/2, all.height - h - h/2, h, h], pi, pi * 3/2, ~clockwise: #false)
+  recur loop(ps :~ List.of(Pict) = ps.rest, dx = w + sep):
+    match ps
+    | [p :~ Pict]:
+        path.arc([dx - h/2, all.height - h/2 - h, h, h], pi * -1/2, 0, ~clockwise: #false)
+        path.line_to([dx + h/2, all.height - p.height + h/2])
+    | [p :~ Pict, & ps]:
+        let w = p.width
+        path.arc([dx - h/2, all.height - h/2 - h, h, h], pi * -1/2, 0, ~clockwise: #false)
+        path.arc([dx + h/2, all.height - p.height + dpad/2, h, h], pi, pi * 1/2, ~clockwise: #true)
+        path.arc([dx + w - h - h/2, all.height - p.height + dpad/2, h, h], pi * 1/2, 0, ~clockwise: #true)
+        path.arc([dx + w - h/2, all.height - h - h/2, h, h], pi, pi * 3/2, ~clockwise: #false)
+        loop(ps, dx + w + sep)
+  let line:
+    dc(fun (dc :~ draw.DC, dx, dy):
+         dc.save()
+         dc.pen := draw.Pen(~color: "blue", ~width: 5)
+         dc.path(path, ~dx: dx, ~dy: dy)
+         dc.restore(),
+       ~width: all.width,
+       ~height: all.height)
+  overlay(all, line).pad(~top: 2 * delays.laptop.height)
+
+slide(
+  ~title: router_vs_switch_title,
+  lace(
+    [comm_step(@t{host}, delays.laptop, layers.make()),
+     comm_step(@t{switch}, switchbox, layers.make().drop_left(3)),
+     comm_step(@t{router}, delays.router, layers.make().drop_left(2)),
+     comm_step(@t{host}, delays.laptop, layers.make())]
+  )
+)
+
+fun stack_on(~sep: sep, a :~ Pict, b :~ Pict) :~ Pict:
+  let ag = a.ghost()
+  pin(~on: stack(~sep: sep, ag, b),
+      ~at: Find.top_left(ag),
+      a)
+
+fun wires(n, p :~ Pict) :~ Pict:
+  let h = (p.height - 10) / (n + 1)
+  beside.top(
+    beside(
+      line(~dy: h*(n-1)),
+      stack.left(~sep: h,
+                 line(~dx: 40).pad(~right: -30),
+                 & for List (i: 0..n-1): line(~dx: 20)).pad(~right: -10))
+      .pad(~top: 10)
+      .line_width(3),
+    p
+  )
+
+fun add_back(next :~ Pict, q :~ Pict, p :~ Pict) :~ Pict:
+  let (l, t) = Find.top_left(q).in(next)
+  let (r, b) = Find.bottom_right(q).in(next)
+  pin(~on: next,
+      ~at: Find.top_left(q),
+      p.scale((r - l) / p.width),
+      ~order: #'back)
+
+let rack:
+  stack_on(~sep: -0.4 * delays.server.height,
+           stack_on(~sep: -0.4 * delays.server.height,
+                    delays.server,
+                    delays.server),
+           delays.server)
+
+let linked_rack:
+  wires(10,
+        stack_on(~sep: -0.6 * 0.75 * switchbox.height,
+                 switchbox.scale(0.75),
+                 rack.ghost()))
+
+let all_linked_rack = add_back(linked_rack, rack, rack)
+let t2_switchbox = switchbox.launder()
+
+let tier2 :~ Pict:
+  let r1 = linked_rack.ghost()
+  let r2 = all_linked_rack.launder()
+  let r3 = all_linked_rack.launder()
+  let r4 = all_linked_rack.launder()
+  let switchbox2 = t2_switchbox
+  let p:
+    stack(~sep: 64,
+          switchbox2,
+          beside(~sep: 8, r1, r2, r3, r4))
+  fun link(p, r, dx):
+    connect(~on: p, Find.bottom(switchbox2, ~dx: 3 * dx), Find.top(r), ~line_width: 3)
+  let p = link(p, r1, -7)
+  let p = link(p, r2, -2)
+  let p = link(p, r3, 2)
+  let p = link(p, r4, 7)
+  p
+
+let tier1_s = 0.7
+let all_tier2 = add_back(tier2, linked_rack, all_linked_rack)
+
+let t1_switchbox = switchbox.launder()
+let balancer = delays.server.launder()
+let access_router = delays.router.launder()
+
+let tier1 :~ Pict:
+  let s = tier1_s
+  let t1 = tier2.ghost().scale(s)
+  let t2 = all_tier2.launder().scale(s)
+  let switchbox2 = t1_switchbox.scale(s)  
+  let p:
+    stack(~sep: 64,
+          switchbox2,
+          beside(~sep: 8, t1, t2))
+  fun link(p, r, dx):
+    connect(~on: p, Find.bottom(switchbox2, ~dx: 3 * dx), Find.top(r), ~line_width: 3 * s)
+  let p = link(p, t1, -5)
+  let p = link(p, t2, 5)
+  let p = stack(~sep: 64,
+                access_router.scale(s),
+                p)
+  let p = connect(~on: p, Find.bottom(access_router), Find.top(switchbox2), ~line_width: 3 * s)
+  let p = pin(~on: p,
+              ~at: Find.right_top(switchbox2, ~dx: balancer.width, ~dy: -balancer.height),
+              balancer.scale(s))
+  let p = connect(~on: p,
+                  Find.top_right(switchbox2, ~dx: -5, ~dy: 5),
+                  Find.left(balancer, ~dx: 5), ~line_width: 3 * s)
+  if is_printing()
+  | p
+  | p.freeze()
+
+let all_tier1 = add_back(tier1, tier2, all_tier2)
+let data_center_s = 0.6
+let border_router = delays.router.launder()
+
+let data_center:
+  let s = data_center_s
+  let t1 = tier1.ghost().scale(s)
+  let t2 = all_tier1.launder().scale(s)
+  let border = border_router.scale(s * tier1_s)
+  let p = stack(~sep: 64,
+                border,
+                beside(~sep: 64, t1, t2))
+  fun link(p, r, dx):
+    connect(~on: p, Find.bottom(border, ~dx: 3 * dx), Find.top(r), ~line_width: 3 * tier1_s * s)
+  let p = link(p, t1, -5)
+  let p = link(p, t2, 5)
+  let p = stack(line(~dy: 32).line_width(3 * tier1_s * s),
+                p)
+  let cloud = cloud(~fill: "lightgray",
+                    ~width: 180,
+                    ~height: 64)
+  let cloud = if is_printing() | cloud | cloud.freeze()
+  let p = stack(overlay(
+                  cloud,
+                  t("Internet").scale(0.75)
+                ),
+                p)
+  p
+
+fun
+| steps([p, lbl], px): lbl(p)
+| steps([p :~ Pict, lbl], px, [p0, lbl0], p1, ...):
+    let (l, t) = Find.top_left(px).in(p0)
+    let (r, b) = Find.bottom_right(px).in(p0)
+    let sc = (r - l) / p.width
+    fun make_next(p :~ Pict) :~ Pict:
+      pin(~on: p0,
+          ~at: Find.top_left(px),
+          p.scale(sc),
+          ~order: #'back)
+    let pg = p.ghost()
+    let nextg = make_next(pg)
+    let together = overlay(nextg, p)
+    let (ol, ot) = Find.top_left(p).in(together)
+    let (or, ob) = Find.bottom_right(p).in(together)
+    let (gl, gt) = Find.top_left(pg).in(nextg)
+    let (gr, gb) = Find.bottom_right(pg).in(nextg)
+    switch(animate(fun (n):
+                     pin(~on: nextg.alpha(n),
+                         ~at: Find.abs((1-n)*ol + n*gl,
+                                       (1-n)*ot + n*gt),
+                         if n .= 0
+                         | lbl(p)
+                         | p.scale((1-n) + n*sc),
+                         ~order: #'back)),
+           block:
+             steps([make_next(p), lbl0],
+                   p0,
+                   p1, ...))
+
+fun label_rack(p): beside(~sep: 32,
+                          p,
+                          t("Server rack")).refocus(p)
+fun label_linked_rack(p): pin(~on: p,
+                              ~at: Find.top_right(switchbox, ~dx: 32),
+                              @t{Top of rack (TOR) switch})
+fun label_tier2(p): pin(~on: p,
+                        ~at: Find.top_right(t2_switchbox, ~dx: 32),
+                        @t{Tier-2 switch})
+fun label_tier1(p):
+  let t1 = @t{Tier-1 switch}
+  let ac = @t{Access router}
+  let lb = @t{Load balancer}
+  let p = pin(~on: p,
+              ~at: Find.left(t1_switchbox, ~dx: -t1.width - 16, ~dy: -t1.height/2),
+              t1)
+  let p = pin(~on: p,
+              ~at: Find.left(access_router, ~dx: -ac.width - 16, ~dy: -ac.height/2),
+              ac)
+  let p = pin(~on: p,
+              ~at: Find.right(balancer, ~dx: 16, ~dy: -lb.height/2),
+              lb)
+  p
+fun label_data_center(p):
+  let br = @t{Border router}
+  let p = pin(~on: p,
+              ~at: Find.right(border_router, ~dx: 16, ~dy: -br.height/2),
+              br)
+  p
+
+slide(
+  ~title: "Traditional Data Center Organzation",
+  steps(
+    [rack, label_rack], rack,
+    [linked_rack, label_linked_rack],
+    [tier2, label_tier2],
+    [tier1, label_tier1], 
+    [data_center, label_data_center]
+  )
+)
+
+let laptop4 = delays.laptop.launder()
+let switchbox1 = switchbox.launder()
+let switchbox2 = switchbox.launder()
+
+let vlan:
+  let p:
+    beside(~sep: 128,
+           stack(~sep: 128,
+                 laptop1,
+                 laptop2),
+           overlay(beside(~sep: 0.5 * delays.router.width,
+                          switchbox1,
+                          switchbox2).alpha(0.4),
+                   delays.router),
+           stack(~sep: 128,
+                 laptop3,
+                 laptop4))
+  fun link(p, from, to): connect(~on: p, from, to, ~line_width: 3)
+  let p = link(p, Find.right(laptop1), Find.left(switchbox1, ~dy: -5))
+  let p = link(p, Find.right(laptop2), Find.left(switchbox1, ~dy: 5))
+  let p = link(p, Find.left(laptop3), Find.right(switchbox2, ~dy: -5))
+  let p = link(p, Find.left(laptop4), Find.right(switchbox2, ~dy: 5))
+  p
+
+let tunnel_vlan:
+  let r1 = delays.router.ghost()
+  let r2 = delays.router.ghost()
+  let s11 = switchbox1.ghost()
+  let s12 = switchbox2.ghost()
+  let s21 = switchbox1.ghost()
+  let s22 = switchbox2.ghost()
+  fun tag(p, x, g): pin(~on: p, ~at: Find.top_left(x), g)
+  let vlan1 = tag(tag(tag(vlan, delays.router, r1), switchbox1, s11), switchbox2, s12)
+  let vlan2 = tag(tag(tag(vlan, delays.router, r2), switchbox1, s21), switchbox2, s22)
+  let p: stack(~sep: 256,
+               vlan1,
+               vlan2).scale(0.6)
+  fun link(p, from :: Find, to :: Find):
+    let (x, y) = from.in(p)
+    let (ex, ey) = to.in(p)
+    pin(~on: p,
+        ~at: Find.abs(x - 10, y),
+        rectangle(~width: 20, ~height: ey - y, ~fill: "lightgray", ~line: #false))
+  let p = connect(~on: p, Find.bottom(r1), Find.top(r2), ~line_width: 3 * 0.6, ~order: #'back)
+  let p = link(p, Find.bottom(s11), Find.top(s21))
+  let p = link(p, Find.bottom(s12), Find.top(s22))  
+  overlay.bottom(overlay.top(beside(~sep: 64,
+                                    @t{MEB CS},
+                                    @t{MEB EE}).pad(~top: 32),
+                             p),
+                 beside(~sep: 64,
+                        @t{WEB CS},
+                        @t{WEB EE}).pad(~bottom: 32))
+  
+block:
+  fun ex(p :~ Pict):
+    slide.right(
+      p.scale(0.75).colorize("blue")
+    )
+  slide(
+    ~title: "Virtual LAN",
+    slide.alts(
+      slide.align(
+        ~horiz: #'left,
+        lines(
+          @para{Because LAN-level organzation has traditionally implied ``local,''},
+          @para{various tools have built on that concept}
+        ),
+        ex(@para{example: a network printer available only within the LAN}),
+        slide.next,
+        blank(64),
+        lines(
+          @para{Any time a concept like that becomes established, though, eventually},
+          @para{is gets @italic{virtualized}}
+        ),
+        ex(@para{example: splitting an office into two LANs}),
+        ex(@para{example: sharing filesystem access across remote locations})
+      ),
+      overlay.top(beside(~sep: 64,
+                         @t{CS Department},
+                         @t{EE Department}).pad(~top: 64),
+                  vlan),
+      tunnel_vlan,
+      balloon.pin(~on: tunnel_vlan,
+                  ~at: Find.center(tunnel_vlan),
+                  ~spike: #'e,
+                  ~dx: 128,
+                  lines(
+                    @para{Tunnel link-leyer frames through},
+                    @para{network-layer packets}
+                  ))
+    )
+  )
+
+let payload:
+  layout.row(layout.field(16, @t{payload}, ~varies: #true, ~height: 5, ~inset: 1))
+
+let dest_field = layout.field(6, @t{dest})
+let source_field = layout.field(6, @t{source})
+let CRC_field = layout.field(4, @t{CRC})
+let type_field = layout.field(2, @t{type})
+
+let bitless_ethernet_frame:
+  layout.record(layout.row(dest_field,
+                           source_field,
+                           type_field,
+                           layout.field(2, nothing)),
+                payload,
+                layout.row(layout.field(12, nothing),
+                           CRC_field))
+
+let ethernet_frame:
+  layout.record(~bytes: 16,
+                bitless_ethernet_frame)
+
+slide(
+  ~title: "Ethernet Frame Layout",
+  slide.alts(
+    ethernet_frame,
+    balloon.pin(~on: ethernet_frame,
+                ~at: Find.left(dest_field, ~dx: 5),
+                ~spike: #'e,
+                @para{destination MAC}),
+    balloon.pin(~on: ethernet_frame,
+                ~at: Find.left(source_field, ~dx: 5),
+                ~spike: #'e,
+                ~dx: 64,
+                @para{source MAC}),
+    balloon.pin(~on: ethernet_frame,
+                ~at: Find.right(type_field, ~dx: -5),
+                ~spike: #'w,
+                ~dx: -64,
+                @para{IP}),
+    balloon.pin(~on: ethernet_frame,
+                ~at: Find.right(payload, ~dx: -5),
+                ~spike: #'w,
+                @para{between 46 and 1500 bytes}),
+    balloon.pin(~on: layout.record(~bytes: 16,
+                                   rectangle(~around: bitless_ethernet_frame,
+                                             ~line: #false,
+                                             ~fill: "yellow")),
+                ~at: Find.right(CRC_field, ~dx: -5),
+                ~spike: #'w,
+                @para{CRC for the whole frame})
+  )
+)
+
+let preamble_field = layout.field(7, @t{preamble})
+let sfd_field = layout.field(1, @t{SFD})
+
+let ethernet_physical_frame:
+  layout.record(~bytes: 16,
+                layout.row(layout.field(8, nothing),
+                           preamble_field,
+                           sfd_field), 
+                bitless_ethernet_frame,
+                layout.row(layout.field(12, @t{inter-packet gap}),
+                           layout.field(4, nothing)))
+
+slide(
+  ~title: "Ethernet Physical Layer Layout",
+  slide.alts(
+    ethernet_physical_frame,
+    block:
+      let p:
+        balloon.pin(~on: ethernet_physical_frame,
+                    ~at: Find.top(preamble_field, ~dy: 5),
+                    ~dy: 64,
+                    ~spike: #'s,
+                    @para{Seven @tt{10101010}s to sync})
+      slide.alts(
+        p,
+        balloon.pin(~on: p,
+                    ~at: Find.right(sfd_field, ~dx: -5),
+                    ~spike: #'w,
+                    @para{One @beside.baseline(@tt{1010101}, @tt{1}.colorize("red"))})
+      )
+  )
+)
+
+slide(
+  ~title: "Ethernet Physical Layer",
+  slide.align(
+    @para{Originally, machines on an ethernet LAN shared a wire},
+    blank(),
+    @para(@List{Modern ethernet is always @t{@defterm{switched}:} there's a dedicated wire},
+          @List{from each machine to the switch}),
+    slide.right(
+      @para{This makes MAC addresses somewhat redundant!}.colorize("blue").scale(0.75)
+    ),
+    slide.next,
+    blank(),
+    @para(@List{Many ethernet frames are not phsyically ethernet at all, because},
+          @List{the easiest way to create a new physical layer is to emulate an ethernet device})
+  )
+)

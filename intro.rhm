@@ -1,0 +1,15 @@
+#lang rhombus/static
+import:
+  slideshow open
+
+slide(~title: "Introduction",
+      ~horiz: #'left,
+      @para(@{These slides are for a course on Networking and Security,},
+            @{provided here as an example of using the Rhombus Slideshow library}),
+      @para{Especially in the first half of the course, the main reference is},
+      slide.center(
+        lines(@t{@italic{Computer Networking: A Top-Down Approach}, @t{8th edition}},
+              @t{Jim Kurose and Keith Ross},
+              @t{Pearson, 2020})
+      ),
+      @para{Many diagrams and some images are from the book})

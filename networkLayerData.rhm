@@ -1,0 +1,588 @@
+#lang rhombus/static/and_meta
+
+import:
+  "common.rhm" open
+  "state_machine.rhm" open
+  "layers.rhm"
+  "delays.rhm"!network as delays
+
+def xkcd_map = bitmap("images/xkcd_map.jpg")
+def hilbert = bitmap("images/hilbert.jpg")
+def y2010_map = bitmap("images/2010_map.png")
+def y2023_map = bitmap("images/2023_map.png")
+
+def laptop = delays.laptop
+def server = delays.server
+def router = delays.router
+
+let routing = delays.make_network({ #'hilite_inspect: #true }).pad(~top: -64)
+
+let ip_header:
+  rectangle(~around: lines(t("IP header"),
+                           @para{dest: @tt{155.98.70.1}},
+                           @t{...}).pad(5),
+            ~fill: "lightblue",
+            ~line: #'inherit)
+
+slide(~title: "Routing",
+      slide.alts(
+        routing,
+        balloon.pin(~on: routing,
+                    ~at: Find.bottom(delays.last_magnifying_glass),
+                    ~spike: #'n,
+                    ~fill: "lightgray",
+                    ip_header.pad(10)),
+        balloon.pin(~on: routing,
+                    ~at: Find.left_bottom(delays.last_router, ~dx: 32),
+                    ~spike: #'n,
+                    ~dx: 20,
+                    ~dy: -64,
+                    block:
+                      let p = @para{Table mapping every address to an output link?}
+                      switch(p,
+                             balloon.pin(~on: p,
+                                         ~at: Find.bottom(p),
+                                         ~spike: #'n,
+                                         ~fill: "lightblue",
+                                         @para{That would be a ~4GB table})))
+      ))
+
+let office = @t{my office}
+let dept = @t{SoC}
+let spc = @tt{ }
+
+let thistle_addr = @tt{155.98.69.112}
+let shanghai_addr = @tt{155.98.69.200}
+let rains_addr = @tt{155.98.68.106}
+let soc_untrusted_addr = @tt{155.98.68.1}
+let soc_untrusted_prefix = @tt{155.98.68.0/23}
+
+let not_soc_prefix = @tt{155.0.0.0/8}
+let other_prefix = @tt{117.12.0.0/16}
+
+slide(~title: "IP Name Structure",
+      slide.alts(
+        [@para{An IPv4 address is 32 bits},
+         blank(),
+         @para(~full: #true){In hexadecimal form:},
+         slide.alts(
+           @para{@tt{00000000} @spc to @spc @tt{FFFFFFFF}},         
+           @para{@tt{00 00 00 00} @spc to @spc @tt{FF FF FF FF}}
+         ),
+         slide.next,
+         @para(~full: #true){In dotted-decimal form:},
+         @para{@tt{0.0.0.0} @spc to @spc @tt{255.255.255.255}}],
+        [@para{Hosts that are physically close tend to have similar IP addresses}.colorize("blue"),
+         blank(),
+         table([[@tt{thistle.cs.utah.edu},
+                 thistle_addr,
+                 @office],
+                [@tt{shanghai.cs.utah.edu},
+                 shanghai_addr,
+                 @office],
+                [@tt{rains.cs.utah.edu},
+                 rains_addr,
+                 @office],
+                [@tt{thebes.cs.utah.edu},
+                 @tt{155.98.65.57},
+                 @dept],
+                [@tt{memphis.cs.utah.edu},
+                 @tt{155.98.65.56},
+                 @dept],
+                [@tt{www.utah.edu},
+                 @tt{155.98.186.21},
+                 @t{UofU}],
+                [@tt{www.cs.utah.edu},
+                 @tt{141.193.213.11},
+                 @t{Wordpress}]],
+               ~hsep: 64,
+               ~vsep: 16),
+         slide.next,
+         blank(),
+         slide.alts(
+           [@para{Every @tt{155.98.X.X} address is on campus here},
+            slide.next,
+            block:
+              let p = @tt{155.98.0.0/16}
+              let p2 = balloon.pin(~on: p,
+                                   ~at: Find.left(p),
+                                   ~spike: #'e,
+                                   @defterm{IP prefix})
+              let p3 = balloon.pin(~on: p2,
+                                   ~at: Find.right(p),
+                                   ~spike: #'w,
+                                   @para{number of bits for prefix})
+              slide.alts(p, p2, p3)],
+           [@para{@tt{155.98.68.X} or @tt{155.98.69.X} @tt{ } ⇒ @tt{ } SoC untrusted network},
+            @tt{155.98.68.0/23}]
+         )]
+      ))
+
+slide(~title: "XKCD Map of the Internet 2006",
+      beside(~sep: 100,
+             ~vert: #'top,
+             xkcd_map.scale(0.8),
+             stack(~sep: 200,
+                   @tt{https://xkcd.com/195/},
+                   hilbert)))
+
+slide(~title: "Map of the Internet 2010",
+      y2010_map.scale(0.7))
+
+slide(~title: "Map of the Internet 2023",
+      block:
+        let p = y2023_map.scale(0.5)
+        let p = stack(~sep: 32, p, @tt{https://www.redbubble.com/})
+        beside(~sep: 64,
+               p,
+               lines(~horiz: #'center,
+                     @para{One IP address},
+                     @para{~ $50}).time_pad(~before: 1)).refocus(p))
+
+fun commas(s :~ String) :~ String:
+  if s.length() <= 3
+  | s
+  | commas(s.substring(0, s.length() - 3)) ++ "," ++ s.substring(s.length() - 3)
+
+fun ip_table(rows :~ List, bits) :~ Pict:
+  table(rows.map(fun ([addr, n]):
+                   [tt(addr +& "/" +& n),
+                    t(commas(to_string(2 ** (bits - n)))).scale(0.8)]),
+        ~hsep: 64,
+        ~horiz: [#'left, #'right])
+
+slide(~title: "University of Utah AS17055",
+      block:
+        let p:          
+          ip_table([["128.110.0.0", 16],
+                    ["128.110.100.0", 24],
+                    ["128.110.152.0", 22],
+                    ["128.110.156.0", 24],
+                    ["128.110.216.0", 21],
+                    ["128.110.96.0", 22],
+                    ["155.100.0.0", 16],
+                    ["155.101.0.0", 16],
+                    ["155.101.66.0", 24],
+                    ["155.97.0.0", 16],
+                    ["155.98.0.0", 16],
+                    ["155.98.32.0", 20],
+                    ["155.99.0.0", 16],
+                    ["155.99.144.0", 24],
+                    ["192.5.12.0", 24],
+                    ["198.60.30.0", 23],
+                    ["199.104.93.0", 24],
+                    ["204.99.128.0", 24],
+                    ["204.99.160.0", 20]],
+                   32).scale(0.8)
+        switch(
+          beside(~vert: #'bottom,
+                 ~sep: 96,
+                 beside(~vert: #'top,
+                        ~sep: 96,
+                        @t{IPv4:},
+                        p),
+                 @tt{https://ipinfo.io/AS17055}.scale(0.5)).refocus(p),
+          stack(~sep: 64,
+                ~horiz: #'left,
+                @t{IPv6:},
+                ip_table([["2604:c340::", 32]], 128))
+        ))
+
+slide(~title: "Special Addresses",
+      slide.align(
+        @para{Local network use:},
+        @para{@spc @tt{10.0.0.0/8}},
+        @para{@spc@tt{172.16.0.0/12}},
+        @para{@spc@tt{192.168.0.0/16}},
+        blank(),
+        @para{Loopback:},
+        @para{@spc@tt{127.0.0.1}},
+        blank(),        
+        block:
+          let p = @para{Subnet broadcast:}
+          slide.alts(p,
+                     balloon.pin(~on: p,
+                                 ~at: Find.right(p),
+                                 ~spike: #'sw,
+                                 ~dx: -64,
+                                 @lines(@para{Usually also can use all 1 bits},
+                                        @para{or all 0 bits after a prefix}))),
+        @para{@spc@tt{255.255.255.255}}
+      ))
+
+let subnet1_color = "lightgreen"
+let subnet2_color = "lightblue"
+let subnet3_color = "pink"
+let subnet4_color = "yellow"
+
+module ~early subnet ~lang rhombus/static:
+  import:
+    pict open
+    slideshow open
+    "common.rhm" open
+    "delays.rhm"!network as delays
+  export:
+    subnet
+    broadcast
+    address
+
+  let laptop = delays.laptop
+    
+  fun address(icon, addr, top, ~horiz: horiz = #'center) :~Pict:
+    stack(top, icon, addr, ~horiz: horiz).scale(0.75).pad(20)
+
+  fun subnet(laptop1, laptop2, laptop3,
+             thistle_addr :~ Pict,
+             shanghai_addr,
+             rains_addr :~ Pict,
+             soc_untrusted_addr :~ Pict,
+             soc_untrusted_prefix :~ Pict,
+             subnet_color,
+             router,
+             options :~ OptMap):
+    let w = 10
+    let mesh = rectangle(~width: laptop.width / 2, ~height: laptop.height * 3,
+                         ~line: #false,
+                         ~fill: subnet_color)
+    let thistle = address(laptop1, thistle_addr, nothing)
+    let shanghai = address(laptop2, shanghai_addr, nothing)
+    let rains = (if rains_addr == nothing
+                 | nothing
+                 | address(laptop3, rains_addr, nothing))
+    let hosts = [stack(~sep: 32,
+                       thistle,
+                       shanghai,
+                       rains),
+                 overlay(mesh,
+                         soc_untrusted_prefix.rotate(math.pi/2).scale(0.75)),
+                 address(router, soc_untrusted_addr, soc_untrusted_addr.ghost().launder(),
+                         ~horiz: if options[#'right] | #'left | #'right)]
+    let p:
+      beside(~sep: 20,
+             & (if options[#'right]
+                | hosts.reverse()
+                | hosts))
+    fun join(p, who, ~dy: dy = 0):
+      if who == nothing
+      | p
+      | connect(~on: p,
+                Find.center(who),
+                Find.center(mesh, ~dy: dy),
+                ~line_width: w,
+                ~line: subnet_color,
+                ~order: #'back)
+    let p = join(p, thistle, ~dy: -32)
+    let p = join(p, shanghai)
+    let p = join(p, rains, ~dy: 32)
+    let p = join(p, router)
+    p
+
+  fun broadcast(all, laptop1, pkt :~ Pict, laptop2, laptop3, router1, options :~ OptMap) :~ Pict:
+    let (x1, y1) = if laptop1 | Find.left_top(laptop1).in(all) | values(#false, #false)
+    let (x2, y2) = if laptop2 | Find.left_top(laptop2).in(all) | values(#false, #false)
+    let (x3, y3) = Find.left_top(laptop3).in(all)
+    let (xr, yr): if options[#'router_top]
+                  | Find.left_top(router1, ~dy: -pkt.height, ~dx: pkt.width/2).in(all)
+                  | Find.left_bottom(router1).in(all)
+    animate(fun (n):
+              let n = if options[#'reverse] | 1-n | n
+              fun pt(x0, y0):
+                Find.abs(n*x0 + (1-n)*x3, n*y0 + (1-n)*y3)
+              fun ptr(x0, y0):
+                let n = 1-n
+                Find.abs(n*x0 + (1-n)*xr, n*y0 + (1-n)*yr)
+              let p = all
+              let p:
+                if x1
+                | if options[#'reverse]
+                  | pin(~on: p, ~at: ptr(x1, y1), pkt)
+                  | pin(~on: p, ~at: pt(x1, y1), pkt)
+                | p
+              let p:
+                if x2
+                | if options[#'reverse]
+                  | pin(~on: p, ~at: ptr(x2, y2), pkt)
+                  | pin(~on: p, ~at: pt(x2, y2), pkt)
+                | p
+              let p = pin(~on: p, ~at: pt(xr, yr), pkt)
+              p).sustain(1)
+
+
+import:
+  self!subnet:
+    expose: subnet
+            broadcast
+
+slide(~title: "Subnets",
+      @para{A @defterm{subnet} is a network small enough that every host sees every other},
+      block:
+        let router1 = router.launder()
+        let router2 = router.launder()
+        let laptop1 = laptop.launder()
+        let laptop2 = laptop.launder()
+        let laptop3 = laptop.launder()
+        let left:
+          subnet(laptop1, laptop2, laptop3,
+                 thistle_addr,
+                 shanghai_addr,
+                 rains_addr,
+                 soc_untrusted_addr,
+                 soc_untrusted_prefix,
+                 subnet1_color,
+                 router1,
+                 {})
+        let right:
+          subnet(laptop, laptop, laptop,
+                 @tt{155.98.65.56},
+                 @tt{155.98.65.57},
+                 nothing,
+                 @tt{155.98.65.1},
+                 @tt{155.98.65.0/24},
+                 subnet2_color,
+                 router2,
+                 { #'right: #true })
+        let all = connect(~on: beside(~sep: 64,
+                                      left,
+                                      right),
+                          Find.right(router1),
+                          Find.left(router2),
+                          ~line_width: 3)
+        let pkt = rectangle(~around: @lines(@t{IP Header},
+                                            @para{dest: @tt{255.255.255.255}}).pad(5),
+                            ~fill: "lightblue",
+                            ~line: #'inherit).scale(0.5)
+        switch(all,
+               broadcast(all, laptop1, pkt, laptop2, laptop3, router1, {})))
+
+fun dhcp(options :~ OptMap) :~ Pict:
+  let dot = blank()
+  let c1 = dot.launder()
+  let c2 = dot.launder()
+  let c3 = dot.launder()
+  let s1 = dot.launder()
+  let s2 = dot.launder()
+  let p = beside(~sep: 500,
+                 ~vert: #'top,
+                 stack(~sep: 32,
+                       block:
+                         let h = @bold{arriving client}.colorize(layers.color)
+                         let h = stack(laptop.scale(0.5), h)
+                         if options[#'no_headers]
+                         | h.ghost()
+                         | h,
+                       stack(~sep: 200,
+                             c1,
+                             c2,
+                             c3)),
+                 stack(~sep: 80,
+                       block:
+                         let h = @bold{server}.colorize(layers.color)
+                         let h = stack(server.scale(0.5), h)
+                         if options[#'no_headers]
+                         | h.ghost()
+                         | h,
+                       stack(~sep: 200,
+                             s1,
+                             s2).pad(~top: 50)))
+  fun connects(p, from, to, dy, label):
+    let from = Find.center(from, ~dy: dy)
+    let to = Find.center(to, ~dy: dy)
+    let p = connect(~on: p,
+                    from,
+                    to,
+                    ~style: #'arrow,
+                    ~label: rotate_for(label, from, to, p).translate(0, -10))
+    p
+  let p:
+    let c :~ Pict = options[#'client] || blank()
+    pin(~on: p, ~at: Find.center(c1, ~dx: -c.width-5, ~dy: -c.height/2), c)
+  fun packet(msg :~ Pict, from, from_port, to, to_port) :~ Pict:
+    let head:
+      @lines(@para{src: @tt(from) @tt(to_string(from_port))},
+             @para{dest: @tt(to) @tt(to_string(to_port))})
+    let msg = overlay(blank(~height: head.height), msg)
+    let head = overlay(blank(~height: msg.height), head)
+    let head:
+      rectangle(~around: head.pad(4),
+                ~fill: "lightblue",
+                ~line: #'inherit,
+                ~refocus: #false).scale(0.75)
+    let msg:
+      rectangle(~around: msg.pad(4),
+                ~fill: "lightblue",
+                ~line: #'inherit,
+                ~refocus: #false).scale(0.75)
+    beside(head, msg)
+  let p:
+    connect(~on: p,
+            Find.center(laptop),
+            Find.center(server),
+            ~line_width: 20,
+            ~line: subnet1_color,
+            ~order: #'back)
+  let p:
+    if options[#'discover]
+    | connects(p, c1, s1, 0, @packet(lines(@para{DISCOVER},
+                                           @tt{id=654}),
+                                     "0.0.0.0", 68,
+                                     "255.255.255.255", 69))
+    | p
+  let p:
+    if options[#'offer]
+    | connects(p, s1, c2, 5, @packet(lines(@para{OFFER},
+                                           @tt{id=654},
+                                           @tt{223.1.2.44}),
+                                     "223.1.2.5", 69,
+                                     "255.255.255.255", 68).rotate(pi).translate(0, -32))
+    | p
+  let p:
+    if options[#'request]
+    | connects(p, c2, s2, 10, @packet(lines(@para{REQUEST},
+                                            @tt{id=654}),
+                                      "0.0.0.0", 68,
+                                      "223.1.2.5", 69).translate(64, 16))
+    | p
+  let p:
+    if options[#'ack]
+    | connects(p, s2, c3, 5, @packet(lines(@para{ACK},
+                                           @tt{id=654}),
+                                     "223.1.2.5", 69,
+                                     "255.255.255.255", 68).rotate(pi).translate(0, -32))
+    | p
+  p
+
+fun dhcp_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: "DHCP",
+        @para{@defterm{DHCP} takes advantage of broadcast to configure a host},
+        blank(),
+        dhcp(options))
+  options
+
+let options = dhcp_slide({})
+let options = dhcp_slide( options ++ { #'discover })
+let options = dhcp_slide( options ++ { #'offer })
+let options = dhcp_slide( options ++ { #'request })
+let options = dhcp_slide( options ++ { #'ack })
+
+slide(~title: "Routing",
+      block:
+        let pkt = rectangle(~around: @lines(@para{dest: @thistle_addr}).pad(5),
+                            ~fill: "lightblue",
+                            ~line: #'inherit).scale(0.5)
+        
+        let r1 = router.launder()
+        let r2 = router.launder()
+        let r3 = router.launder()
+        let r4 = router.launder()
+        let r5 = router.launder()
+        let r6 = router.launder()
+        let r7 = router.launder()
+        fun subnet(r :~ Pict, col, side = #'left) :~ Pict:
+          let p = r.pad(~left: if side == #'left | 64 | 0, ~right: if side == #'right | 64 | 0)
+          connect(~on: p,
+                  Find.center(r),
+                  if side == #'left | Find.left(p) | Find.right(p),
+                  ~line: col,
+                  ~line_width: 20,
+                  ~order: #'back)
+        let p:
+          beside(~sep: 150,
+                 stack(~sep: 200,
+                       subnet(r1, subnet1_color),
+                       subnet(r2, subnet2_color)),
+                 r3.ghost(),
+                 stack(~sep: 100,
+                       r6,
+                       r7,
+                       blank()),
+                 stack(~sep: 250,
+                       subnet(r4, subnet3_color, #'right).pad(~right: 64),
+                       subnet(r5, subnet4_color, #'right)))
+        fun link(p, from, to):
+          connect(~on: p, from, to, ~line_width: 3)
+        let p: link(p, Find.right(r1), Find.left_top(r3))
+        let p: link(p, Find.right_top(r2), Find.left_bottom(r3))
+        let p: link(p, Find.left(r6), Find.right_top(r3))
+        let p: link(p, Find.left(r7), Find.right_bottom(r3))
+        let p: link(p, Find.right(r2), Find.left(r5))
+        let p: link(p, Find.bottom(r4), Find.top(r5))
+        let p: link(p, Find.right(r6), Find.left(r4))
+        let p: link(p, Find.right(r7), Find.left_top(r5))
+        let p: link(p, Find.bottom(r6), Find.top(r7))
+        let r3g: r3.launder().ghost()
+        let p: pin(~on: p, ~at: Find.top(p, ~dx: -r3g.width/2), r3g)
+        let (cx, cy) = Find.left_top(r3).in(p)
+        let (tx, ty) = Find.left_top(r3g).in(p)
+        let (p0x, p0y) = Find.left_top(r1, ~dx: -pkt.width/2, ~dy: -pkt.height).in(p)
+        let (p1x, p1y) = Find.left_top(r3, ~dx: -pkt.width/2, ~dy: -pkt.height).in(p)
+        let p_plain = p
+        fun pkt_anim(p :~ Pict, n):
+          pin(~on: p, ~at: Find.abs(n*p1x + (1-n)*p0x, n*p1y + (1-n)*p0y), pkt)
+        fun anim(p :~ Pict, n):
+          pin(~on: p.alpha(1-n), ~at: Find.abs(n*tx + (1-n)*cx, n*ty + (1-n)*cy), r3)
+        let p_done = anim(p, 1)
+        switch(anim(p_plain, 0),
+               animate(fun (n): pkt_anim(anim(p, 0), n)),
+               animate(fun (n): anim(pkt_anim(p, 1), n)),
+               p_done,
+               overlay(p_done,
+                       block:
+                         let s = rectangle(~width: 200, ~height: 200, ~fill: "lightgray", ~line: #'inherit)
+                         let link = line(~dx: 100, ~line_width: 3)
+                         let links = stack(~sep: 50, link, link, link, link)
+                         let s = beside(~sep: 10, links, s, links)
+                         let s = beside(~vert: #'top, pkt, s).refocus(s)
+                         let base = s.pad(~top: 64)
+                         let to = @t{→}
+                         let routing_table = table([[soc_untrusted_prefix, to, @tt{4}],
+                                                    [other_prefix, to, @tt{0}],
+                                                    [not_soc_prefix, to, @tt{1}],
+                                                    [@t{...}, blank(), blank()]])
+                         let routed = stack(~sep: 32, base, routing_table).refocus(base)
+                         let switching = beside(~vert: #'top,
+                                                line(~dx: 50, ~line_width: 3),
+                                                line(~dx: 100, ~dy: 150, ~line_width: 3),
+                                                line(~dx: 50, ~line_width: 3).pad(~top: 150)).pad(~top: 63)
+                         switch(base,
+                                balloon.pin(~on: base, ~at: Find.left(base), ~spike: #'e,
+                                            @defterm{input ports}),
+                                balloon.pin(~on: base, ~at: Find.right(base), ~spike: #'w,
+                                            @defterm{output ports}),
+                                overlay(balloon.pin(~on: base, ~at: Find.bottom(base), ~spike: #'n,
+                                                    @defterm{switching fabric}),
+                                        switching).refocus(base),
+                                routed,
+                                balloon.pin(~on: routed,
+                                            ~at: Find.left(soc_untrusted_prefix),
+                                            ~spike: #'e,
+                                            @para{Most specific rule applies}),
+                                balloon.pin(~on: routed, ~at: Find.center(base), ~spike: #'sw,
+                                            ~dx: -150,
+                                            ~dy: 64,
+                                            @slide_pict(@para{May queue packets},
+                                                        @para{May use priority queue}
+                                                        slide.next,
+                                                        @para{Or even more...})),
+                                block:
+                                  let flow = @defterm{flow table}
+                                  let p:
+                                    balloon.pin(~on: routed,
+                                                ~at: Find.right_top(routing_table),
+                                                ~spike: #'sw,
+                                                lines(@para{Prefix-based rules make a},
+                                                      @para{@defterm{forwarding table}}))
+                                  let p2 = balloon.pin(~on: p,
+                                                       ~at: Find.right(routing_table),
+                                                       ~spike: #'w,
+                                                       lines(@para{More general rules, which},
+                                                             @para{might take into account},
+                                                             @para{transport-level fields, make a},
+                                                             @para{@flow}))
+                                  let p3 = balloon.pin(~on: p2,
+                                                       ~at: Find.left(flow),
+                                                       ~spike: #'e,
+                                                       ~dx: 96,
+                                                       ~fill: "lightblue",
+                                                       @defterm{software-defined networking (SDN)})
+                                  switch(p, p2, p3)
+                                ))))
