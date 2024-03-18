@@ -1,0 +1,449 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  "delays.rhm"!network as delays
+  "common.rhm" open
+  "crypto.rhm"!key open
+  "cryptoMore.rhm"!utils open
+  "lans.rhm"!vlan open
+  
+runtime_path.def wifi_connect_png: "images/wifi-connect.png"
+runtime_path.def rsa_shirt_jpg: "images/rsa-shirt.jpg"
+
+slide(~title: "Wi-Fi Security",
+      beside(bitmap(wifi_connect_png).scale(0.5),
+             stack(~horiz: #'left,
+                   ~sep: slide.gap,
+                   @para{@defterm{WEP} is original and weak},
+                   @para{@defterm{WPA} variants are new and good})))
+
+fun make_waves(angle, color) :~ Pict:
+  fun mk(size):
+    circle(~size: size,
+           ~arc: #'ccw,
+           ~start: angle - pi * 1/8, ~end: angle + pi * 1/8,
+           ~line: color,
+           ~line_width: lw)
+  overlay(mk(64), mk(128), mk(192)).pad(~left: -192/2)
+
+def waves = make_waves(0, "blue");
+
+slide(~title: "Wi-Fi Security",
+      beside(~sep: 64, delays.laptop.scale(0.5), waves, delays.wifi).scale(0.75),
+      slide.align(
+        @para{Wi-Fi security encrypts frames that your machine broadcasts},
+        slide.next,
+        blank(),
+        lines(@para{But in motivating SSL, IPsec, and similar, we have assumed that},
+              @para{packets are public, anyway...}),
+        slide.next,
+        blank(),
+        @para{Reasons to care about Wi-Fi security:},
+        @item{security in depth},
+        @item{proximity of attacker},
+        @item{ease of identifying a specific Wi-Fi user},
+      ))
+
+slide(~title: "WEP",
+      slide.align(
+        @para{@defterm{Wired Equivalency Privacy (WEP)} is the original 802.11 standard},
+        @item{Based on a 40-bit password/key @key},
+        @item{Same key for all users},
+        @item{Typically entered manually as 10 hex digits!}
+      ),
+      slide.next,
+      blank(64),
+      @para{@key plus a per-frame @iv seeds @(@t{RC4}.colorize(alg_color)) for a stream cipher})
+
+def rc4 = rectangle(~around: @romanly{RC4}.pad(4, ~top: 8),
+                    ~fill: alg_box_color,
+                    ~line: alg_color)
+
+fun pt(n) :~ Pict:
+  plaintext(@t{plaintext@subscript(to_string(n))})
+fun ct(n) :~ Pict:
+  ciphertext(@t{ciphertext@subscript(to_string(n))})
+
+fun enc(rc4, pt :~ Pict, ct :~ Pict, show,
+        ~times: times = #false) :~ Pict:
+  let xor_op :~ Pict:
+    if times
+    | beside(xor_op, @romanly{ × 4}.scale(0.5).colorize("blue"))
+        .refocus(xor_op)
+    | xor_op
+  let p = stack(~sep:32,
+                rc4,
+                beside(~sep: 32, pt, xor_op.ghost(!show)).refocus(xor_op),
+                ct)
+  let p :~ Pict:
+    if show
+    | let p = connect(~on: p,
+                      Find.bottom(rc4),
+                      Find.top(xor_op),
+                      ~style: #'arrow,
+                      ~line_width: lw)
+      let p = connect(~on: p,
+                      Find.right(pt),
+                      Find.left(xor_op),
+                      ~style: #'arrow,
+                      ~line_width: lw)
+      let p = connect(~on: p,
+                      Find.bottom(xor_op),
+                      Find.top(ct),
+                      ~style: #'arrow,
+                      ~line_width: lw)
+      p
+    | p
+  p.pad(~left: (pt.width - ct.width / 2) + 32)
+
+fun wep_slide(options :~ OptMap) :~ OptMap:
+  let note_color = "lightgray"
+  let crc = rectangle(~around: @romanly{CRC}.pad(4, ~top: 8),
+                      ~fill: "lightgreen",
+                      ~line: "forestgreen").ghost(!options[#'crc])
+  let rc4_0 = rc4.launder()
+  let rc4_1 = rc4.launder().ghost(!options[#'key_seq])
+  let rc4_x = rc4.ghost().launder()
+  let rc4_n = rc4.launder().ghost(!options[#'key_seq])
+  let rc4_c = rc4.launder().ghost(!options[#'crc_enc])
+  let show_stream = options[#'stream]
+  let pt_0 = pt(0).ghost(!show_stream)
+  let pt_1 = pt(1).ghost(!show_stream)
+  let pt_n = pt("n").ghost(!show_stream)
+  let ct_0 = ct(0).ghost(!show_stream)
+  let ct_1 = ct(1).ghost(!show_stream)
+  let ct_n = ct("n").ghost(!show_stream)
+  let ct_c = ciphertext(@t{CRC}).ghost(!options[#'crc_enc])
+  let ct_0_p = ct_0.launder()
+  let ct_1_p = ct_1.launder()
+  let ct_n_p = ct_n.launder()
+  let ct_c_p = ct_c.launder()
+  let iv_p = iv.launder()
+  let dots = @t{...}
+  let step0 = enc(rc4_0, pt_0, ct_0, show_stream)
+  let p:
+    overlay(~horiz: #'left,
+            ~vert: #'top,
+            beside(~sep: 16, iv, key),
+            beside(~sep: 32,
+                   step0,
+                   enc(rc4_1, pt_1, ct_1, show_stream),
+                   overlay.top(overlay(rc4_x,
+                                       dots.ghost(!options[#'key_seq])),
+                               overlay(blank(~height: step0.height),
+                                       dots.ghost(!options[#'stream])))
+                     .refocus(dots),
+                   enc(rc4_n, pt_n, ct_n, show_stream),
+                   enc(rc4_c, crc, ct_c, options[#'crc_enc], ~times: 4))
+              .pad(~top: iv.height + 32))
+  let (kx, ky) = Find.bottom(key).in(p)
+  let (ix, iy) = Find.right_bottom(iv, ~dx: -5).in(p)
+  let (rx, ry) = Find.top(rc4_0).in(p)
+  let p = connect(~on: p,
+                  Find.abs(kx, ky),
+                  Find.abs(kx, ry),
+                  ~style: #'arrow)
+  let p = connect(~on: p,
+                  Find.abs(ix, iy),
+                  Find.abs(ix, ry),
+                  ~style: #'arrow)
+  fun link(p, rc_0, rc_1, show):
+    if show
+    | connect(~on: p,
+              Find.right(rc_0),
+              Find.left(rc_1),
+              ~style: #'arrow,
+              ~line: alg_color,
+              ~line_width: lw)
+    | p
+  fun to_frame(p, ct, ct_p):
+    if options[#'packet]
+    | connect(~on: p,
+              Find.bottom(ct),
+              Find.top(ct_p),
+              ~style: #'arrow,
+              ~line: "blue",
+              ~start_angle: math.pi * -1/2,
+              ~end_angle: math.pi * -1/2,
+              ~line_width: lw)
+    | p
+  fun to_pip(p, iv, pip):
+    if options[#'packet]
+    | connect(~on: p,
+              Find.left(iv),
+              Find.top(pip),
+              ~line: "blue",
+              ~start_angle: -math.pi,
+              ~end_angle: math.pi * -1/2,
+              ~line_width: lw)
+    | p
+  fun long_link(p, pt, crc, d):
+    if options[#'crc]
+    | let f1 = Find.bottom(pt, ~dy: ct_0.height + 16)
+      let f2 = Find.bottom(pt, ~dy: ct_0.height + 32 - d, ~dx: 32)
+      let (_, y) = f2.in(p)
+      let (cx, cy) = Find.bottom(crc).in(p)
+      let color = "forestgreen"
+      let p = connect(~on: p,
+                      Find.bottom(pt),
+                      f1,
+                      ~line: color,
+                      ~line_width: lw)
+      let p = connect(~on: p,
+                      f1,
+                      f2,
+                      ~start_angle: math.pi * -1/2,
+                      ~end_angle: 0,
+                      ~line: color,
+                      ~line_width: lw)
+      let p = connect(~on: p,
+                      f2,
+                      Find.abs(cx - 32 - d, y),
+                      ~line: color,
+                      ~line_width: lw)
+      let p = connect(~on: p,
+                      Find.abs(cx - 32 - d, y),
+                      Find.abs(cx - 3 * d, cy),
+                      ~start_angle: 0,
+                      ~end_angle: math.pi * 1/2,
+                      ~style: #'arrow,
+                      ~line: color,
+                      ~line_width: lw)
+      p
+    | p
+  let p = link(p, rc4_0, rc4_1, options[#'key_seq])
+  let p = link(p, rc4_1, rc4_x, options[#'key_seq])
+  let p = link(p, rc4_x, rc4_n, options[#'key_seq])
+  let p = link(p, rc4_n, rc4_c, options[#'crc_enc])
+  let p = long_link(p, pt_0, crc, -5)
+  let p = long_link(p, pt_1, crc, 0)
+  let p = long_link(p, pt_n, crc, 5)
+  let frame = beside(segment(lines(~horiz: #'center, @t{802.11}, @t{header}).scale(0.75), ~tall: #true),
+                     segment(iv_p.ghost(!options[#'iv_packet]), ~tall: #true),
+                     segment(beside(~sep: 8, ct_0_p, ct_1_p, dots, ct_n_p, ct_c_p), ~tall: #true))
+  let pip = blank()
+  let p = overlay.bottom_left(p, pip.translate(-16, 0))
+  let p = stack(~sep: 128,
+                p,
+                frame.ghost(!options[#'packet]))
+  let p = to_frame(p, ct_0, ct_0_p)
+  let p = to_frame(p, ct_1, ct_1_p)
+  let p = to_frame(p, ct_n, ct_n_p)
+  let p = to_frame(p, ct_c, ct_c_p)
+  let p:
+    if options[#'iv_packet]
+    | let p = to_frame(p, pip, iv_p)
+      let p = to_pip(p, iv, pip)
+      let p:
+        if !options[#'bits]
+        | balloon.pin(~on: p,
+                      ~at: Find.top(iv),
+                      ~spike: #'s,
+                      ~fill: note_color,
+                      @para{Fresh random for each frame})
+        | p
+      p
+    | p
+  let p :~ Pict:
+    if options[#'bits]
+    | let p:
+        balloon.pin(~on: p,
+                    ~at: Find.top(iv),
+                    ~spike: #'s,
+                    ~fill: note_color,
+                    @para{24 bits})
+      let p:
+        balloon.pin(~on: p,
+                    ~at: Find.right(key),
+                    ~spike: #'w,
+                    ~fill: note_color,
+                    @para{40 bits})
+      p
+    | p
+  let p:
+    p.pad(~top: 64)
+  let p:
+    if options[#'repeat]
+    | overlay.right_top(p,
+                        balloon.note(lines(@para{Only 12 bits of key vary per frame},
+                                           @para{⇒ repeat is likely after 12,000 frames})))
+    | p
+  slide(~title: "WEP",
+        p)
+  options
+
+let options = wep_slide({})
+let options = wep_slide(options ++ { #'key_seq })
+let options = wep_slide(options ++ { #'stream })
+let options = wep_slide(options ++ { #'crc })
+let options = wep_slide(options ++ { #'crc_enc })
+let options = wep_slide(options ++ { #'packet })
+let options = wep_slide(options ++ { #'iv_packet })
+let options = wep_slide(options ++ { #'bits })
+let options = wep_slide(options ++ { #'repeat })
+
+fun label(p, l :~ Pict, pip) :~ Pict:
+  stack(overlay(p, delays.wifi.ghost().launder()), l.scale(0.75), pip).refocus(p)
+
+fun make_wpa(options :~ OptMap) :~ Pict:
+  let ph = 80
+  let comm_lw = 32
+  let comm_color = "lightblue"
+  let lt_pip = blank(~height: ph)
+  let ap_pip = blank(~height: ph)
+  let as_pip = blank(~height: ph)
+  fun pips(p :~ Pict) :~ Pict:
+    let (_, y) = Find.bottom(lt_pip).in(p)
+    p.pad(~bottom: y - p.height)
+  let p = beside(~sep: 96,
+                 label(delays.laptop.scale(0.5),
+                       lines(@t{client},
+                             @t{ }),
+                       lt_pip),
+                 waves,
+                 label(delays.wifi,
+                       lines(~horiz: #'center,
+                             @t{access},
+                             @t{point (AP)}),
+                       ap_pip),
+                 blank(),
+                 label(delays.server.scale(0.5),
+                       lines(~horiz: #'center,
+                             @t{authentication},
+                             @t{server (AS)}),
+                       as_pip).ghost(options[#'personal])).pad(~bottom: 32)
+  let p:
+    if options[#'personal]
+    | p
+    | connect(~on: p,
+              Find.right(delays.wifi),
+              Find.left(delays.server, ~dx: -5),
+              ~line_width: lw)
+  fun center(p :~ Pict): p.pad(~vert: -p.height/2)
+  cond
+  | options[#'advertise]:
+      connect(~on: pips(p),
+              Find.center(ap_pip),
+              Find.center(lt_pip),
+              ~label: center(@italic{authentication suite}),
+              ~style: #'arrow,
+              ~arrow_size: ph,
+              ~line_width: comm_lw,
+              ~line: comm_color)
+  | options[#'eap] || options[#'personal]:
+      connect(~on: pips(p),
+              Find.center(if options[#'personal] | ap_pip | as_pip),
+              Find.center(lt_pip),
+              ~label: center(@t{EAP to authenticate and negotiate @key}),
+              ~style: #'arrows,
+              ~arrow_size: ph,
+              ~line_width: comm_lw,
+              ~line: comm_color)
+  | options[#'go]:
+      let p = connect(~on: pips(p),
+                      Find.center(ap_pip),
+                      Find.center(lt_pip),
+                      ~label: center(key),
+                      ~style: #'arrows,
+                      ~arrow_size: ph,
+                      ~line_width: comm_lw,
+                      ~line: comm_color)
+      p
+  | ~else:
+      p
+  
+slide(~title: "WPA",
+      @para{@defterm{Wi-Fi Protected Access (WPA)} is the successor to WEP},        
+      make_wpa({}),
+      blank(),
+      slide.align(
+        @para{Supports an @defterm{authentication server (AS)} that is separate from the Wi-Fi @defterm{access point (AP)}},
+        slide.right(lines(@para{which reduces AP configuration for a large network},
+                          @para{with @defterm{WPA Enterprise} user-specific authentication}).colorize("blue"))
+      ))
+
+fun wpa_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: if options[#'personal] | "WPA Personal" | "WPA Enterprise",
+        make_wpa(options),
+        blank(32),
+        overlay.top(
+          @para{Initially, the AP advertises authentication protocols to clients}.ghost(!options[#'advertise]),
+          para(@{@defterm{WPA Personal} is a simplified organization where the AP acts as AS},
+               @{with a single password for all users}).ghost(!options[#'personal]),
+          para(@{The AP then acts as a bridge for client and AS to pick a master key @key},
+               @{using the @defterm{Extensible Authentication Protocol (EAP)}}).ghost(!options[#'eap]),
+          para(@{Client and AP communicate with session keys from @key}).ghost(!options[#'go]),
+        ))
+  options
+
+let options :~ OptMap = {}
+let aside_options = wpa_slide(options ++ { #'advertise })
+let aside_options = wpa_slide(options ++ { #'eap })
+let aside_options = wpa_slide(options ++ { #'go })
+let aside_options = wpa_slide(options ++ { #'personal })
+
+def govt_title = "Cryptography and Government"
+
+slide(~title: govt_title,
+      slide.align(
+        @para{The NSA's mission is in part to},
+        @item{ensure good encryption for U.S. entities},
+        @item{be able to defeat encryption for everyone else},
+        blank(),
+        slide.next,
+        @para{Some ways this has played out:},
+        @item{DES and the ensuring controversy, leading to AES},
+        @item{The @defterm{Clipper chip} design of 1993-1996},
+        @item{The Snowden revelations of 2013}
+      ))
+
+def export_title = "Cryptography and Export"
+
+slide(~title: export_title,
+      slide.align(
+        @para{Export of cryptographic technology is controlled by law:},
+        item(@{Before 1996: on the @italic{Munition List} managed by the State Department}),
+        item(@{After 1996: on the @italic{Commerce Control List} managed by the Commerce Department}),
+        slide.next,
+        blank(),
+        @para{Until 1999, export limited to 512-byte RSA and 40-bit RC, roughly},
+        slide.right(@para{Netscape Navigator had a ``U.S. Edition'' and ``International Edition''}.colorize("blue"),
+                    @para{WEP had to be weak to enable export}.colorize("blue"))
+      ))
+
+slide(~title: export_title,
+      bitmap(rsa_shirt_jpg))
+
+#//
+slide(~title: export_title,
+      slide.align(
+        @para{Current status: still some restrictions},
+        @item{Some things require a licence to export},
+        @item{Some exports to @italic{rogue states} disallowed}
+      ))
+
+slide(~title: "Cryptography and Quantum Computing",
+      slide.align(
+        @para{Existing public-key cryptography relies on just three hard problems:},
+        @item{integer factorization},
+        @item{discrete logarithm},
+        @item{elliptic-curve discrete logarithm},
+        slide.next,
+        blank(),
+        @para{@defterm{Shor's algorithm} can solve these on a large enough quantum computer},
+        slide.next,
+        blank(),
+        @para{For now:},
+        @item{@italic{large enough} seems far away},
+        @item{Noise in quantum circuits may be a further obstacle},
+        @item{Symmetric-key algorithms and hash functions are not affected}
+      ))
+
+slide(~title: "Summary",
+      slide.align(
+        @para{@defterm{WPA} is TLS again, this time at the physical layer},
+        blank(),
+        para(@{Weaknesses of the original @defterm{WEP} protocol relate},
+             @{to larger questions about cryptography and government})
+      ))

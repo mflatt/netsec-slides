@@ -1,0 +1,513 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+  pict/radial
+  "crypto.rhm"!key open  
+  "cryptoPublicKey.rhm"!key open  
+  "tls.rhm"!tls_packet open
+  "networkLayerData2.rhm"!ipv6_tunnel open
+  "lans.rhm"!vlan open
+  "delays.rhm"!network as delays
+
+runtime_path.def tor_png: "images/tor.png"
+def tor_logo = bitmap(tor_png)
+
+slide(~title: "Authenticated and Secret Communication",
+      make_tls_packet(@italic{encrypted}),
+      slide.next,
+      blank(32),
+      slide.align(
+        @lines(@item{Data in packet is encrypted and authenticated,},
+               @item(~bullet: @t{•}.ghost()){but source and distination address are not}),
+        @item{Anyone can send a packet to any IP address}
+      ),
+      slide.next,
+      blank(32),
+      slide.align(
+        @para{Addressing these problems requires a new protocol at the network layer},
+        @para{Since changing IP is not practical, that leaves @defterm{tunnelling} as an option}
+      ))
+
+slide(~title: "Earlier Tunnelling Example: IPv6 over IPv4",
+      mixed_network({}))
+
+vitual_lan_slides({ #'title: "Earlier Tunnelling Example: VLAN over IP",
+                    #'skip_to_end: #true })
+
+slide(~title: "Tunnels for Authenticated and Secret Communication",      
+      slide.align(
+        ~sep: 64,
+        @para{Two prominent examples:}.pad(~left: -32),
+        @para{A @defterm{virtual private network (VPN)} tunnels with @defterm{IPSec} through IP},
+        @para{@defterm{Tor} tunnels with @defterm{onion routing} through TCP}
+      ))
+
+def Enc = @romanly{Enc}.colorize(alg_color)
+
+def vpn_addr = @tt{155.98.131.16}.colorize("blue")
+def shell_addr = @tt{155.98.65.55}.colorize("red")
+def thistle_addr = @tt{155.98.69.112}
+def laptop_addr = @tt{116.88.32.45}
+def laptop_virtual_addr = @ttly{@italic{155.98.68.106}}.colorize("forestgreen")
+def external_addr = @tt{142.250.65.100}.colorize("purple")
+
+fun label(p :~ Pict, label :~ Pict) :~ Pict:
+  stack(p, label.scale(0.5)).refocus(p)
+
+fun baseless(p :~ Pict) :~ Pict:
+  pin(~on: blank(~width: p.width, ~height: p.height),
+      ~at: Find.abs(0, 0),
+      p)
+
+fun vpn_pict(options :~ OptMap) :~ Pict:
+  let reply = options[#'reply]
+  let laptop1 = label(delays.laptop.scale(0.5),
+                      stack(laptop_addr,
+                            laptop_virtual_addr.ghost(!options[#'virtual])))
+  let router1 = label(delays.router.scale(0.5), vpn_addr)
+  let server1 = delays.server.scale(0.5)
+  let server2 = label(server1.launder(), thistle_addr)
+  let server3 = label(server1.launder(), external_addr)
+  let server1 = label(server1, shell_addr)
+  let office = beside(~sep: 108,
+                      router1,
+                      stack(~sep: 96,
+                            server1,
+                            server2))
+  fun link(p, from, to) :~ Pict:
+    connect(~on: p,
+            Find.right(from),
+            Find.left(to))
+  let office = link(office, router1, server1)
+  let office = link(office, router1, server2)
+  let office:
+    let o = office.pad(28)
+    let p = stack(@t{private network}, o)
+    rectangle(~around: p, ~fill: "beige").refocus(o)
+  let internet:
+    overlay(radial.cloud(~width: 300, ~fill: "lightgray"),
+            @t{internet})
+  let internet_p:
+    if options[#'external]
+    | let p = stack(~sep: 128, internet, server3)
+      let p = connect(~on: p,
+                      Find.bottom(internet),
+                      Find.top(server3))
+      p.refocus(internet)
+    | internet  
+  let p:
+    beside(~sep: 128,
+           laptop1,
+           internet_p,
+           office)
+  let p = link(p, laptop1, internet)
+  let p = link(p, internet, router1)
+  let inner_packet:
+     beside(header(@bold{IP},
+                   @para{src: @(if reply | shell_addr | laptop_virtual_addr)},
+                   @para{dest: @(if reply
+                                 | laptop_virtual_addr
+                                 | (if options[#'external] | external_addr | shell_addr))}),
+            segment(@t{...}))
+  let inner_packet_g:
+    inner_packet.launder().ghost()
+  let outer_packet :~ Pict:
+    (if reply | leftward | rightward)(
+      beside(header(~tall: #true,
+                    @bold{IP},
+                    @para{src: @(if reply | vpn_addr | laptop_addr)},
+                    @para{dest: @(if reply | laptop_addr | vpn_addr)}),
+             segment(~tall: #true,
+                     @romanly{@(«Enc»)(@key, @baseless(inner_packet_g))}))
+    )    
+  let p:
+    if options[#'vpn_server]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(router1),
+                  ~spike: #'n,
+                  ~sprout: 0.8,
+                  ~dy: -64,
+                  lines(@para{VPN router can reject},
+                        @para{some incoming packets},
+                        @para{that are not IPSec}))                  
+    | p
+  let p:
+    if options[#'connect]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(laptop_virtual_addr),
+                  ~spike: #'nw,
+                  ~dy: -64,
+                  lines(@para{Connecting to the VPN gives},
+                        @para{a host a virtual address}))
+    | p
+  let p:
+    if options[#'intf]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(laptop_virtual_addr),
+                  ~spike: #'nw,
+                  ~dy: -64,
+                  lines(@para{Addess is usually implemented},
+                        @para{as a new virtual interface,},
+                        @para{so it works for all programs}))
+    | p
+  let p:
+    if options[#'packet]
+    | let inner_packet_g2 = inner_packet_g.launder()
+      let outer_packet_g = outer_packet.ghost().launder()
+      let outer_packet_g2 = outer_packet.ghost().launder()
+      let inner_packet_g3 = inner_packet_g.launder()          
+      let p = overlay.top_left(p, outer_packet_g.pad(~left: -96))
+      let p = overlay.top_left(p, inner_packet_g2)
+      let p = pin(~on: p,
+                  ~at: Find.top_left(router1,
+                                     ~dy: -outer_packet.height - 16,
+                                     ~dx: -outer_packet.width * 0.75),
+                  outer_packet_g2)
+      let p = pin(~on: p,
+                  ~at: Find.top(if options[#'external] | server3 | server1,
+                                ~dx: -inner_packet.width / 2,
+                                ~dy: -inner_packet.height - 8),
+                  inner_packet_g3)
+      cond
+      | options[#'recv_reply]:
+          animate(fun (n):
+                    let p:
+                      pin(~on: p,
+                          ~at: Find.top_left(outer_packet_g),
+                          outer_packet.alpha(1-n))
+                    scooter(
+                      p,
+                      Find.top_left(inner_packet_g),
+                      Find.top_left(inner_packet_g2),
+                      if n > 0
+                      | leftward(inner_packet)
+                      | inner_packet
+                    )(n)).sustain()
+      | options[#'send_reply]:
+          let outer_packet = pin(~on: outer_packet,
+                                 ~at: Find.top_left(inner_packet_g),
+                                 inner_packet)
+          animate(scooter(
+                    p,
+                    Find.top_left(outer_packet_g2),
+                    Find.top_left(outer_packet_g),
+                    outer_packet))
+      | options[#'wrap_reply]:
+          animate(fun (n):
+                    let p = pin(~on: p,
+                                ~at: Find.top_left(outer_packet_g2),
+                                outer_packet.alpha(n))
+                    pin(~on: p,
+                        ~at: Find.top_left(inner_packet_g),
+                        if n .= 0
+                        | leftward(inner_packet)
+                        | inner_packet))
+      | options[#'send_inner_reply]:
+          animate(fun (n):
+                    let p = pin(~on: p,
+                                ~at: Find.top_left(outer_packet_g2),
+                                outer_packet.ghost())
+                    scooter(
+                      p,
+                      Find.top_left(inner_packet_g3),
+                      Find.top_left(inner_packet_g),
+                      leftward(inner_packet)
+                    )(n))
+      | options[#'reply]:
+          pin(~on: p,
+              ~at: Find.top_left(inner_packet_g3),
+              leftward(inner_packet))
+      | options[#'appears_from]:
+          let p = pin(~on: p,
+                      ~at: Find.top_left(inner_packet_g3),
+                      rightward(inner_packet))
+          balloon.pin(~on: p,
+                      ~at: Find.right_bottom(inner_packet),
+                      ~spike: #'nw,
+                      if options[#'anonymous]
+                      | def unknown = @t{unknown}
+                        let p = lines(@para{Packet is from private network},
+                                      @para{but original host is @unknown})
+                        switch(p,
+                               balloon.pin(~on: p,
+                                           ~at: Find.top(unknown),
+                                           ~spike: #'s,
+                                           ~dy: 64,
+                                           ~fill: "lightblue",
+                                           @para{... although known to private network router}))
+                      | lines(@para{Packet appears to be from},
+                              @para{private network}))
+      | options[#'send_inner_packet]:
+          animate(fun (n):
+                    let p = pin(~on: p,
+                                ~at: Find.top_left(outer_packet_g2),
+                                outer_packet.alpha(1-n))
+                    scooter(
+                      p,
+                      Find.top_left(inner_packet_g),
+                      Find.top_left(inner_packet_g3),
+                      if n > 0
+                      | rightward(inner_packet)
+                      | inner_packet                        
+                    )(n)).sustain()
+      | options[#'send_packet]:
+          let outer_packet = pin(~on: outer_packet,
+                                 ~at: Find.top_left(inner_packet_g),
+                                 inner_packet)
+          animate(scooter(
+                    p,
+                    Find.top_left(outer_packet_g),
+                    Find.top_left(outer_packet_g2),
+                    outer_packet))
+      | ~else:
+          animate(fun (n):
+                    let p:
+                      pin(~on: p,
+                          ~at: Find.top_left(outer_packet_g),
+                          outer_packet.alpha(n))
+                    scooter(
+                      p,
+                      Find.top_left(inner_packet_g2),
+                      Find.top_left(inner_packet_g),
+                      if n .= 0
+                      | rightward(inner_packet)
+                      | inner_packet
+                    )(n))
+    | p
+  p
+
+fun vpn_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: "VPN using IPSec",
+        vpn_pict(options))
+  options
+
+let options = vpn_slide({})
+let aside_options = vpn_slide(options ++ { #'vpn_server })
+let pre_packet_options = options ++ { #'virtual }
+let options = pre_packet_options
+let aside_options = vpn_slide(options ++ { #'connect })
+let aside_options = vpn_slide(options ++ { #'intf })
+let options = vpn_slide(options ++ { #'packet })
+let options = vpn_slide(options ++ { #'send_packet })
+let options = vpn_slide(options ++ { #'send_inner_packet })
+let options = options ++ { #'reply }
+let options = vpn_slide(options ++ { #'send_inner_reply })
+let options = vpn_slide(options ++ { #'wrap_reply })
+let options = vpn_slide(options ++ { #'send_reply })
+let options = vpn_slide(options ++ { #'recv_reply })
+let options = vpn_slide(pre_packet_options ++ { #'packet, #'external })
+let options = vpn_slide(options ++ { #'send_packet })
+let options = vpn_slide(options ++ { #'send_inner_packet })
+let vpn_end_options = vpn_slide(options ++ { #'appears_from })
+
+slide(~title: "IPSec",
+      slide.align(
+        @para{IPSec uses a cryptography combination similar to TLS:},
+        @item{negotiated cipher suite},
+        @item{usually a certificate with public key (at least for one end)},
+        @item{session key(s) for encryption},
+        @item{MAC for integrity checking},
+        slide.next,
+        slide.right(@para{... but without the benefit of a TCP @italic{connection}}.colorize("blue"))
+      ),
+      slide.next,
+      blank(),
+      slide.align(
+        para(@{A 32-bit @defterm{security parameter index (SPI)} is included in every packet},
+             @{and effectively represents an IPSec connection}),
+        slide.right(@para{... in combination with the src and dest addresses})
+      ))
+
+slide(~title: "Some SPI Details",
+      slide.align(
+        ~sep: 64,
+        @item{An SPI is one way, so a VPN connection has two SPIs},
+        @item{SPI key setup protocol in IPSec has its own name: @defterm{Internet Key Exchange (IKE)}},
+        @item{SPIs timeout if unused, so IPSec includes keepalive messages}
+      ))
+
+fun anon_slide(options :~ OptMap) :~ OptMap:
+  let p = stack(~sep: slide.gap,
+                @para{A VPN provides a limited form of @defterm{anonymity}}.ghost(options[#'clear]),
+                blank(64),
+                vpn_pict(if options[#'clear] | { #'private_only: #true } | vpn_end_options ++ { #'anonymous }),
+                blank(64))
+  slide(~title: "Anonymity",
+        if options[#'steps]
+        | overlay.top_left(p,
+                           slide_pict(
+                             slide.align(
+                               @para{What if...}.pad(~left: -32),
+                               @para{... there are multiple entry and exit routers},
+                               slide.next,
+                               @para{... run by different people},
+                               slide.next,
+                               blank(200),
+                               @para{... and messages bounce around a while},
+                               slide.next,
+                               @para{... and each router knows only the next step?}
+                             )
+                           )).refocus(p)
+        | p)
+  options
+
+let options = anon_slide({})
+
+fun reason(p, n) :~ Pict:
+  stack.left(p, n)
+fun who(s):
+  bold(s)
+fun why(s):
+  para(s).pad(~left: 16)
+
+fun delay_it(p :~ Pict):
+  switch(p.ghost(), p)
+
+slide(~title: "Who Needs Anonimity?",
+      slide.align(
+        reason(@who{Everyday people},
+               @why{for identity protection}),
+        reason(@who{Journalists and citizens},
+               @why{to circumvent censorship}),
+        reason(@who{Activists and whistleblowers},
+               @why{to avoid retaliation}),
+        delay_it(@para{and, yes,}.scale(0.75).pad(~left: -16)),
+        delay_it(reason(@who{Unscrupulous people},
+                        @why{to avoid getting caught})),
+        blank(16),
+        @t{Based in part on @tt{https://2019.www.torproject.org/about/torusers.html.en}}.colorize("blue").scale(0.5).pad(~left: 32, ~right: -200)
+      ))
+
+let options = anon_slide(options ++ { #'clear })
+let options = anon_slide(options ++ { #'steps })
+
+fun onion_wrap(step, p :~ Pict, key,
+               ~real_src = #false,
+               ~real_dest = #false):
+  let header = stack.left(@para{src: @(if real_src
+                                       | laptop_addr
+                                       | @ttly{host@subscript{@to_string(step)}})},
+                          @para{dest: @(if real_dest
+                                        | external_addr
+                                        | @ttly{host@subscript{@to_string(step+1)}})}).scale(0.6)
+  let header = header.pad(5)
+  let p :~ Pict:
+    if key
+    | beside(@romanly{@(«Enc»)(@key, }, p, @romanly{)})
+    | p
+  let p = p.pad(5)
+  let header = header.pad(~vert: math.max(0, (p.height - header.height) / 2))
+  let p = p.pad(~vert: math.max(0, (header.height - p.height) / 2))
+  beside(rectangle(~around: header, ~line: "blue", ~fill: "lightblue"),
+         rectangle(~around: p, ~line: "blue", ~fill: "lightblue"))
+
+slide(~title: tor_logo.scale(0.25),
+      ~name: "Tor",
+      @para{@defterm{Tor} (@underline{t}he @underline{o}nion @underline{r}outer) is for anonymity},
+      slide.next,
+      blank(64),
+      onion_wrap(0, onion_wrap(1, onion_wrap(2, onion_wrap(3, @t{...}, #false, ~real_dest: #true), key), key2), key3,
+                 ~real_src: #true))
+
+block:
+  fun role(p, lbl) :~ Pict:
+    stack(~sep:8, t(lbl), p).refocus(p)
+  let laptop1 = role(label(delays.laptop.scale(0.5), laptop_addr), "Tor client")
+  let router1 = role(label(delays.router.scale(0.5), @ttly{host@subscript{1}}), "entry guard")
+  let router2 = role(label(delays.router.scale(0.5), @ttly{host@subscript{2}}), "middle relay")
+  let router3 = role(label(delays.router.scale(0.5), @ttly{host@subscript{3}}), "exit relay")
+  let server3 = role(label(delays.server.scale(0.5), external_addr), "destination")
+  let p: beside(~sep: 128,
+                router1,
+                stack(~sep: 128,
+                      router2.translate(0, 32),
+                      router3.translate(-64, 0)))                   
+  fun link(p, from, to, ~order = #'front, ~line = alg_color, ~label = #false) :~ Pict:
+    connect(~on: p,
+            from,
+            to,
+            ~line: line,
+            ~line_width: 3,
+            ~order: order,
+            ~label: label)
+  let p = link(p, Find.right(router1), Find.left(router2), ~order: #'back)
+  let p = link(p, Find.bottom(router2), Find.top(router3), ~order: #'back)
+  let p = beside(~sep: 128,
+                 laptop1,
+                 block:
+                   let p = p.pad(64)
+                   overlay(block:
+                             let c = radial.cloud(~width: p.width,
+                                                  ~height: p.height,
+                                                  ~fill: alg_box_color)
+                             stack(@t{Tor network}, c).refocus(c),
+                           p),
+                 server3)
+  let p = link(p, Find.right(laptop1), Find.left(router1))
+  let pip = blank()
+  let p = link(p, Find.right(router3), Find.left(server3), ~line: "black", ~label: pip)
+  slide(~title: "Onion Routing",
+        slide.alts(p,
+                   balloon.pin(~on: p,
+                               ~at: Find.bottom(laptop1, ~dy: 12),
+                               ~spike: #'n,
+                               lines(@para{Tor protocol typically implemented},
+                                     @para{at the application level, such as},
+                                     @para{in the Tor browser})),
+                   balloon.pin(~on: p,
+                               ~at: Find.center(router1),
+                               ~spike: #'ne,
+                               ~dy: -64,
+                               lines(@para{In uncensored environments, entry},
+                                     @para{addesses are fetched from a registry})),
+                   balloon.pin(~on: p,
+                               ~at: Find.center(router1),
+                               ~spike: #'ne,
+                               ~dy: -64,
+                               lines(@para{In censored environments, unadvertised},
+                                     @para{@defterm{bridges} enable entry, but require},
+                                     @para{explicit configuation (e.g., an address},
+                                     @para{posted on Telegram)})),
+                   balloon.pin(~on: p,
+                               ~at: Find.center(pip),
+                               ~spike: #'nw,
+                               lines(@para{Still need SSL/HTTPS},
+                                     @para{for last step})),
+                   [p,
+                    balloon.note(@para{As of 2016: about 2,000 entry nodes, 7,000 relay nodes, 1,000 exit nodes})],
+                   balloon.pin(~on: p,
+                               ~at: Find.bottom(server3, ~dy: 24),
+                               ~dy: -96,
+                               ~spike: #'n,
+                               lines(@para{Server address still found by DNS?})),
+                   [p,
+                    block:
+                      let p = @para{Severs can have @tt{.onion} addresses, which are resolved within Tor}
+                      balloon.note(lines(~horiz: #'right,
+                                         p,
+                                         @para{⇒ anonymity for servers}))
+                        .refocus(p)]))
+
+slide(~title: "Secure DNS",
+      slide.align(
+        @para{@defterm{DoT} is DNS over TLS on port 853},
+        @para{@defterm{DoH} is DNS over HTTPS on port 443},
+        blank(32),
+        slide.align(~horiz: #'center,
+                    @para{Cloudflare's public DNS that supports both:},
+                    @tt{1.1.1.1})
+      ))
+
+slide(~title: "Summary",
+      slide.align(
+        lines(para(@{@defterm{Tunnelling} and layering TLS are general strategies}),
+              @para{for adding security over existing networking layers}),
+        blank(),
+        para(@{@defterm{VPNs} use @defterm{IPSec}, which uses @defterm{IKE}}),
+        slide.right(para(@{similar to TLS, but at the network layer})),
+        blank(),
+        lines(@para{@defterm{Tor} adds @defterm{onion routing} to TLS-like encryption},
+              @para{to implement anonimity})
+      ))

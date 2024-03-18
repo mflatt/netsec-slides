@@ -1,0 +1,934 @@
+#lang rhombus/static/and_meta
+import:
+  rhombus/runtime_path
+  slideshow open
+  "common.rhm" open
+  "crypto.rhm"!key open
+  "cryptoPublicKey.rhm"!paint open
+  "cryptoPublicKey.rhm"!public_private open
+  "cryptoMore.rhm"!counter_like open
+  "blockCipher.rhm"!des_key_sched.key_sched_stack
+  "blockCipher.rhm"!feistel.aes_stack
+
+
+module ~early more_keys ~lang rhombus/static/and_meta:
+  import:
+    rhombus/runtime_path
+    slideshow open
+    "common.rhm" open
+    "crypto.rhm"!key open
+  export:
+    all_defined
+
+  runtime_path.def key3_png: "images/key3.png"
+  runtime_path.def key4_png: "images/key4.png"
+  runtime_path.def key5_png: "images/key5.png"
+  runtime_path.def key6_png: "images/key6.png"
+  runtime_path.def key7_png: "images/key7.png"
+  runtime_path.def key8_png: "images/key8.png"
+  runtime_path.def institution_png: "images/institution.png"
+  runtime_path.def institution2_png: "images/institution2.png"
+
+  fun key_fix(p :~ Pict):
+    p.scale(key.width / p.width, key.height / p.height)
+
+  def key4 = key_fix(bitmap(key4_png))
+  def key5 = key_fix(bitmap(key5_png))
+  def key6 = key_fix(bitmap(key6_png))
+  def key7 = key_fix(bitmap(key7_png))
+  def key8 = key_fix(bitmap(key8_png))
+  def institution = bitmap(institution_png).scale(0.2)
+  def institution2 = bitmap(institution2_png).scale(0.3)
+
+import self!more_keys open
+
+def pt: plaintext(@t{plaintext})
+def ct: ciphertext(@t{ciphertext})
+def lw: 3
+
+def block_cipher:
+  let enc:
+    rectangle(~around: @roman{Enc}.pad(5), ~fill: alg_box_color, ~line: #'inherit)
+  let p:
+    stack(~sep: 32,
+          pt,
+          beside(~sep: 32, key, enc)
+            .refocus(enc),
+          ct)
+  let p:
+    connect(~on: p,
+            Find.right(key),
+            Find.left(enc),
+            ~line_width: lw,
+            ~style: #'arrow)
+  let p:
+    connect(~on: p,
+            Find.bottom(pt),
+            Find.top(enc),
+            ~line_width: lw,
+            ~style: #'arrow)
+  let p:
+    connect(~on: p,
+            Find.bottom(enc),
+            Find.top(ct),
+            ~line_width: lw,
+            ~style: #'arrow)    
+  p.scale(0.5)
+
+def stream_cipher:
+  let gen:
+    rectangle(~around: @roman{Gen}.pad(5), ~fill: alg_box_color, ~line: #'inherit)
+  let gen2: gen.launder()
+  fun make(gen):
+    let p:
+      stack(~sep: 32,
+            gen,
+            beside(~sep: 32,
+                   pt,
+                   xor_op).refocus(xor_op),
+            ct)
+    let p:
+      connect(~on: p,
+              Find.bottom(gen),
+              Find.top(xor_op),
+              ~line_width: lw,
+              ~style: #'arrow)
+    let p:
+      connect(~on: p,
+              Find.right(pt),
+              Find.left(xor_op),
+              ~line_width: lw,
+              ~style: #'arrow)
+    let p:
+      connect(~on: p,
+              Find.bottom(xor_op),
+              Find.top(ct),
+              ~line_width: lw,
+              ~style: #'arrow)
+    p.pad(~left: 64)
+  let gen1:
+    let p:
+      beside(~sep: 32, key, gen).refocus(gen)
+    let p:
+      connect(~on: p,
+              Find.right(key),
+              Find.left(gen),
+              ~line_width: lw,
+              ~style: #'arrow)
+    p
+  let p:
+    beside(~sep: 32, make(gen1), make(gen2))
+  let p:
+    connect(~on: p,
+            Find.right(gen),
+            Find.left(gen2),
+            ~line_width: lw,
+            ~style: #'arrow)
+  let p:
+    connect(~on: p,
+            Find.right(gen2),
+            Find.right(gen2, ~dx: 32),
+            ~line_width: lw,
+            ~style: #'arrow)
+  beside(p, @t{...}).scale(0.5)
+
+def hash_function:
+  let M:
+    rectangle(~around: @roman{M}.pad(5), ~fill: alg_box_color, ~line: #'inherit)
+  let pt:
+    plaintext(@tt{ })
+  let iv:
+    rectangle(~around: @t{init vec}.pad(5), ~fill: "lightblue", ~line: #'inherit)
+  fun mk(M, pt):
+    let p:
+      stack(~sep: 32,
+            pt,
+            M)
+    connect(~on: p,
+            Find.bottom(pt),
+            Find.top(M),
+            ~line_width: lw,
+            ~style: #'arrow)
+  let M2 = M.launder()
+  let M3 = M.launder()
+  let pt2 = pt.launder()
+  let pt3 = pt.launder()
+  let p:
+    beside(~sep: 32,
+           ~vert: #'bottom,
+           iv,
+           mk(M, pt),
+           mk(M2, pt2),
+           mk(M3, pt3))
+  let p: connect(~on: p, Find.right(iv), Find.left(M), ~line_width: lw, ~style: #'arrow)
+  let p: connect(~on: p, Find.right(M), Find.left(M2), ~line_width: lw, ~style: #'arrow)
+  let p: connect(~on: p, Find.right(M2), Find.left(M3), ~line_width: lw, ~style: #'arrow)
+  let p: connect(~on: p, Find.right(M3), Find.right(M3, ~dx: 32), ~line_width: lw, ~style: #'arrow)
+  beside(~sep: 32, p, @t{...}).scale(0.5)
+
+def H = @roman{H}.colorize(alg_color)
+
+def paints = beside(~sep: 8, yellow_can0, red_can0, blue_can0).scale(0.75)
+
+module ~early key_sums ~lang rhombus/static:
+  import:
+    slideshow open
+    "common.rhm"
+    "crypto.rhm"!key open
+    "cryptoPublicKey.rhm"!public_private open
+    "cryptoPublicKey.rhm"!paint open
+    parent!more_keys open
+  
+  export:
+    all_defined
+
+  def a_priv = @romanly{@bold{a}}.colorize("blue")
+  def A_pub = @romanly{@bold{A}}.colorize("blue")
+  def b_priv = @romanly{@bold{b}}.colorize("red")
+  def B_pub = @romanly{@bold{B}}.colorize("red")
+  def M_pub = @romanly{@bold{M}}.colorize("forestgreen")
+
+  def a_key = private(key4, a_priv)
+  def A_key = public(key2, A_pub)
+  def b_key = private(key5, b_priv)
+  def B_key = public(key6, B_pub)
+  def M_key = public(key7, M_pub)
+
+  #//
+  def a_B_sum = beside(~sep: 8,
+                       stack(a_key, @t{+}, B_key).scale(0.5),
+                       @t{=},
+                       key)
+  #//
+  def b_A_sum = beside(~sep: 8,
+                       key,
+                       @t{=},
+                       stack(b_key, @t{+}, A_key).scale(0.5))
+
+  def a_B_sum = beside(~sep: 8,
+                       stack(red_can0, @t{+}, green_can0).scale(0.5),
+                       @t{=},
+                       brown_can0.scale(0.5),
+                       @t{=},
+                       key)
+  def b_A_sum = beside(~sep: 8,
+                       key,
+                       @t{=},
+                       brown_can0.scale(0.5),
+                       @t{=},
+                       stack(blue_can0, @t{+}, orange_can0).scale(0.5))
+
+  def Enc = @roman("Enc").colorize(alg_color)
+  def Dec = @roman("Dec").colorize(alg_color)
+
+import self!key_sums open
+
+def rsa_keys = beside(~sep: 16,
+                      @private(key4, a_priv),
+                      @public(key2, A_pub)).scale(0.75)
+
+fun toolbox_slide(options :~ OptMap):
+  let bn:
+    @balloon.note(@para{Cryptographic algorithms need to mix these ingredients correctly})
+      .translate(0, 16)
+      .ghost(!options[#'mix])
+  slide(~title: "Cryptography Toolbox",
+        table(~hsep: 64,
+              ~vsep: 32,
+              ~vert: #'center,
+              ~horiz: [#'left, #'center],
+              [[@defterm{block cipher}, block_cipher, @t{fixed-size}],
+               [@defterm{stream cipher}, stream_cipher, @t{any length}],
+               [@defterm{hash function}, hash_function, stack(~sep: -5,
+                                                              ~horiz: #'center,
+                                                              @romanly{@(«H»)(x) = @(«H»)(y)},
+                                                              @roman{⇒}.pad(~bottom: 2),
+                                                              @roman{x = y})],
+               [@defterm{Diffie-Hellman}, paints, stack(@t{shared secret}, key)],
+               [@defterm{RSA}, rsa_keys, @t{authentication}]]),
+        if options[#'auth]
+        | balloon.pin(~on: bn,
+                      ~at: Find.right_bottom(bn),
+                      ~spike: #'w,
+                      ~fill: "lightblue",
+                      @lines(@para{... including for},
+                             @para{authentication}))
+
+        | bn)
+
+toolbox_slide({})
+
+slide(~title: "Stream-Cipher-Like Forms Inside Block Ciphers",
+      beside(~sep: 300,
+             key_sched_stack({}),
+             aes_stack()[#'aes]))
+
+slide(~title: "Block Cipher to Stream Cipher with Hashing",
+      @balloon.note(@para{Galois/counter (GCM) uses three of our ingredients}),
+      blank(64),
+      counter_like_pict(({} :~ OptMap) ++ { #'counter, #'mac, #'ct0_mac, #'len_mac}))
+
+toolbox_slide({ #'mix: #true })
+toolbox_slide({ #'mix: #true, #'auth: #true })
+
+module ~early convo ~lang rhombus/static:
+  import:
+    slideshow open
+    "crypto.rhm"!key open  
+  export:
+    Action
+    Up
+    convo
+    
+  class Action(p :~ Pict)
+  class Up(amt)
+
+  fun convo(~mallory: as_mallory = #false,
+            ~ghost_alice = #false,
+            ~alice: alice :: Pict = alice,
+            ~bob: bob :: Pict = bob,
+            ~delay = 0,
+            ~width: width = 300,
+            ~stretch: stretch = 1,
+            msg, ...) :~ Pict:
+    let as = for List (i: 0..4): blank()
+    let bs = for List (i: 0..3): blank()                               
+    let p:
+      beside(~sep: width,
+             ~vert: #'top,
+             stack(~sep: 64 + stretch*delay*48, if ghost_alice | alice.ghost().launder() | alice,
+                   stack(~sep: stretch * 96, & as)),
+             stack(~sep: 64 + stretch*delay*48, if as_mallory | mallory_unscaled | bob,
+                   stack(~sep: stretch * 96, & bs).pad(~top: stretch * 48)))
+    recur loop (p :~ Pict = p, msgs :~ List.of(Pict) = [msg, ...], as :~ List = as, bs :~ List = bs,
+                flip = #false, dy = 0):
+      match msgs
+      | []: p.pad(~bottom: -delay * 48 * stretch)
+      | [Action(msg), &msgs]:
+          loop(pin(~on: p,
+                   ~at: Find.center(as[0],
+                                    ~dx: if flip | 8 | -msg.width - 8,
+                                    ~dy: -msg.height / 2 + dy),
+                   msg),
+               msgs,
+               as,
+               bs,
+               flip,
+               dy)
+      | [Up(amt), &msgs]:
+          loop(p, msgs, as, bs, flip, dy - amt)
+      | [msg :~ Pict, &msgs]:
+          let from = Find.center(as[0], ~dy: 5 + dy)
+          let to = Find.center(bs[0], ~dy: -5 + dy)
+          let (x1, y1) = from.in(p)
+          let (x2, y2) = to.in(p)
+          let a = math.atan(y1 - y2, x2 - x1)
+          let a = if flip | a + math.pi | a
+          fun zero(p :~Pict) :~ Pict: p.pad(~horiz: -p.width/2, ~vert: -p.height/2)
+          loop(if msg is_a NothingPict
+               | p
+               | connect(~on: p,
+                         from, to,
+                         ~label: zero(msg).rotate(a).translate(0, -12),
+                         ~style: #'arrow),
+               msgs,
+               bs,
+               as.rest,
+               !flip,
+               dy)
+
+import self!convo open
+
+let pw_title = "Sending a Password"
+ 
+slide(~title: pw_title,
+      ~layout: #'top,
+      convo(@tt{I'm Alice. My password is "pw"}.scale(0.75),
+            @tt{Hi, Alice!}.scale(0.75)),
+      slide.next,
+      balloon.note(@para{Obviously bad to send a password as plaintext}))
+
+#//
+slide(~title: pw_title,
+      ~layout: #'top,
+      convo(Action(a_key),
+            A_key,
+            Action(b_key),
+            B_key,
+            Action(a_B_sum),
+            @romanly{@(«Enc»)(@key, ⟨@tt{"Alice"}, @tt{"pw"}⟩)}.scale(0.75),
+            Action(b_A_sum),
+            @romanly{@(«Enc»)(@key, @tt{"Hi, Alice!"})}.scale(0.75)),
+      @para{Use Diffie-Hellman to get a shared secret key?})
+
+slide(~title: pw_title,
+      ~layout: #'top,
+      convo(Action(red_can0),
+            orange_can0.scale(0.5).translate(0, -4),
+            Action(blue_can0),
+            green_can0.scale(0.5).translate(0, -4),
+            Action(a_B_sum),
+            @romanly{@(«Enc»)(@key, ⟨@tt{"Alice"}, @tt{"pw"}⟩)}.scale(0.75),
+            Action(b_A_sum),
+            @romanly{@(«Enc»)(@key, @tt{"Hi, Alice!"})}.scale(0.75)),
+      @para{Use Diffie-Hellman to get a shared secret key?})
+
+slide(~title: pw_title,
+      ~layout: #'top,
+      block:
+        let p:
+          beside(~sep: -alice.width + 8,
+                 convo(~mallory: #true,
+                       orange_can0.scale(0.5).translate(0, -4), // A_key,
+                       gray_can0.scale(0.5).translate(0, -4), // M_key,
+                       @romanly{@(«Enc»)(@key7, ⟨@tt{"Alice"}, @tt{"pw"}⟩)}.scale(0.75),
+                       nothing,
+                       nothing,
+                       @romanly{@(«Enc»)(@key7, @tt{"Hi, Alice!"})}.scale(0.75)),
+                 convo(~ghost_alice: #true,
+                       ~delay: 1,
+                       gray_can0.scale(0.5).translate(0, -4), // M_key,
+                       green_can0.scale(0.5).translate(0, -4), // B_key,
+                       @romanly{@(«Enc»)(@key8, ⟨@tt{"Alice"}, @tt{"pw"}⟩)}.scale(0.75),
+                       @romanly{@(«Enc»)(@key8, @tt{"Hi, Alice!"})}.scale(0.75)))
+        switch(
+          p,
+          balloon.pin(~on: p,
+                      ~at: Find.right(alice),
+                      ~spike: #'nw,
+                      lines(@para{Hasn't confirmed that},
+                            @para{she's talking to Bob}))
+        ),
+      slide.next,
+      balloon.note(@para{Don't send a password without authenticating first!}))
+
+def auth_title = "Authentication"
+
+slide(~title: auth_title,
+      slide.align(
+        @para{Authentication requires some prior arrangement},
+        blank(),
+        @para{Some options:},
+        @item{previously shared secret @key},
+        @item{previously acquired RSA @A_key and @B_key},
+        slide.next,
+        blank(64),
+        @italic{For now, assume a previously shared @key}
+      ))
+
+def bad_auth_title = "Some Bad Authentication Ideas"
+
+def qeq:
+  let eq = @roman{=}
+  stack(~sep: -8, @roman{?}.scale(0.75), eq).refocus(eq)
+                
+fun bad_challenge_slide(check):
+  slide(~title: bad_auth_title,
+        ~layout: #'top,
+        convo(Action(@para{@key, @roman{R}}),
+              @romanly{@tt{Are you Bob? Sign @roman{R} as proof}}.scale(0.75),
+              Action(key),
+              @romanly{@(«Enc»)(@key, R)},
+              Action(@romanly{R @qeq @(«Dec»)(@key, @(«Enc»)(@key, R))}.ghost(!check))))
+bad_challenge_slide(#false)
+bad_challenge_slide(#true)
+
+slide(~title: bad_auth_title,
+      ~layout: #'top,
+      beside(~sep: -alice.width + 8,
+             convo(~mallory: #true,
+                   Action(@para{@key, @roman{R}}),
+                   @romanly{@tt{Are you Bob? Sign @roman{R} as proof}}.scale(0.75),
+                   nothing,
+                   nothing,
+                   @romanly{@(«Enc»)(@key, R)}),
+             convo(~ghost_alice: #true,
+                   ~delay: 1,
+                   @romanly{@tt{Are you Bob? Sign @roman{R} as proof}}.scale(0.75),
+                   Action(key),
+                   @romanly{@(«Enc»)(@key, R)})),
+      slide.next,
+      switch(
+        para(@{Whether this is immediately bad depends on whether},
+             @{the rest of the conversation encrypts with @key}),
+        balloon.note(lines(para(@{More generally, the problem here is that},
+                                @{Bob has blindly signed}),
+                           @para{a value handed to him}))
+      ).pad(~top: -32))
+
+def login_msg = @romanly{@(«Enc»)(@key, ⟨@tt{"Alice"}, @tt{"pw"}⟩)}
+
+slide(~title: bad_auth_title,
+      ~layout: #'top,
+      block:
+        let p:
+          convo(~width: 400,
+                Action(key),
+                login_msg.scale(0.8),
+                Action(key),
+                @romanly{@(«Enc»)(@key, @tt{"Hi, Alice!"})}.scale(0.8))
+        switch(p,
+               overlay.top(p, eve_unscaled)),
+      slide.next,
+      balloon.note(@t{@defterm{Replay attack:} Eve can record @login_msg and play it back later})
+        .pad(~top: -32))
+
+slide(~title: bad_auth_title,
+      ~layout: #'top,
+      block:
+        let p:
+          convo(~width: 400,
+                Action(key),
+                @romanly{@(«Enc»)(@key, @italic{request})}.scale(0.8),
+                Action(key),
+                @romanly{@(«Enc»)(@key, @italic{answer})}.scale(0.8))
+        overlay.top(p, eve_unscaled).pad(~bottom: -64),
+      para(@{Anyway, no need for a separate password if you have @key,},
+           @{but beware of the same problem with other predictable messages}))
+
+fun works_but_room_for_improvement(options :~ OptMap) :~ Pict:
+  let improve:
+    @para{... but there is still some room for improvement}.colorize("blue").scale(0.75)
+  let p:
+    stack(~horiz: #'right,
+          ~sep: 16,
+          para(@{As long as Bob picks a unique random @roman{R} each time,},
+               @{this will work ok}),
+          improve)
+      .ghost(!options[#'unique])
+  let p:
+    if options[#'examples]
+    | balloon.pin(~on: p,
+                  ~at: Find.top(improve),
+                  ~spike: #'s,
+                  ~fill: "lightblue",
+                  ~dy: 64,
+                  @para{Gives attackers lots of examples for @(options[#'key] || key)})
+    | p
+  let p:
+    if options[#'large]
+    | balloon.pin(~on: p,
+                  ~at: Find.top(improve),
+                  ~spike: #'s,
+                  ~fill: "lightblue",
+                  ~dy: 64,
+                  @para{RSA keys like @(options[#'key] || key) are large and slow})
+    | p
+  let p:
+    if options[#'history]
+    | balloon.pin(~on: p,
+                  ~at: Find.top(improve),
+                  ~spike: #'s,
+                  ~fill: "lightblue",
+                  ~dy: 64,
+                  @para{If @(options[#'comp_key] || key) is compromised, all history is readable})
+    | p
+  p
+
+fun ok_auth_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: auth_title,
+        ~layout: #'top,
+        convo(Action(key),
+              @romanly{@tt{Are you Bob?}}.scale(0.8),
+              Action(@romanly{R, @key}),
+              @romanly{⟨R, @(«Enc»)(@key, R)⟩}.scale(0.8),
+              Action(@romanly{R @qeq @(«Dec»)(@key, @(«Enc»)(@key, R))}.ghost(!options[#'check])),
+              if options[#'request]
+              | @romanly{@(«Enc»)(@key, R⊕@italic{request})}.scale(0.8).pad(~bottom: 8)
+              | nothing)
+          .pad(~bottom: -64),
+        works_but_room_for_improvement(options))
+  options
+
+let options = ok_auth_slide({})
+let options = ok_auth_slide(options ++ { #'check })
+let options = ok_auth_slide(options ++ { #'request })
+let options = ok_auth_slide(options ++ { #'unique })
+let aside_options = ok_auth_slide(options ++ { #'examples })
+let aside_options = ok_auth_slide(options ++ { #'history })
+
+module ~early certificate ~lang rhombus/static:
+  import:
+    slideshow open
+    "common.rhm" open
+    parent!key_sums open
+    parent!more_keys open
+    "crypto.rhm"!key open
+    "cryptoPublicKey.rhm"!public_private open
+    "ribbon.rhm".ribbon
+  export:
+    all_defined
+    
+  def corp_key = private(key8, institution.scale(0.4))
+  def Corp_key = public(key7, institution.scale(0.4))
+  def corp2_key = private(key8, institution2.scale(0.3))
+  def Corp2_key = public(key7, institution2.scale(0.3))
+
+  let lw: 3
+
+  def dist_title = "Distributing Public Keys"
+
+  fun certificate(options :~ OptMap,
+                  ~who: who = "Bob",
+                  ~key: B_key :~ Pict = B_key,
+                  ~institution: institution :~ Pict = institution) :~ Pict:
+    let B_key_g = B_key.ghost().launder()
+    let ribbon = ribbon.scale(0.5).colorize("gold")
+    let seal = institution.scale((ribbon.width * 0.6) / institution.width)
+    let ribbon = overlay.top(ribbon, seal.pad(~top: (ribbon.width - seal.height) / 2))                           
+    let r = rectangle(~around: stack(@t(who),
+                                     B_key_g,
+                                     blank(~height: ribbon.width + 12)),
+                      ~width: 2 * ribbon.height,
+                      ~fill: "beige",
+                      ~line: "brown")
+    let p:
+      stack.right(r, ribbon.pad(~top: -ribbon.width,
+                                ~right: 8))
+    let p = p.ghost(!options[#'certificate])
+    pin(~on: p, ~at: Find.top_left(B_key_g), B_key)
+
+  fun certificate_slide(options :~ OptMap) :~ OptMap:
+    slide(~title: dist_title,
+          block:
+            let institution:
+              stack(if options[#'def_certificate_auth]
+                    | balloon.pin(~on: institution,
+                                  ~at: Find.left(institution),
+                                  ~spike: #'e,
+                                  @defterm{certificate authority})
+                    | institution,
+                    @t{Key Corp}).ghost(!options[#'institution])
+            let institution:
+              if options[#'institution_certificate]
+              | beside(~sep: 32,
+                       certificate(options,
+                                   ~who: "Key Corp",
+                                   ~key: Corp_key,
+                                   ~institution: institution2),
+                       institution)
+                  .refocus(institution)
+              | institution
+            let alice:
+              if options[#'root_cert]
+              | balloon.pin(~on: alice,
+                            ~at: Find.left(alice),
+                            ~spike: #'ne,
+                            ~dx: 4,
+                            lines(@para{Alice's operating},
+                                  @para{system includes},
+                                  @defterm{root certificates}))                                
+              | alice
+            let p:
+              stack(~sep: 32,
+                    institution,
+                    beside(~sep: 150,
+                           if options[#'inst_key] || options[#'inst2_key]
+                           | stack(~sep: 8,
+                                   alice,
+                                   if options[#'inst2_key]
+                                   | Corp2_key
+                                   | Corp_key).refocus(alice)
+                           | alice,
+                           block:
+                             let p = certificate(options)
+                             if options[#'def_certificate]
+                             | balloon.pin(~on: p,
+                                           ~at: Find.top_right(p),
+                                           ~spike: #'sw,
+                                           @defterm{certificate})
+                             | p,
+                           bob),
+                    block:
+                      let p:
+                        @roman{@(«Enc»)(@corp_key, ⟨@tt{"B"}, @B_key⟩)}.ghost(!options[#'encode])
+                      if options[#'chain]
+                      | let all:
+                          rectangle(~around:
+                                      stack(p,
+                                            @roman{@(«Enc»)(@corp2_key, ⟨@tt{"Key Corp"}, @Corp_key⟩)},
+                                            @t{...}).pad(5),
+                                    ~fill: "beige")
+                        let p: all.refocus(p)
+                        if options[#'def_chain]
+                        | balloon.pin(~on: p,
+                                      ~at: Find.right(all),
+                                      ~spike: #'w,
+                                      @defterm{certificate chain})
+                        | p
+                      | p)
+            let p:
+              connect(~on: p,
+                      Find.left(bob, ~dx: -4),
+                      Find.right(alice, ~dx: 4),
+                      ~order: #'back,
+                      ~line_width: lw,
+                      ~style: #'arrow)
+            let p:
+              beside.top(stack(institution2,
+                               @t{Meta Corp})
+                           .pad(~top: -64)
+                           .ghost(!options[#'institution2]),
+                         p)
+                .refocus(p)
+            let p:
+              if options[#'keychain]
+              | overlay.right_top(p.pad(~right: 200),
+                                  balloon.note(lines(@t{Try},
+                                                     @tt{security dump-keychain},
+                                                     @tt{ /System/Library/Keychains/SystemRootCertificates.keychain}),
+                                               ~fill: "lightblue").scale(0.4))
+                  .refocus(p)
+              | p
+            p)
+    options
+
+import self!certificate open
+
+slide(~title: dist_title,
+      slide.align(
+        @para{Suppose that Alice acquires Bob's public key @B_key},
+        @para{Is it @italic{really} Bob's key?},
+      ),
+      slide.next,
+      blank(),
+      beside(~sep: -alice.width + 8,
+             convo(~mallory: #true,
+                   @romanly{@tt{What's your key, Bob?}}.scale(0.75),
+                   M_key),
+             convo(~ghost_alice: #true,
+                   nothing,
+                   Action(B_key)))
+        .pad(~bottom: -250))
+
+let options = certificate_slide({})
+let options = certificate_slide(options ++ { #'institution })
+let options = certificate_slide(options ++ { #'certificate })
+let aside_options = certificate_slide(options ++ { #'def_certificate })
+let aside_options = certificate_slide(aside_options ++ { #'def_certificate_auth })
+let options = certificate_slide(options ++ { #'inst_key })
+let options = certificate_slide(options ++ { #'encode })
+let options = certificate_slide(options.remove(#'inst_key))
+let options = certificate_slide(options ++ { #'institution2 })
+let options = certificate_slide(options ++ { #'inst2_key })
+let options = certificate_slide(options ++ { #'institution_certificate })
+let options = certificate_slide(options ++ { #'chain })
+let options = certificate_slide(options ++ { #'def_chain })
+let options = certificate_slide(options ++ { #'root_cert })
+let options = certificate_slide(options ++ { #'keychain })
+
+def more_bad_auth_title = "More Bad Authentication Ideas"
+
+slide(~title: more_bad_auth_title,
+      ~layout: #'top,
+      convo(~width: 400,
+            ~stretch: 1.5,
+            Action(B_key),
+            @romanly{@(«Enc»)(@B_key, ⟨@tt{"Alice"}, @tt{"pw"}⟩)}.translate(0, -8),
+            Action(b_key)).pad(~bottom: -200),
+      slide.next,
+      balloon.note(@para{This is the replay-attack example, again}))
+
+slide(~title: more_bad_auth_title,
+      ~layout: #'top,
+      convo(~width: 400,
+            ~stretch: 1.5,
+            Action(B_key),
+            @romanly{⟨R, @(«Enc»)(@B_key, R⊕⟨@tt{"Alice"}, @tt{"pw"}⟩)⟩}.translate(0, -8),
+            Action(b_key)).pad(~bottom: -200),
+      slide.next,
+      balloon.note(@para{Still subject to a replay attack if Alice picks @roman{R}}))
+
+slide(~title: more_bad_auth_title,
+      ~layout: #'top,
+      convo(~width: 400,
+            ~stretch: 1.5,
+            Action(stack(a_key, B_key)),
+            @romanly{⟨@tt{"Alice"}, R, @(«Enc»)(@a_key, R)⟩}.translate(0, -8),
+            Action(beside(stack(b_key, A_key))))
+        .pad(~bottom: -200),
+      slide.next,
+      balloon.note(@para{Still subject to a replay attack if Alice picks @roman{R}}))
+
+fun decode_r(R :~ Pict, ~scale = 0.75) :~ Pict:
+  beside(~vert: #'topline,
+         @roman{@(«Dec»)(}, stack(~horiz: #'left,
+                                  @roman{@B_key,},
+                                  @roman{@(«Enc»)(@b_key, ⟨@tt{"B"}, @(R.launder())⟩))@tt{ }⇒@tt{ }@(R.scale(1/scale))}))
+    .scale(scale)
+    .refocus(R)
+
+fun rsa_symmetric_auth_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: if options[#'signed] | auth_title | more_bad_auth_title,
+        ~layout: #'top,
+        convo(~width: 400,
+              ~stretch: 1.5,
+              Action(stack(a_key, B_key)),
+              @tt{I'm Alice, please pick @roman{R}},
+              Action(beside(stack(b_key, A_key), @roman{R}.ghost(!options[#'R]))),
+              if !options[#'R]
+              | nothing
+              | if options[#'signed]
+                | @romanly{@(«Enc»)(@b_key, ⟨@tt{"B"}, R⟩)}.translate(0, -8)
+                | @romanly{R},
+              Action(block:
+                       let R = @roman{R}
+                       let p :~ Pict:
+                         if options[#'signed]
+                         | decode_r(R)
+                         | R
+                       p.ghost(!options[#'R])),
+              if !options[#'pw]
+              | nothing
+              | @romanly{@(«Enc»)(@a_key, R)}.translate(0, -8))
+          .pad(~bottom: -200),
+        cond
+        | options[#'sign_ok]:
+            @para{Alice is signing @roman{R} from Bob, but trusts Bob enough}
+        | options[#'ok]:
+            @para{SSH often works something like this, but not web sites}
+        | options[#'oops]:
+            @balloon.note(@para{Oops --- Alice just signed an arbitrary @roman{R}})
+        | ~else:
+            nothing)
+  options
+
+let options = rsa_symmetric_auth_slide({})
+let bad_options = rsa_symmetric_auth_slide(options ++ { #'R })
+let bad_options = rsa_symmetric_auth_slide(bad_options ++ { #'pw })
+let bad_options = rsa_symmetric_auth_slide(bad_options ++ { #'oops })
+let options = rsa_symmetric_auth_slide(options ++ { #'R, #'signed })
+let options = rsa_symmetric_auth_slide(options ++ { #'pw })
+let aside_options = rsa_symmetric_auth_slide(options ++ { #'sign_ok })
+let options = rsa_symmetric_auth_slide(options ++ { #'ok })
+
+fun rsa_auth_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: auth_title,
+        ~layout: #'top,
+        convo(~width: 400,
+              ~stretch: 1.5,
+              Action(B_key),
+              @tt{I'm Alice, please pick @roman{R}},
+              Action(beside(b_key, @t{, @roman{R}}.ghost(!options[#'R]))),
+              if !options[#'R]
+              | nothing
+              | @romanly{@(«Enc»)(@b_key, ⟨@tt{"B"}, R⟩))}.translate(0, -8),
+              Action(decode_r(@roman{R}).ghost(!options[#'R])),
+              if !options[#'pw]
+              | nothing
+              | @romanly{@(«Enc»)(@B_key, R⊕@tt{"pw"})}.translate(0, -8))
+          .pad(~bottom: -200),
+        works_but_room_for_improvement(options ++ { #'key: B_key,
+                                                    #'comp_key: b_key }))
+  options
+
+let options = rsa_auth_slide({})
+let options = rsa_auth_slide(options ++ { #'R })
+let options = rsa_auth_slide(options ++ { #'pw })
+let options = rsa_auth_slide(options ++ { #'unique })
+let aside_options = rsa_auth_slide(options ++ { #'large })
+let aside_options = rsa_auth_slide(options ++ { #'examples })
+let aside_options = rsa_auth_slide(options ++ { #'history })
+
+fun session_keys_slide(options :~ OptMap) :~ OptMap:
+  fun session(p :~ Pict):
+    if options[#'session]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(key),
+                  ~spike: #'n,
+                  ~sprout: 0.3,
+                  ~dy: -64,
+                  lines(@para{Short-lived, one-time},
+                        @para{@defterm{session key} can be},
+                        @para{smaller and faster}))
+    | p
+  def b_key_1 = b_key.launder()
+  let p:
+    convo(~width: 400,
+          ~stretch: 1.5,
+          Action(B_key),
+          @tt{I'm Alice. Are you Bob?},
+          Action(beside(~sep: 8, b_key_1, session(key.ghost(!options[#'R])))),
+          if options[#'R]
+          | @romanly{@(«Enc»)(@b_key, ⟨@tt{"B"}, @key⟩)}.translate(0, -8)
+          | nothing,
+          Action(decode_r(key, ~scale: 0.65).ghost(!options[#'R])),
+          if !options[#'req]
+          | nothing
+          | @romanly{@(«Enc»)(@key, @italic{request})}.translate(0, -8),
+          if !options[#'resp]
+          | nothing
+          | @romanly{@(«Enc»)(@key, @italic{answer})}.translate(0, -8))
+      .pad(~bottom: -200)
+  let p:
+    if options[#'compromise]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(b_key_1),
+                  ~spike: #'n,
+                  ~sprout: 0.3,
+                  ~dy: -64,
+                  ~fill: "lightblue",
+                  lines(@para{If @b_key is ever compromised,},
+                        @para{and if the conversation is logged,},
+                        @para{conversation can be exposed}))
+    | p
+  slide(~title: "Session Keys",
+        ~layout: #'top,
+        p)
+  options
+
+let options = session_keys_slide({})
+let options = session_keys_slide(options ++ { #'R })
+let options = session_keys_slide(options ++ { #'req })
+let options = session_keys_slide(options ++ { #'resp })
+let aside_options = session_keys_slide(options ++ { #'session })
+let options = session_keys_slide(options ++ { #'compromise })
+
+slide(~title: "Session Keys with Prefect Forward Secrecy",
+      block:
+        let b_key_1 = b_key.launder()
+        let p:
+          convo(~width: 400,
+                ~stretch: 1.5,
+                Action(beside(~sep: 8, red_can0, B_key)),
+                @tt{I'm Alice using @orange_can0.scale(0.5). Bob?},
+                Action(stack(~sep: 16, beside(~sep: 8, blue_can0, b_key_1), b_A_sum).refocus(blue_can0)),
+                @romanly{@(«Enc»)(@b_key, ⟨@tt{"B"}, @green_can0.scale(0.5)⟩)}.translate(0, -8),
+                Action(a_B_sum),
+                @romanly{@(«Enc»)(@key, @italic{request})}.translate(0, -8),
+                @romanly{@(«Enc»)(@key, @italic{answer})}.translate(0, -8))
+        let explain:
+          lines(@para{Even if @b_key is},
+                @para{compromised in the future,},
+                @para{@key cannot be recovered})
+        let p2:
+          balloon.pin(~on: p,
+                      ~at: Find.top(b_key_1),
+                      ~spike: #'s,
+                      ~fill: "lightblue",
+                      explain)
+        slide.alts(
+          p,
+          p2,
+          balloon.pin(~on: p2,
+                      ~at: Find.left(explain),
+                      ~spike: #'e,                      
+                      @defterm{prefect forward secrecy (PFS)})
+        ))
+
+slide(~title: "Summary",
+      slide.align(
+        para(@{@defterm{Authentication} can mean logging in with a password,},
+             @{but it can also mean making sure that you're logging into the right server}),
+        slide.left(
+          ~sep: 4,
+          @para{We need our whole cryptography toolbox to get it right},
+          slide.right(@para{... and there are still many pitfalls})
+        ),
+        blank(),
+        para(@{@defterm{Certificates} and @defterm{certificate chains}},
+             @{address the problem of ahead-of-time sharing}),
+        blank(),
+        para(@{Setting up @defterm{session keys} during authenticating},
+             @{is a best practice})
+      ))

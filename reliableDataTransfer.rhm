@@ -148,8 +148,6 @@ block:
 
 // ----------------------------------------
 
-let pi = math.pi
-
 let state_machines_title = "State Machines"
 
 slide(

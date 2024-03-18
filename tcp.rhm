@@ -208,14 +208,21 @@ slide(~title: "TCP Segment Details",
         balloon.pin(~on: tcp_segment,
                     ~at: Find.right(sequence_number, ~dx: -5),
                     ~spike: #'w,
-                    @para{counts bytes, not packets}),
+                    lines(@para{corresponds to bytes @italic{sent}},
+                          @para{@italic{previously}, not counting},
+                          @para{new data here ---},
+                          @para{and counts bytes, not packets})),
+                    
         balloon.pin(~on: highlight(tcp_segment, ack_flag_field),
                     ~at: Find.right(ack_number, ~dx: -5),
                     ~spike: #'w,
                     switch(
                       @para{valid when ACK flag is set},
                       block:
-                        let p = @para{next expected byte number}
+                        let p:
+                          lines(@para{corresponds to all bytes},
+                                @para{@italic{received}, so indicates},
+                                @para{next expected byte number})
                         switch(
                           p,
                           balloon.pin(~on: p,

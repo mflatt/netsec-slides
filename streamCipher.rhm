@@ -110,7 +110,7 @@ def CT_a = @ciphertext(@romanly{CT@subscript{a}})
 def PT_b = @plaintext(@romanly{PT@subscript{b}})
 def CT_b = @ciphertext(@romanly{CT@subscript{b}})
 
-let xor_op: @roman{⊕}
+let xor_op_c: @roman{⊕}
 
 slide(~title: "Stream Cipher",
       slide.left(
@@ -124,9 +124,9 @@ slide(~title: "Stream Cipher",
         @para{The @romanx{i}th ciphertext @CT element from the @romanx{i}th plaintext @PT element:},
         slide.center(
           block:
-            let p = @romanly{@CT_i = @PT_i @xor_op @K_i}
+            let p = @romanly{@CT_i = @PT_i @xor_op_c @K_i}
             balloon.pin(~on: p,
-                        ~at: Find.bottom(xor_op),
+                        ~at: Find.bottom(xor_op_c),
                         ~spike: #'nw,
                         @para{xor}.time_clip())
         ),
@@ -135,7 +135,7 @@ slide(~title: "Stream Cipher",
         slide.center(@romanly{@PT_i = @CT_i ⊕ @K_i}),
         slide.next,
         blank(),
-        @para{Treating @xor_op as mapping over sequences},
+        @para{Treating @xor_op_c as mapping over sequences},
         slide.center(@romanly{@CT = @PT ⊕ @K}),
         slide.center(@romanly{@PT = @CT ⊕ @K})        
       ))
@@ -249,12 +249,12 @@ fun image_mix_slide(options :~ OptMap, adjust = values) :~ OptMap:
   let p:
     if options[#'formula]
     | let f:
-        @lines(@para{@CT_a = @PT_a @xor_op @K},
-               @para{@CT_b = @PT_b @xor_op @K},
-               beside.topline(@para{@CT_a @xor_op @CT_b},
+        @lines(@para{@CT_a = @PT_a @xor_op_c @K},
+               @para{@CT_b = @PT_b @xor_op_c @K},
+               beside.topline(@para{@CT_a @xor_op_c @CT_b},
                               @t{ },
-                              @lines(@para{= @PT_a @xor_op @K @xor_op @PT_b @xor_op @K},
-                                     @para{= @PT_a @xor_op @PT_b})))
+                              @lines(@para{= @PT_a @xor_op_c @K @xor_op_c @PT_b @xor_op_c @K},
+                                     @para{= @PT_a @xor_op_c @PT_b})))
       overlay.bottom_left(p,
                           f.pad(~left: -f.width/2,
                                 ~bottom: -32))

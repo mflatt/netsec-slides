@@ -1,0 +1,933 @@
+#lang rhombus/static/and_meta
+import:
+  rhombus/runtime_path
+  slideshow open
+  draw
+  pict/radial
+  "common.rhm" open
+  lib("racket/base.rkt") as rkt
+  "number_theory.rhm" open
+  "crypto.rhm"!key open
+
+def spc = @tt{ }
+
+module ~early key ~lang rhombus/static/and_meta:  
+  import:
+    rhombus/runtime_path
+    slideshow open
+    "crypto.rhm"!key open
+
+  export:
+    key3
+    key4
+    key5
+    key6
+
+  runtime_path.def key3_png: "images/key3.png"
+  runtime_path.def key4_png: "images/key4.png"
+  runtime_path.def key5_png: "images/key5.png"
+  runtime_path.def key6_png: "images/key6.png"
+
+  fun key3_fix(p :~ Pict):
+    p.scale(key.width / p.width, key.height / p.height)
+
+  def key3 = key3_fix(bitmap(key3_png))
+  def key4 = key3_fix(bitmap(key4_png))
+  def key5 = key3_fix(bitmap(key5_png))
+  def key6 = key3_fix(bitmap(key6_png))
+
+import self!key open
+
+module ~early public_private ~lang rhombus/static:
+  import:
+    pict open
+    pict/radial
+
+  export:
+    public
+    private
+
+  def border = 20
+
+  fun public_private(bg, p :~ Pict, label :~ Pict, color):
+    overlay(bg(~width: p.width + 2 * border,
+               ~height: p.height + border, ~fill: color),
+            overlay(~vert: #'bottom,
+                    ~horiz: #'center,
+                    p.pad(~left: border/2),
+                    label.scale(0.5).translate(p.width * 0.3, label.height/2)))
+
+  fun public(p :~ Pict, label) :~ Pict:
+    public_private(radial.flash, p, label, "gold")
+
+  fun private(p :~ Pict, label) :~ Pict:
+    public_private(radial.cloud, p, label, "lightgray")
+
+import self!public_private open
+
+// Note: "red" and "blue" are reversed!
+def blue_act = "firebrick"
+def red_act = "blue"
+
+def blue_bg = "lightgray" // "lightpink"
+def red_bg = "lightgray" // "lightblue"
+
+let pP = @romanly{@bold{p}}.colorize(alg_color)
+let qP = @romanly{@bold{q}}.colorize(alg_color)
+let gP = @romanly{@bold{g}}.colorize("Indigo")
+let eP = @romanly{@bold{e}}.colorize("Indigo")
+let dP = @romanly{@bold{d}}.colorize("Indigo")
+let AP = @romanly{@bold{a}}.colorize(red_act)
+let BP = @romanly{@bold{b}}.colorize(blue_act)
+let XAP = @romanly{@bold{A}}.colorize(red_act)
+let XBP = @romanly{@bold{B}}.colorize(blue_act)
+
+let NP = @romanly{@bold{N}}.colorize("forestgreen")
+
+def blue_priv = @private(key6, BP)
+def red_priv = @private(key4, AP)
+def blue_pub = @public(key5, XBP)
+def red_pub = @public(key2, XAP)
+
+def no_priv = @private(key.ghost(), blank())
+def no_pub = @public(key.ghost(), blank())
+
+slide(~title: "Communication with Shared Secrets",
+      slide.align(
+        para(@{We have several ways for Alice and Bob to send confidential},
+             @{messages, and all require a @key as a @defterm{shared secret}}),
+        blank(),
+        slide.center(
+          block:
+            let p:
+              beside(~sep: 300,
+                     stack(alice, key),
+                     stack(bob, key))
+            connect(~on: p,
+                    Find.right(alice, ~dx: 5),
+                    Find.left(bob, ~dx: -5),
+                    ~line_width: 3)
+        ),
+        slide.next,
+        blank(),
+        @para{How do Alice and Bob get a shared secret in the first place?},
+        blank(),
+        para(@{It turns out that it's possible to turn private secrets},
+             @{into a shared secret through a @italic{public} conversation!})
+      ))
+
+def public_key_title = "Public Key Cryptography"
+
+slide(~title: public_key_title,
+      slide.align(
+        @para{Two widely used algorithms to create shared secrets:},
+        blank(),
+        @item{@defterm{Diffie-Hellman}},
+        @item{@defterm{RSA}},
+        blank(),
+        para(@{Both from the 1970s with similar capabilities---but different immediate uses, and RSA dominates for historical},
+             @{and commercial reasons})
+      ))
+
+module ~early paint ~lang rhombus/static:
+  import:
+    pict open
+    draw
+
+  export:
+    paint
+    red_can0
+    blue_can0
+    yellow_can0
+    orange_can0
+    green_can0
+    brown_can0
+    gray_can0
+    red
+    yellow
+    blue
+    orange
+    green
+    brown
+    gray
+
+  def yellow = "yellow"
+  def blue = "lightcoral"
+  def red = "skyblue"
+  def orange = "green"
+  def green = "orange"
+  def brown = "chocolate"
+  def gray = "lightgray"
+
+  fun paint(color, fill, ~in_can: in_can) :~ Pict:
+    let in_can = #false
+    let path = draw.Path()
+    let width = 64
+    let dh = width / 4
+    let full_height = 1.1 * width
+    let height = dh + (full_height - dh) * fill
+    let all_height = if in_can | full_height | height
+    path.arc([[0, 0], [width, width/4]],
+             math.pi, 0, ~clockwise: #true)
+    path.line_to([width, height-width/8])
+    path.arc([[0, height-width/4], [width, width/4]],
+             0, -math.pi, ~clockwise: #true)
+    path.close()
+    let path2 = draw.Path()
+    path2.arc([[0, 0], [width, width/4]],
+              0, -math.pi, ~clockwise: #true)
+    let path3:
+      if in_can && fill < 1
+      | let path = draw.Path()
+        path.ellipse([[0, 0], [width, width/4]])
+        path.move_to([0, width/8])
+        path.line_to([0, all_height - height + width/8])
+        path.move_to([width, width/8])
+        path.line_to([width, all_height - height + width/8])
+        path
+      | #false
+    let paint_dy = all_height - height
+    dc(fun(dc :: draw.DC, dx, dy):
+         dc.save()
+         dc.brush := draw.Brush(~color: color)
+         dc.path(path, ~dx: dx, ~dy: dy + paint_dy)
+         dc.brush := draw.Brush.none
+         dc.path(path2, ~dx: dx, ~dy: dy + paint_dy)
+         when path3
+         | dc.path(path3, ~dx: dx, ~dy: dy)
+         dc.restore(),
+       ~width: width,
+       ~height: all_height)
+
+  def red_can0 = paint(red, 0.33, ~in_can: #false)
+  def yellow_can0 = paint(yellow, 0.33, ~in_can: #true)
+  def blue_can0 = paint(blue, 0.33, ~in_can: #false)
+  def brown_can0 = paint(brown, 1.0, ~in_can: #true)
+  def orange_can0 = paint(orange, 0.66, ~in_can: #true)
+  def green_can0 = paint(green, 0.66, ~in_can: #true)  
+  def gray_can0 = paint(gray, 0.66, ~in_can: #true)  
+
+import self!paint open
+
+fun secret_path(p :~ Pict, red_can, red_can2, brown_can, options :~ OptMap):
+  let (x0, y0) = Find.top_left(red_can).in(p)
+  let (xl, _) = Find.left(alice).in(p)
+  let (x1, y1) = Find.bottom_right(red_can).in(p)  
+  let (_, y2) = Find.top(red_can2).in(p)
+  let (_, y3) = Find.bottom(brown_can).in(p)
+  let delta = (y1 - y0) / 2
+  let path = draw.Path()
+  path.arc([[xl - delta, y0 - delta], [2*delta, 2*delta]],
+           math.pi, math.pi * 1/2, ~clockwise: #true)
+  path.arc([[x1 - delta, y0 - delta], [2*delta, 2*delta]],
+           math.pi * 1/2, 0, ~clockwise: #true)
+  when options[#'around]
+  | path.arc([[x1 - delta, y1 - delta], [2*delta, 2*delta]],
+             0, -math.pi * 1/2, ~clockwise: #true)
+    path.arc([[x0 - delta, y1 + delta], [2*delta, 2*delta]],
+             math.pi * 1/2, math.pi, ~clockwise: #false)
+    path.arc([[x0 - delta, y2 - 3 * delta], [2*delta, 2*delta]],
+             -math.pi, math.pi * -1/2, ~clockwise: #false)
+    path.arc([[x1 - delta, y2 - delta], [2*delta, 2*delta]],
+             math.pi * 1/2, 0, ~clockwise: #true)
+  path.arc([[x1 - delta, y3 - delta], [2*delta, 2*delta]],
+           0, -math.pi * 1/2, ~clockwise: #true)
+  path.arc([[xl - delta, y3 - delta], [2*delta, 2*delta]],
+           -math.pi * 1/2, -math.pi, ~clockwise: #true)
+  path.close()
+  path
+
+fun overlay_secret_path(p :~ Pict, path, color):
+  overlay(dc(fun(dc :: draw.DC, dx, dy):
+               dc.save()
+               dc.pen := draw.Pen.none
+               dc.brush := draw.Brush(~color: color)
+               dc.path(path, ~dx: dx, ~dy: dy)
+               dc.restore(),
+             ~width: p.width,
+             ~height: p.height),
+          p)
+
+fun paint_slide(options :~ OptMap) :~ OptMap:
+  let hsep = 300
+  let lw = 3
+  let pv = 13
+  let gv = 6
+  let Av = 5
+  let Bv = 4
+  let XAv = (gv ** Av) mod pv
+  let XBv = (gv ** Bv) mod pv
+  let S1 = (XBv ** Av) mod pv
+  let S2 = (XAv ** Bv) mod pv  
+  fun s(n): to_string(n)
+  fun numbers(p, n :~ Pict, side, ~dy = 0) :~ Pict:
+    if options[#'numbers]
+    | let r = rectangle(~around: n.pad(~horiz: 3, ~vert: 7),
+                        ~line: "black",
+                        ~fill: Color("beige") with (alpha = 1)).translate(0, dy)
+      let q :~ Pict:
+        let sep = 8
+        if side == #'right
+        | beside(~sep: sep, p, r)
+        | beside(~sep: sep, r, p)
+      q.refocus(p)
+    | p
+  fun goal(p :~ Pict):
+    rectangle(~around: p.pad(5), ~refocus: p, ~rounded: #'default, ~fill: "gold")
+  let yellow_can = numbers(yellow_can0,
+                           @para{@roman{@pP = @s(pv)} and @roman{@gP = @s(gv)}},
+                           #'right)
+  let red_can = numbers(red_can0,
+                        @para{@roman{@AP = @s(Av)}},
+                        #'left)
+  let red_can2 = red_can.launder()
+  let blue_can = numbers(blue_can0,
+                         @para{@roman{@BP = @s(Bv)}},
+                         #'right)
+  let blue_can2 = blue_can.launder()
+  let brown_can = numbers(brown_can0.launder(),
+                          table(~hsep: 8,
+                                ~vsep: 12,
+                                [[@romanly{@XBP@superscript{@AP} mod @pP}, @roman{=}, blank()],
+                                 [@romanly{@s(XBv)@superscript{@s(Av)} mod @s(pv)}, @roman{=}, @goal(@romanly{@s(S1)})]]),
+                          #'left)
+  let brown_can2 = numbers(brown_can0.launder(),
+                           table(~hsep: 8,
+                                 ~vsep: 12,
+                                 [[@romanly{@XAP@subscript{@AP}@superscript{@BP} mod @pP}, @roman{=}, blank()],
+                                  [@romanly{@s(XAv)@superscript{@s(Bv)} mod @s(pv)}, @roman{=}, @goal(@romanly{@s(S2)})]]),
+                           #'right)
+  let orange_can = numbers(orange_can0,
+                           table(~hsep: 8,
+                                 ~vsep: 12,
+                                 [[@romanly{@gP@superscript{@AP} mod @pP}, @roman{=}, @romanly{@XAP}],
+                                  [@romanly{@s(gv)@superscript{@s(Av)} mod @s(pv)}, @roman{=}, @romanly{@s(XAv)}]]),
+                           #'left,
+                           ~dy: 16)
+  let orange_can2 = numbers(orange_can0.launder(),
+                            @romanly{@XAP = @s(XAv)},
+                            #'right)
+  let green_can = numbers(green_can0,
+                          table(~hsep: 8,
+                                ~vsep: 12,
+                                [[@romanly{@gP@superscript{@BP} mod @pP}, @roman{=}, @romanly{@XBP}],
+                                 [@romanly{@s(gv)@superscript{@s(Bv)} mod @s(pv)}, @roman{=}, @romanly{@s(XBv)}]]),
+                          #'right,
+                          ~dy: 16)
+  let green_can2 = numbers(green_can0.launder(),
+                           @romanly{@XBP = @s(XBv)},
+                           #'left)
+  let shared = @para{Shared secret!}
+  fun pki(p, key, side) :~ Pict:
+    if options[#'pki]
+    | let q :~ Pict:
+        if side == #'right
+        | beside(~sep: 8, p, key)
+        | beside(~sep: 8, key, p)
+      q.refocus(p)
+    | p
+  let p:
+    stack(~sep: 40,
+          if options[#'public]
+          | balloon.pin(~on: yellow_can,
+                        ~at: Find.left(yellow_can),
+                        ~spike: #'e,
+                        if options[#'numbers]
+                        | lines(@para{@pP is a prime number},
+                                @para{@gP is a small integer})
+                        | @para{Public value})
+          | yellow_can,
+          beside(~sep: hsep,
+                 if options[#'private]
+                 | balloon.pin(~on: red_can,
+                               ~at: Find.left(red_can),
+                               ~spike: if options[#'numbers] | #'ne | #'e,
+                               if options[#'numbers]
+                               | @para{Pick any @AP such that @romanly{0 < @AP < @pP}}
+                               | @para{Alice's secret})
+                 | pki(red_can, red_priv, #'right),
+                 if options[#'private]
+                 | balloon.pin(~on: blue_can,
+                               ~at: Find.right(blue_can),
+                               ~spike: if options[#'numbers] | #'nw | #'w,
+                               if options[#'numbers]
+                               | @para{Pick any @BP such that @romanly{0 < @BP < @pP}}
+                               | @para{Bob's secret})
+                 | pki(blue_can, blue_priv, #'left)),
+          beside(~sep: hsep,
+                 pki(orange_can, red_pub, #'right),
+                 pki(green_can, blue_pub, #'left)).ghost(!options[#'mix1]),
+          blank(),
+          beside(~sep: hsep,                   
+                 cond
+                 | options[#'sent]:
+                     balloon.pin(~on: green_can2,
+                                 ~at: Find.right_bottom(green_can2),
+                                 ~spike: #'nw,
+                                 lines(@para{Mixtures go over network,},
+                                       @para{so they're public}))
+                 | options[#'no_unmix]:
+                     balloon.pin(~on: green_can2,
+                                 ~at: Find.bottom(green_can2),
+                                 ~spike: #'n,
+                                 ~sprout: 0.3,
+                                 lines(@para{Infeasible to take @green_can0 and remove @yellow_can0 to get @blue_can0}))
+                 | ~else:
+                     pki(green_can2, blue_pub, #'right),
+                 pki(orange_can2, red_pub, #'left)).ghost(!options[#'send]),
+          beside(~sep: hsep,
+                 red_can2,
+                 blue_can2).ghost(!options[#'mix2]),
+          beside(~sep: hsep,
+                 brown_can,
+                 if options[#'shared]
+                 | balloon.pin(~on: brown_can2,
+                               ~at: Find.bottom_right(brown_can2),
+                               ~spike: #'nw,
+                               ~dy: 0,
+                               shared)
+                 | brown_can2).ghost(!options[#'mix2]))
+  let p:
+    if options[#'shared]
+    | connect(~on: p,
+              Find.bottom_right(brown_can),
+              Find.left(shared),
+              ~line: "gold",
+              ~line_width: 5)
+    | p
+  let p:
+    let sep = 128
+    beside(~sep: sep, beside(~sep: sep, alice, p), bob, ~order: #'back)
+  let p:
+    if options[#'mix1] 
+    | let p:
+        connect(~on: p,
+                Find.bottom(red_can),
+                Find.top(orange_can),
+                ~line_width: lw,
+                ~line: red_act,
+                ~style: #'arrow)
+      let p:
+        connect(~on: p,
+                Find.bottom(blue_can),
+                Find.top(green_can),
+                ~line_width: lw,
+                ~line: blue_act,
+                ~style: #'arrow)
+      let p:
+        connect(~on: p,
+                Find.right(yellow_can, ~dx: 5),
+                Find.right_top(green_can),
+                ~line_width: lw,
+                ~line: blue_act,
+                ~style: #'arrow,
+                ~start_angle: 0,
+                ~end_angle: math.pi * -3/4,
+                ~end_pull: 1,
+                ~order: #'back)
+      let p:
+        connect(~on: p,
+                Find.left(yellow_can, ~dx: -5),
+                Find.left_top(orange_can),
+                ~line_width: lw,
+                ~line: red_act,
+                ~style: #'arrow,
+                ~start_angle: -math.pi,
+                ~end_angle: math.pi * -1/4,
+                ~end_pull: 1,
+                ~order: #'back)
+      p
+    | p
+  let p:
+    if options[#'send]
+    | let p:
+        connect(~on: p,
+                Find.bottom_left(green_can),
+                Find.right_top(green_can2),
+                ~line_width: lw,
+                ~line: blue_act,
+                ~style: #'arrow)
+      let p:
+        connect(~on: p,
+                Find.bottom_right(orange_can),
+                Find.left_top(orange_can2),
+                ~line_width: lw,
+                ~line: red_act,
+                ~style: #'arrow)
+      p
+    | p
+  let p :~ Pict:
+    if options[#'mix2]
+    | let p:
+        connect(~on: p,
+                Find.left(green_can2),
+                Find.left(brown_can),
+                ~line_width: lw,
+                ~line: red_act,
+                ~style: #'arrow,
+                ~start_angle: math.pi,
+                ~end_angle: 0,
+                ~order: #'back)
+      let p:
+        connect(~on: p,
+                Find.right(orange_can2),
+                Find.right(brown_can2),
+                ~line_width: lw,
+                ~line: blue_act,
+                ~style: #'arrow,
+                ~start_angle: 0,
+                ~end_angle: math.pi,
+                ~order: #'back)
+      let p:
+        connect(~on: p,
+                Find.bottom(red_can2),
+                Find.top(brown_can),
+                ~line_width: lw,
+                ~line: red_act,
+                ~style: #'arrow)
+      let p:
+        connect(~on: p,
+                Find.bottom(blue_can2),
+                Find.top(brown_can2),
+                ~line_width: lw,
+                ~line: blue_act,
+                ~style: #'arrow)
+      p
+    | p
+  let p :~ Pict:
+    if options[#'equation]
+    | fun equals(a, b):
+        stack(~sep: 8, a, @roman{=}, b)
+      overlay.bottom(p,
+                     balloon.note(
+                       cond
+                       | options[#'mod_equation_mod]:
+                           equals(@romanly{(@gP@superscript{@BP} mod @pP)@superscript{@AP} mod @pP},
+                                  @romanly{(@gP@superscript{@AP} mod @pP)@superscript{@BP} mod @pP})
+                       | options[#'equation_mod]:
+                           equals(@romanly{@gP@superscript{@BP@AP} mod @pP}, @romanly{@gP@superscript{@AP@BP} mod @pP})
+                       | ~else:
+                           equals(@romanly{@gP@superscript{@BP@AP}}, @romanly{@gP@superscript{@AP@BP}})
+                     ))                     
+    | p
+
+  let left_path:
+    secret_path(p, red_can, red_can2, brown_can, options)
+  let right_path:
+    let path = draw.Path()
+    path.append(left_path)
+    path.scale(-1, 1)
+    path.translate(p.width, 0)
+    path
+  let p:
+    overlay_secret_path(p, left_path, red_bg)
+  let p:
+    overlay_secret_path(p, right_path, blue_bg)
+  let p:
+    if options[#'cite]
+    | stack.left(~sep: 64,
+                 p,
+                 @tt{https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange}.scale(0.5).colorize("blue"))
+        .refocus(p)
+    | p
+  slide(~title: "Diffie-Hellman Key Exchange" +& (if options[#'pki] | " as Public Key Infrastructure" | ""),
+        p)
+  options
+
+fun paint_slides(options :~ OptMap) :~ OptMap:
+  let options = paint_slide(options)
+  let aside_options = paint_slide( options ++ { #'public })
+  let aside_options = paint_slide( aside_options ++ { #'private })
+  let options = paint_slide(options ++ { #'mix1 })
+  let options = paint_slide(options ++ { #'send })
+  let options = options ++ { #'around }
+  when !options[#'numbers]
+  | let aside_options = paint_slide(options ++ { #'sent })
+    let aside_options = paint_slide(options ++ { #'no_unmix })
+    #void
+  let options = paint_slide(options
+                              ++ { #'mix2 }
+                              ++ (if !options[#'numbers] | { #'cite } | {}))
+  options
+
+let options = paint_slides({})
+let options = paint_slide(options ++ { #'shared })
+
+let options = paint_slides({ #'numbers: #true, #'around: #true })
+let options = paint_slide(options ++ { #'equation })
+let options = paint_slide(options ++ { #'equation_mod })
+let options = paint_slide(options ++ { #'mod_equation_mod })
+
+let dh_overview_options = ({} :~ OptMap) ++ { #'mix1, #'send, #'mix2, #'around }
+
+slide(~title: "Discrete Logarithm Problem",
+      slide.align(
+        @para{For a large @pP, @AP, and @BP, it's infeasible to get from},
+        slide.center(@romanly{@XAP = @gP@superscript{@AP} mod @pP}.pad(~top: 4)),
+        slide.center(@romanly{@XBP = @gP@superscript{@BP} mod @pP}.pad(~top: 4)),
+        @para{back to @AP or @BP},
+        slide.next,
+        blank(32),
+        @para{``Large'' in practice means 1024 to 8192 bits for @pP, @AP, and @BP},
+        slide.next,
+        blank(32),
+        block:
+          let quickly = @t{quickly}
+          let quickly = balloon.pin(~on: quickly,
+                                    ~at: Find.bottom(quickly),
+                                    ~spike: #'ne,
+                                    @lines(
+                                      @romanly{x@superscript{2} mod @pP = (x mod @pP)@superscript{2} mod @pP},
+                                      @para{⇒ divide and conquer}
+                                    ).delay(1))
+          lines(para(@{At that scale, @romanly{@gP@superscript{@AP}}, @romanly{@gP@superscript{@BP}},},
+                     @{and @romanly{@gP@superscript{@AP@BP}} do not remotely fit in in the universe,}),
+                @para{but the values @roman{mod @pP} are small and can be computed @quickly})
+      ))
+
+slide(~title: "Internet Key Exchange (IKE)",
+      @para{RFC 3526's 2048-bit @pP with @romanly{@gP = 2}:},
+      blank(),
+      @verbatim{
+      FFFFFFFF FFFFFFFF C90FDAA2 2168C234 C4C6628B 80DC1CD1
+      29024E08 8A67CC74 020BBEA6 3B139B22 514A0879 8E3404DD
+      EF9519B3 CD3A431B 302B0A6D F25F1437 4FE1356D 6D51C245
+      E485B576 625E7EC6 F44C42E9 A637ED6B 0BFF5CB6 F406B7ED
+      EE386BFB 5A899FA5 AE9F2411 7C4B1FE6 49286651 ECE45B3D
+      C2007CB8 A163BF05 98DA4836 1C55D39A 69163FA8 FD24CF5F
+      83655D23 DCA3AD96 1C62F356 208552BB 9ED52907 7096966D
+      670C354E 4ABC9804 F1746C08 CA18217C 32905E46 2E36CE3B
+      E39E772C 180E8603 9B2783A2 EC07A28F B5C55DF0 6F4C52C9
+      DE2BCBF6 95581718 3995497C EA956AE5 15D22618 98FA0510
+      15728E5A 8AACAA68 FFFFFFFF FFFFFFFF
+      })
+
+fun try_dh():
+  def IKE_group_14:
+    ["FFFFFFFF", "FFFFFFFF", "C90FDAA2", "2168C234", "C4C6628B",
+     "80DC1CD1", "29024E08", "8A67CC74", "020BBEA6", "3B139B22",
+     "514A0879", "8E3404DD", "EF9519B3", "CD3A431B", "302B0A6D",
+     "F25F1437", "4FE1356D", "6D51C245", "E485B576", "625E7EC6",
+     "F44C42E9", "A637ED6B", "0BFF5CB6", "F406B7ED", "EE386BFB",
+     "5A899FA5", "AE9F2411", "7C4B1FE6", "49286651", "ECE45B3D",
+     "C2007CB8", "A163BF05", "98DA4836", "1C55D39A", "69163FA8",
+     "FD24CF5F", "83655D23", "DCA3AD96", "1C62F356", "208552BB",
+     "9ED52907", "7096966D", "670C354E", "4ABC9804", "F1746C08",
+     "CA18217C", "32905E46", "2E36CE3B", "E39E772C", "180E8603",
+     "9B2783A2", "EC07A28F", "B5C55DF0", "6F4C52C9", "DE2BCBF6",
+     "95581718", "3995497C", "EA956AE5", "15D22618", "98FA0510",
+     "15728E5A", "8AACAA68", "FFFFFFFF", "FFFFFFFF"]
+
+  def P = rkt.#{string->number}(String.append(& IKE_group_14), 16)
+
+  def secret_A = math.random(P-1)+1
+  def secret_B = math.random(P-1)+1
+
+  def mod_secret_A = expt_mod(2, secret_A, P)
+  def mod_secret_B = expt_mod(2, secret_B, P)
+
+  def x_A = expt_mod(mod_secret_A, secret_B, P)
+  def x_B = expt_mod(mod_secret_B, secret_A, P)
+
+  check x_A ~is x_B
+
+fun try_rsa():
+  let n_bits = 1024
+  let p = random_likely_prime(n_bits)
+  let q = random_likely_prime(n_bits)
+  let N = p*q
+  let lam = (p-1) * (q-1)
+  let e = random_relatively_prime(lam)
+  let d = modular_inverse(e, lam)
+
+  check math.gcd(e, lam) ~is 1
+  check (e * d) mod lam ~is 1
+
+  let public_key = [e, N]
+  let private_key = [d, N]
+
+  let message = #"Hello, World!"
+  check message.length() * 8 < n_bits ~is #true
+
+  fun message_to_int(bstr :: Bytes):
+    if bstr.length() == 1
+    | bstr[0]
+    | let half = bstr.length() div 2    
+      let lo = message_to_int(bstr.subbytes(0, half))
+      let hi = message_to_int(bstr.subbytes(half))
+      lo + (hi bits.(<<) (8 * half))
+
+  fun int_to_message(n :: NonnegInt):
+    let bstr = Bytes.make((bits.length(n) + 7) div 8)
+    recur loop (start = 0, end = bstr.length(), n = n):
+      if start == end-1
+      | bstr[start] := n bits.and 0xFF
+      | let mid = (start + end) div 2
+        loop(start, mid, n)
+        loop(mid, end, n bits.(>>) ((mid - start) * 8))
+    bstr
+
+  def ciphertext = expt_mod(message_to_int(message), d, N)
+  int_to_message(expt_mod(ciphertext, e, N))
+
+fun to_left(p :~ Pict) :~ Pict:
+  let q = p.pad(~left: 32)
+  connect(~on: q,
+          Find.left(p),
+          Find.left(q),
+          ~style: #'arrow,
+          ~line_width: 5,
+          ~line: "blue")
+
+fun to_right(p :~ Pict) :~ Pict:
+  let q = p.pad(~right: 32)
+  connect(~on: q,
+          Find.right(p),
+          Find.right(q),
+          ~style: #'arrow,
+          ~line_width: 5,
+          ~line: "blue")
+
+fun alice_and_bob_pki(options :~ OptMap) :~ Pict:
+  let a_keys = stack(red_priv, red_pub)
+  let b_keys = stack(blue_priv, blue_pub)
+  let p:
+    beside(~sep: 300,
+           stack(beside(~sep: 16, alice, to_right(red_pub).ghost(!options[#'send1])).refocus(alice),
+                 beside(a_keys, blue_pub.ghost(!options[#'share2])).refocus(a_keys)),
+           stack(beside(~sep: 16, to_left(blue_pub).ghost(!options[#'send2]), bob).refocus(bob),
+                 beside(red_pub.ghost(!options[#'share1]), b_keys).refocus(b_keys)))
+  connect(~on: p,
+          Find.right(alice, ~dx: 5),
+          Find.left(bob, ~dx: -5),
+          ~line_width: 3,
+          ~order: #'back)
+
+fun pki_slide(options :~ OptMap) :~ OptMap:
+  let idea:
+    @lines(@para{General idea is that secrets come in pairs:}
+           @para{@spc private @no_priv @spc and  @spc public @no_pub})
+  let idea:
+    if options[#'decrypt]
+    | balloon.pin(~on: idea,
+                  ~at: Find.bottom(no_priv),
+                  ~spike: #'n,
+                  @para{decrypt},
+                  ~fill: "lightblue")
+    | idea
+  let idea:
+    if options[#'encrypt]
+    | balloon.pin(~on: idea,
+                  ~at: Find.bottom(no_pub),
+                  ~spike: #'n,
+                  @para{encrypt},
+                  ~fill: "lightblue")
+    | idea
+  slide(~title: public_key_title,
+        idea,
+        blank(64),
+        alice_and_bob_pki(options)
+        )
+  options
+
+let options = pki_slide({})
+let options = pki_slide(options ++ { #'decrypt })
+let options = pki_slide(options ++ { #'encrypt })
+let send_options = pki_slide(options ++ { #'send1 })
+let options = pki_slide(options ++ { #'share1 })
+let send_options = pki_slide(options ++ { #'send2 })
+let options = pki_slide(options ++ { #'share2 })
+
+let options = paint_slide(dh_overview_options ++ { #'pki })
+
+def arrow:
+  let p = blank(~width: 64)
+  connect(~on: p,
+          Find.left(p),
+          Find.right(p),
+          ~style: #'arrow,
+          ~arrow_size: 32,
+          ~line_width: 10,
+          ~line: "forestgreen")
+
+fun dh_plus(priv, pub, key):
+  beside(~sep: 32,
+         stack(~sep:16, priv, @t{+}, pub),
+         arrow,
+         key)
+
+block:
+  let pt = plaintext(@t{plaintext})
+  let ct = ciphertext(@t{ciphertext})
+  fun mode(label, p, ~horiz: horiz = #'left):
+    [overlay(~horiz: horiz, label, blank(~width: 800)),
+     p]
+  slide(~title: public_key_title,
+        alice_and_bob_pki(({} :~ OptMap) ++ { #'share1, #'share2 }),
+        slide.next,
+        blank(32),
+        slide.alts(
+          mode(@defterm{Diffie-Hellman},
+               beside(~sep: 200,
+                      dh_plus(red_priv, blue_pub, key),
+                      dh_plus(blue_priv, red_pub, key))),
+          mode(@para{@defterm{RSA} to Bob},
+               beside(~sep: 200,
+                      dh_plus(blue_pub, pt, ct),
+                      dh_plus(ct, blue_priv, pt))),
+          mode(@para{@defterm{RSA} to Alice},
+               ~horiz: #'right,
+               beside(~sep: 200,
+                      dh_plus(ct, red_priv, pt),
+                      dh_plus(red_pub, pt, ct))),
+          block:
+            let p:
+              slide_pict(
+                mode(@para{@defterm{RSA} @italic{signing} by Alice},
+                     beside(~sep: 200,
+                            dh_plus(red_priv, pt, ct),
+                            dh_plus(ct, red_pub, pt)))
+              )
+            switch(p,
+                   stack(~horiz: #'right,
+                         balloon.note(lines(@para{RSA public and private keys each},
+                                            @para{work in both directions, so they can be},
+                                            @para{used for both @defterm{confidentiality}},
+                                            @para{and @defterm{authentication}}),
+                                      ~fill: "lightblue"),
+                         p)
+                     .refocus(p))          
+        ))
+
+fun rsa_slide(options :~ OptMap) :~ OptMap:
+  let pt_i = plaintext(@t{plaintext@subscript{i}}).pad(~right: 2)
+  let ct_i = ciphertext(@t{ciphertext@subscript{i}}).pad(~right: 2)
+  let k = @roman{k}
+  slide(~title: "RSA",
+        slide.align(
+          @para{Alice picks},
+          block:
+            let p = @t{prime}
+            let p:
+              if options[#'prime_easy]
+              | balloon.pin(~on: p,
+                            ~at: Find.top(p),
+                            ~spike: #'sw,
+                            ~sprout: 0.2,
+                            lines(@para{Easy to generate with high probability},
+                                  @para{due to density of prime numbers and},
+                                  @para{a quick ``probably prime'' test}))
+              | p
+            let k:
+              if options[#'k_bits]
+              | balloon.pin(~on: k,
+                            ~at: Find.top(k),
+                            ~spike: #'sw,
+                            ~sprout: 0.2,
+                            lines(@para{Something like 1024 to 8192}))
+              | k
+            @item{@pP and @qP as large, random, @(k)-bit @p numbers},
+          block:
+            let p = @t{relatively prime}
+            let p:
+              if options[#'relatively_prime_easy]
+              | balloon.pin(~on: p,
+                            ~at: Find.bottom(p),
+                            ~spike: #'n,
+                            lines(@para{Even easier: arbitrary number plus},
+                                  @para{a check that GCD is @roman{1}}))
+              | p
+            @item{@eP as @p to @romanly{(@pP-1) × (@qP-1)}},
+          blank(),
+          block:
+            let p:
+              @para{Find @dP so that @romanly{(@eP × @dP) mod ((@pP-1) × (@qP-1)) = 1}}.ghost(!options[#'derive])
+            if options[#'mod_inverse]
+            | balloon.pin(~on: p,
+                          ~at: Find.bottom(p),
+                          ~spike: #'nw,
+                          @para{Modular inverse using extended Euclidean algorithm})
+            | p,
+          block:
+            let p:
+              @para{Define @romanly{@NP = @pP × @qP}}.ghost(!options[#'derive])
+            if options[#'factoring]
+            | balloon.pin(~on: p,
+                          ~at: Find.bottom(p),
+                          ~spike: #'nw,
+                          @para{Factoring out @pP and @qP is infeasible})
+            | p,
+          blank(),
+          beside(~sep: 128,
+                 stack(~sep: 32,
+                       @romanly{@red_priv @AP = ⟨@dP, @NP⟩},
+                       @romanly{@red_pub @XAP = ⟨@eP, @NP⟩}).ghost(!options[#'keys]),
+                 stack(~sep: 32,
+                       block:
+                         let p: @roman{@pt_i@superscript{@dP} mod @NP = @ct_i}
+                         if options[#'bits]
+                         | balloon.pin(~on: p,
+                                       ~at: Find.top(pt_i),
+                                       ~spike: #'s,
+                                       ~sprout: 0.5,
+                                       @para{@(k)-bit chunk of message})
+                         | p,
+                       @roman{@ct_i@superscript{@eP} mod @NP = @pt_i}).ghost(!options[#'use]))
+        ))
+  options
+
+let options = rsa_slide({})
+let aside_options = rsa_slide(options ++ { #'k_bits })
+let aside_options = rsa_slide(options ++ { #'prime_easy })
+let aside_options = rsa_slide(options ++ { #'relatively_prime_easy })
+let options = rsa_slide(options ++ { #'derive })
+let aside_options = rsa_slide(options ++ { #'mod_inverse })
+let aside_options = rsa_slide(options ++ { #'factoring })
+let options = rsa_slide(options ++ { #'keys })
+let options = rsa_slide(options ++ { #'use })
+let options = rsa_slide(options ++ { #'bits })
+
+slide(~title: "RSA versus a Block Cipher",
+      slide.align(
+        @para{Compared to AES},
+        @item{RSA is 1000x slower},
+        @item{RSA has 10x larger keys (e.g., 2048 bits vs. 192 bits)},
+        @item{RSA is more complex},
+        slide.next,
+        blank(),
+        @para{... but RSA requires no initial shared secret}
+      ))
+
+slide(~title: "Using RSA",
+      slide.align(
+        @para{Generate a key pair:},
+        @tt{ openssl genrsa -out private.pem 1024},
+        @tt{ openssl rsa -pubout -in private.pem > public.pem},
+        blank(),
+        @para{Sign a message:},
+        @tt{ openssl rsautl -sign -inkey private.pem -in a.txt > sig},
+        blank(),
+        @para{Verify a signed message:},
+        @tt{ openssl rsautl -verify -pubin -inkey public.pem -in sig}
+      ))
+
+fun baseless(p :~ Pict):
+  let r = blank(~width: p.width, ~height: p.height)
+  overlay(r, p).refocus(r)
+
+slide(~title: "Summary",
+      slide.align(
+        @para{@defterm{Public key cryptography} uses public information to bootstrap a private conversation},
+        blank(),
+        @para{@defterm{Diffie-Hellman}}.pad(~left: -32),
+        @para{A way to arrive at a shared secret @key},
+        @para{Shared @key can then be used for a stream cipher, for example},
+        @para{Relies on the difficulty of the @defterm{discrete logarithm problem}},
+        blank(),      
+        @para{@defterm{RSA}}.pad(~left: -32),
+        beside.topline(@para{Published public key @baseless(red_pub) enables},
+                       @t{ },
+                       @lines(@para{@defterm{confidential} message to owner,}
+                              @para{@defterm{authentication} by owner})),
+        @para{Relies on the difficulty of @defterm{prime factorization}}
+      ))

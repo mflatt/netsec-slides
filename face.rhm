@@ -1,0 +1,19 @@
+#lang rhombus/static/and_meta
+import:
+  pict open
+  rhombus/runtime_path
+  rhombus/measure
+
+export:
+  alice
+  bob
+  mallory
+  trudy
+
+runtime_path.def faces_png: "images/faces.png"
+def faces: bitmap(faces_png)
+
+def alice = faces.pad(~right: -704, ~top: -726).clip()
+def bob = faces.pad(~left: -704, ~top: -726).clip()
+def mallory = faces.pad(~left: -704, ~bottom: -726).clip()
+def trudy = faces.pad(~right: -704, ~bottom: -726).clip()

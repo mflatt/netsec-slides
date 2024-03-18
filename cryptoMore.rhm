@@ -1,0 +1,464 @@
+#lang rhombus/static/and_meta
+import:
+  rhombus/runtime_path
+  slideshow open
+  "common.rhm" open
+  "crypto.rhm"!key open
+  "curve.rhm" open
+  
+runtime_path.def ec_add_png: "images/ec_add.png"
+runtime_path.def ec_addn_png: "images/ec_addn.png"
+
+runtime_path.def tux_png: "images/tux.png"
+runtime_path.def tux_unchained_png: "images/tux_unchained.png"
+runtime_path.def tux_chained_png: "images/tux_chained.png"
+
+fun public_key(m, n, k):
+  slide_pict(
+    ~horiz: #'left,
+    ~sep: 32,
+    @para{Two public-key algorithms:}.pad(~left: -32),
+    slide.right(@para{both with relatively large key sizes!}.colorize("blue").alpha(m)),
+    @para{@defterm{Diffie-Hellman}}.pad(~left: -32),
+    @para{Relies on the difficulty of the @defterm{discrete logarithm problem}}.alpha(n),
+    @para{@defterm{RSA}}.pad(~left: -32),
+    @para{Relies on the difficulty of @defterm{prime factorization}}.alpha(n),
+    blank(),
+    @para{In part, keys must be large because we know a lot about these problems}.alpha(k),
+  )
+
+slide(~title: "Public Key Cryptography",
+      slide.alts(
+        nonarchival(animate(fun (m): public_key(m, 0, 0))),
+        nonarchival(animate(fun (n): public_key(1, n, 0))),
+        nonarchival(animate(fun (k): public_key(1, 1, k))),
+        public_key(1, 1, 1)
+      ))
+
+def espc = @tt{}
+
+slide(~title: "Elliptic Curve Cryptography",
+      slide.align(
+        @para{An elliptic curve is defined by a formula},
+        slide.center(@romanly{@italic{y}@superscript{2} @espc = @espc @italic{x}@superscript{3} + A@italic{x} + B}),
+        @para{or sometimes},
+        slide.center(@romanly{@italic{y}@superscript{2} @espc = @espc @italic{x}@superscript{3} + A@italic{x}@superscript{2} + B@italic{x} + C}),
+        @para{or even more generally},
+        slide.center(@romanly{@italic{y}@superscript{2} + D@italic{y}@italic{x} @espc = @espc @italic{x}@superscript{3} + A@italic{x}@superscript{2} + B@italic{x} + C})
+      ))
+
+def ec_add:
+  let p = bitmap(ec_add_png).scale(0.5)
+  stack(~horiz: #'left,
+        p,
+        @para(~width: 2000){Martin Kleppmann, ``Implementing Curve25519/X25519: A Tutorial on Elliptic Curve Cryptography''}
+          .scale(0.5).colorize("blue"))
+    .refocus(p)
+def ec_addn = bitmap(ec_addn_png).scale(0.35)
+
+fun curve_slide(a, b):
+  fun sign(n): if n < 0 | "-" | "+"
+  fun factor(n): if math.abs(n) == 1 | "" | to_string(math.abs(a))
+  slide(~title: "Elliptic Curves",
+        @romanly{@italic{y}@superscript{2} @espc = @espc @italic{x}@superscript{3} @sign(a) @factor(a)@italic{x} @sign(b) @to_string(math.abs(b))},
+        curve_pict(a, b, ~axes: #true).colorize("blue"))
+
+curve_slide(-1, 3)
+curve_slide(-2, 1)
+curve_slide(-2, 2)
+
+fun pointy(c): @(@roman(c).colorize("purple"))
+fun secret(s): roman(s).colorize("forestgreen")
+fun act1(s): roman(s).colorize("blue")
+fun act2(s): roman(s).colorize("firebrick")
+
+slide(~title: @titlely{@pointy{P} and @pointy{Q} to @pointy{R} on an Elliptic Curve},
+      slide.alts(
+        ec_add,
+        overlay.right_bottom(
+          ec_add,
+          balloon.note(lines(@para{``Multiply'' @pointy{P} and @pointy{Q} by finding @pointy{R},},
+                             @para{ then flipping over x-axis}))
+            .pad(~bottom: 16)
+        )
+                                          
+      ))
+
+slide(~title: @titlely{Power of @pointy{P} on an Elliptic Curve},
+      blank(),
+      beside(ec_addn.pad(~bottom: -ec_addn.height/2).clip(),
+             ec_addn.pad(~top: -ec_addn.height/2).clip()),
+      slide.next,
+      blank(),
+      slide.alts(
+        lines(
+          @para{Pictures show intuition with the field ℝ of real numbers},
+          @para{To actually compute: use a discrete, finite field with modulo integers}
+        ),        
+        lines(
+          @para{Using the finite field, taking @secret{N} steps to get @pointy{P@superscript{@secret{N}}} is fast,},
+          @para{but reversing from @pointy{P@superscript{@secret{N}}} back to @secret{N} is infeasible}
+        )
+      ))
+
+slide(~title: "Elliptic Curve Diffie-Hellman (ECDH)",
+      @para{Alice's secret key is @act1{a}, public key is @roman{@act1{A} = @pointy{P@superscript{@act1{a}}}}},
+      @para{Bob's secret key is @act2{b}, public key is @roman{@act2{B} = @pointy{P@superscript{@act2{b}}}}},
+      slide.next,
+      blank(32),
+      stack(
+        ~sep: 16,
+        @para{@pointy{P} followed by @act1{a} steps followed by @act2{b} steps},
+        @t{=},
+        @para{@pointy{P} followed by @act2{b} steps followed by @act1{a} steps}
+      ),
+      slide.next,
+      blank(32),
+      stack(
+        ~sep: 16,
+        @para{@act1{A} followed by @act2{b} steps},
+        @t{=},
+        @para{@act2{B} followed by @act1{a} steps}
+      ))
+
+fun tiny(s): @tt(s).scale(0.6)
+
+slide(~title: "Some Standard Curves",
+      table(~vsep: 64,
+            [[@t{prime192v1},
+              @romanly{@italic{y}@superscript{2} @espc = @espc @italic{x}@superscript{3} + A@italic{x} + B},
+              lines(@romanly{A = @tiny{0xfffffffffffffffffffffffffffffffefffffffffffffffc}},
+                    @romanly{B = @tiny{0x64210519e59c80e70fa7e9ab72243049feb8deecc146b9b1}})],
+             [@t{sect193r2},
+              @romanly{@italic{y}@superscript{2} + @italic{y}@italic{x} @espc = @espc @italic{x}@superscript{3} + A@italic{x}@superscript{2} + B},
+              lines(@romanly{A = @tiny{0x0163f35a5137c2ce3ea6ed8667190b0bc43ecd69977702709b}},
+                    @romanly{B = @tiny{0x00c9bb9e8927d4d64c377e2ab2856a5b16e3efb7f61d4316ae}})],
+             [@t{K-283},
+              @romanly{@italic{y}@superscript{2} + @italic{y}@italic{x} @espc = @espc @italic{x}@superscript{3} + B},
+              @romanly{B = 1}]]))
+
+slide(~title: "X25519",
+      @para(@{@defterm{Curve25519} is defined as},
+            blank(~width: 32),
+            @romanly{@italic{y}@superscript{2} @espc = @espc @italic{x}@superscript{3} + 486662@italic{x}@superscript{2} + @italic{x}}),
+      @para{@defterm{X25519} uses that curve with @pointy{P} at @romanly{@italic{x} = 9}},
+      blank(64),
+      @para{256-bit keys},
+      @para{20× faster than 2048-bit RSA},
+      blank(64),
+      @para{See @tt{x25519.c}})
+
+module ~early utils ~lang rhombus/static:
+  import:
+    slideshow open
+    "common.rhm" open    
+    "crypto.rhm"!key open
+  export:
+    all_defined
+    
+  def xor = xor_op
+  def aes = rectangle(~around: @t{Enc}.pad(5), ~line: alg_color, ~fill: alg_box_color)
+  def mul = rectangle(~around: @t{Mix}.pad(5), ~line: alg_color, ~fill: alg_box_color)
+  def iv = ciphertext(@t{init vector})
+  def auth_info = ciphertext(@t{auth info})
+  def inc = rectangle(~around: @t{inc}.pad(5), ~line: "forestgreen", ~fill: "lightgreen")
+  def mac = ciphertext(@t{MAC})
+
+  fun make_pt(i): plaintext(@t{plaintext@subscript{@roman{@i}}})
+  fun make_ct(i): ciphertext(@t{ciphertext@subscript{@roman{@i}}})
+  fun make_ctr(i): rectangle(~around: @t{counter@subscript{@roman{@i}}}.pad(5), ~line: "blue", ~fill: "lightblue")
+
+  def lw = 3
+  fun link(p, a, b) :~ Pict: connect(~on: p, a, b, ~line_width: lw, ~style: #'arrow)
+
+  fun etc(p, ~dy = 0):
+    beside(~sep: 128, p, @t{...}.translate(0, dy)).refocus(p)
+
+import self!utils open
+
+module ~early make_stacks ~lang rhombus/static:
+  import:
+    slideshow open
+    "common.rhm" open
+    "crypto.rhm"!key open
+    parent!utils open
+
+  export:
+    make_stacks
+    
+  fun make_stacks(i, options :~ OptMap = {}):
+    let pt = make_pt(i)
+    let ct = make_ct(i)
+    let xor = xor.launder()
+    let aes:
+      if options[#'key]
+      | let key = (if options[#'key] is_a Pict
+                   | options[#'key]
+                   | key)
+        let p = beside(~sep: 32, key, aes)
+        let p = link(p, Find.right(key, ~dx: 5), Find.left(aes))
+        p.refocus(aes)
+      | aes
+  
+    let seq = stack(~sep: 32, pt, aes, ct)
+    let xor_seq = stack(~sep: 32, pt, xor, aes, ct)
+    let seq = link(link(seq, Find.bottom(pt), Find.top(aes)), Find.bottom(aes), Find.top(ct))
+    let xor_seq = link(link(xor_seq, Find.bottom(pt), Find.top(xor)), Find.bottom(xor), Find.top(aes))
+    let xor_seq = link(xor_seq, Find.bottom(aes), Find.top(ct))
+
+    { #'pt: pt, #'ct: ct, #'xor: xor,
+      #'ecb: seq,
+      #'cbc: xor_seq }
+
+import self!make_stacks open
+
+block:
+  let { #'ecb: seq, #'cbc: xor_seq, #'pt: pt, #'ct: ct, #'xor: xor } = make_stacks("i")
+  let xor_seq:
+    connect(~on: xor_seq,
+            Find.left(xor, ~dx: -128),
+            Find.left(xor),
+            ~line_width: lw,
+            ~style: #'arrow)
+  let xor_seq :~ Pict:
+    let (x, y) = Find.right(xor).in(xor_seq)
+    connect(~on: xor_seq,
+            Find.right(ct),
+            Find.abs(xor_seq.width + 32, y),
+            ~line_width: lw,
+            ~style: #'arrow,
+            ~start_angle: 0,
+            ~end_angle: 0)
+  fun label(p, l, diagram :~ Pict):
+    stack(~sep: 16, p, t(l), overlay(diagram, xor_seq.ghost()).scale(0.75))
+  slide(~title: "Block Cipher Mode of Operation",
+        @para{Recall that we need use a block cipher with a @defterm{mode of operation}},
+        blank(),
+        beside(~sep: 128,
+               ~vert: #'top,
+               label(bitmap(tux_png), "original", pt),
+               label(bitmap(tux_unchained_png), "AES", seq),
+               label(bitmap(tux_chained_png), "AES plus chaining", xor_seq)))
+
+fun ecb_slide(options :~ OptMap) :~ OptMap:
+  fun make(i):
+    let { #'ecb: seq } = make_stacks(i, options)
+    seq
+  slide(~title: "Electronic Cookbook",
+        ~layout: #'top,
+        para(@{@defterm{Electronic Cookbook (ECB)} refers to using a block cipher separately on each block},
+             @{(i.e., naively)}),
+        blank(64),
+        etc(beside(~sep: 128,
+                   make("0"),
+                   make("1"),
+                   make("2"))))
+  options
+
+let options = ecb_slide({})
+let options = ecb_slide(options ++ { #'key })
+
+module ~early cbc ~lang rhombus/static:
+  import:
+    slideshow open
+    "common.rhm" open
+    parent!utils open
+    parent!make_stacks open
+
+  export:
+    cipher_block_chaining
+
+  fun cipher_block_chaining(options :~ OptMap) :~ Pict:
+    let { #'cbc: seq0, #'ct: ct0, #'xor: xor0 } = make_stacks("0", options)
+    let { #'cbc: seq1, #'ct: ct1, #'xor: xor1 } = make_stacks("1", options)
+    let { #'cbc: seq2, #'ct: ct2, #'xor: xor2 } = make_stacks("2", options)
+    fun chain(p, ct, xor) :~ Pict:
+      connect(~on: p,
+              Find.right(ct),
+              Find.left(xor),
+              ~line_width: lw,
+              ~style: #'arrow,
+              ~start_angle: 0,
+              ~end_angle: 0,
+              ~end_pull: options[#'key] && 0.8)
+    let p = etc(beside(~sep: 128,
+                       seq0,
+                       seq1,
+                       seq2))
+    let p:
+      let (x, y) = Find.left(xor0).in(p)
+      beside.top(~sep: 64,
+                 iv.pad(~top: y - iv.height/2),
+                 p)
+        .refocus(p)
+    let p = chain(p, iv, xor0)
+    let p = chain(p, ct0, xor1)
+    let p = chain(p, ct1, xor2)
+    let p :~ Pict:
+      let (x, y) = Find.right(xor2).in(p)
+      connect(~on: p,
+              Find.right(ct2),
+              Find.abs(p.width + 128, y),
+              ~line_width: lw,
+              ~style: #'arrow,
+              ~start_angle: 0,
+              ~end_angle: 0)
+    p
+
+import self!cbc open
+
+slide(~title: "Cipher Block Chaining",
+      ~layout: #'top,
+      para(@{@defterm{Cipher Block Chaining (CBC)} adds each previous ciphertext to plaintext},
+           @{before encoding}),
+      blank(64),
+      cipher_block_chaining({}))
+
+module ~early counter_like ~lang rhombus/static:
+  import:
+    pict open
+    "common.rhm" open
+    "crypto.rhm"!key open
+    parent!utils open
+
+  export:
+    counter_like_pict
+
+  fun counter_like_pict(options :~ OptMap) :~ Pict:
+    fun mk(i):
+      let pt = make_pt(i)
+      let ct = make_ct(i)
+      let aes = aes.launder()
+      let pt_xor = beside(~sep: 32, pt, xor).refocus(xor)
+      let inc = inc.launder()
+      let ctr = make_ctr(i)
+      let inc_ctr = link(beside(~sep: 32, inc, ctr).refocus(ctr),
+                         Find.right(inc),
+                         Find.left(ctr))
+      let inc_ctr = inc_ctr.ghost(i == "0" || !options[#'counter])
+      let iv_inc = overlay(iv.ghost(i != "0"), inc_ctr)
+      let mul = mul.launder().ghost(!options[#'mac])
+      let p = stack(~sep: 32, iv_inc, aes, pt_xor, ct, mul)
+      let p = link(p, Find.right(pt), Find.left(xor))
+      let p = link(p, Find.bottom(aes), Find.top(xor))
+      let p = link(p, Find.bottom(xor), Find.top(ct))
+      let p: if options[#'mac] && (!options[#'ct0_mac] || i != "0")
+             | link(p, Find.bottom(ct), Find.top(mul))
+             | p      
+      { #'ofb: p, #'iv: iv, #'inc: inc, #'ctr: ctr, #'aes: aes, #'mul: mul, #'ct: ct }
+    let { #'ofb: ofb0, #'aes: aes0, #'iv: iv :~ Pict, #'mul: mul0, #'ct: ct0 } = mk("0")
+    let { #'ofb: ofb1, #'aes: aes1, #'inc: inc1, #'ctr: ctr1, #'mul: mul1 } = mk("1")
+    let { #'ofb: ofb2, #'aes: aes2, #'inc: inc2, #'ctr: ctr2, #'mul: mul2 } = mk("2")
+    let p = etc(beside(~sep: 128, ofb0, ofb1, ofb2), ~dy: -64)
+    let p = link(p, Find.bottom(iv), Find.top(aes0))
+    let aes3 = aes.ghost()
+    let iv_g = iv.launder()
+    let p = beside.top(~sep: 32, p, stack(~sep: 32, iv_g, aes3).ghost()).refocus(p)
+    let p:
+      if !options[#'counter]
+      | fun next(p, aes0, aes1, pull = #false):
+          connect(~on: p,
+                  Find.bottom(aes0, ~dy: 8),
+                  Find.top(aes1),
+                  ~line_width: lw,
+                  ~style: #'arrow,
+                  ~start_angle: 0,
+                  ~start_pull: pull,
+                  ~end_angle: -pi/2)
+        let p = next(p, aes0, aes1)
+        let p = next(p, aes1, aes2)
+        let p = next(p, aes2, aes3, 0.5)
+        p
+      | let p = link(p, Find.bottom(ctr1), Find.top(aes1))
+        let p = link(p, Find.bottom(ctr2), Find.top(aes2))
+        let p = link(p, Find.right(iv), Find.left(inc1))
+        let p = link(p, Find.right(ctr1), Find.left(inc2))
+        let p = link(p, Find.right(ctr2), Find.left(iv_g))
+        if !options[#'mac]
+        | p
+        | let p = link(p, Find.right(mul0), Find.left(mul1))
+          let p = link(p, Find.right(mul1), Find.left(mul2))
+          let lens = plaintext(@t{length}).ghost(!options[#'len_mac])
+          let muly = mul.launder().ghost(!options[#'len_mac])
+          let mulx = mul.launder()
+          let muls = stack(~sep: 32, lens, muly, mulx).ghost(!options[#'ct0_mac])
+          let ai_g = overlay.right_bottom(auth_info.ghost(), muls).refocus(auth_info)
+          let p = beside.bottom(~sep: 32, auth_info, p, ai_g, mac).refocus(p)
+          let p = link(p, Find.right(auth_info), Find.left(mul0))
+          let p = link(p, Find.right(mul2), Find.left(ai_g))
+          let p = link(p, Find.right(ai_g), Find.left(mac))
+          let p:
+            if options[#'ct0_mac]
+            | let p = connect(~on: p,
+                              Find.left(ct0),
+                              Find.left(auth_info, ~dx: -32),
+                              ~start_angle: pi,
+                              ~end_angle: -pi/2,
+                              ~line_width: lw)
+              let p = connect(~on: p,
+                              Find.left(auth_info, ~dx: -32),
+                              Find.bottom(auth_info, ~dy: 32),
+                              ~start_angle: -pi/2,
+                              ~end_angle: 0,
+                              ~line_width: lw)
+              let p = connect(~on: p,
+                              Find.bottom(auth_info, ~dy: 32),
+                              Find.bottom(mulx),
+                              ~start_angle: 0,
+                              ~end_angle: pi/2,
+                              ~end_pull: 0.05,
+                              ~line_width: lw,
+                              ~style: #'arrow)
+              if options[#'len_mac]
+              | let p = link(p, Find.bottom(lens), Find.top(muly))
+                let p = link(p, Find.bottom(muly), Find.top(mulx))              
+                let p = connect(~on: p,
+                                Find.left(mulx, ~dx: -32),
+                                Find.left(muly),
+                                ~start_angle: 0,
+                                ~end_angle: 0,
+                                ~line_width: lw,
+                                ~style: #'arrow)
+                p
+              | p
+            | p
+          p
+    p
+
+import self!counter_like open
+
+fun counter_like_slides(options :~ OptMap) :~ OptMap:
+  slide(~title:
+          cond
+          | !options[#'counter]: "Output Feedback"
+          | !options[#'mac]: "Counter"
+          | ~else: "Galois/Counter",
+        ~layout: #'top,
+        cond
+        | !options[#'counter]:
+            lines(@para{@defterm{Output Feedback (OFB)} turns a block cipher intro a stream cipher},
+                  @para{before encoding}.ghost())
+        | !options[#'mac]:
+            lines(@para{@defterm{Counter (CTR)} also turns a block cipher intro a stream cipher,},
+                  @para{but using a counter as input to the cipher})
+        | ~else:
+            lines(@para{@defterm{Galois/counter (GCM)} builds on CTR by computing a MAC,},
+                  @para{which can used for both integrity and authorization}),
+        blank(64),
+        counter_like_pict(options))
+  options
+
+let options = counter_like_slides({})
+let options = counter_like_slides(options ++ { #'counter })
+let options = counter_like_slides(options ++ { #'mac })
+let options = counter_like_slides(options ++ { #'ct0_mac })
+let options = counter_like_slides(options ++ { #'len_mac })
+
+slide(~title: "Summary",
+      slide.align(
+        @para{@defterm{Elliptic key cryptography} is an alternative to the traditional number-theory choice of encoding},
+        @para{Same protocol as Diffie-Hellman ⇒ @defterm{ECDH}}.pad(~left: 32),
+        blank(),
+        @para{There are several @defterm{modes of operation} possible for block ciphers},
+        @para{@defterm{Galois/counter (GCM)} is a good choice}.pad(~left: 32)
+      ))

@@ -7,12 +7,11 @@ import:
   "common.rhm" open
   "layers.rhm"
   "linkLayer.rhm"!pkt
-  "delays.rhm"!network as delays
+  "delays.rhm"!network as delays:
+    expose:
+      switchbox
   "networkLayerData.rhm"!subnet as network_layer
   "layout.rhm"
-
-runtime_path.def switch_png: "images/switch.png"
-def switchbox = bitmap(switch_png).pad(~horiz: 5)
 
 let thistle_ip = @tt{155.98.69.112}
 let ipv6_addr = @tt{2607:f8b0:4025::2004}
@@ -770,99 +769,177 @@ slide(
   )
 )
 
-let laptop4 = delays.laptop.launder()
-let switchbox1 = switchbox.launder()
-let switchbox2 = switchbox.launder()
+module ~early vlan ~lang rhombus/static:
+  import:
+    "common.rhm" open
+    "delays.rhm"!network as delays:
+      expose:
+        switchbox
+  export:
+    vitual_lan_slides
+    segment
+    header
+    leftward
+    rightward
 
-let vlan:
-  let p:
-    beside(~sep: 128,
-           stack(~sep: 128,
-                 laptop1,
-                 laptop2),
-           overlay(beside(~sep: 0.5 * delays.router.width,
-                          switchbox1,
-                          switchbox2).alpha(0.4),
-                   delays.router),
-           stack(~sep: 128,
-                 laptop3,
-                 laptop4))
-  fun link(p, from, to): connect(~on: p, from, to, ~line_width: 3)
-  let p = link(p, Find.right(laptop1), Find.left(switchbox1, ~dy: -5))
-  let p = link(p, Find.right(laptop2), Find.left(switchbox1, ~dy: 5))
-  let p = link(p, Find.left(laptop3), Find.right(switchbox2, ~dy: -5))
-  let p = link(p, Find.left(laptop4), Find.right(switchbox2, ~dy: 5))
-  p
+  fun segment(~tall = #false,
+              p :~ Pict):
+    rectangle(~around: p.pad(5),
+              ~height: if tall | 80 | 60,
+              ~fill: if tall | "lightblue" | "lightgreen",
+              ~line: "blue")
+  fun header(~tall = #false,
+             p, ...):
+    segment(~tall: tall, lines(p, ...).scale(0.5))
 
-let tunnel_vlan:
-  let r1 = delays.router.ghost()
-  let r2 = delays.router.ghost()
-  let s11 = switchbox1.ghost()
-  let s12 = switchbox2.ghost()
-  let s21 = switchbox1.ghost()
-  let s22 = switchbox2.ghost()
-  fun tag(p, x, g): pin(~on: p, ~at: Find.top_left(x), g)
-  let vlan1 = tag(tag(tag(vlan, delays.router, r1), switchbox1, s11), switchbox2, s12)
-  let vlan2 = tag(tag(tag(vlan, delays.router, r2), switchbox1, s21), switchbox2, s22)
-  let p: stack(~sep: 256,
-               vlan1,
-               vlan2).scale(0.6)
-  fun link(p, from :: Find, to :: Find):
-    let (x, y) = from.in(p)
-    let (ex, ey) = to.in(p)
-    pin(~on: p,
-        ~at: Find.abs(x - 10, y),
-        rectangle(~width: 20, ~height: ey - y, ~fill: "lightgray", ~line: #false))
-  let p = connect(~on: p, Find.bottom(r1), Find.top(r2), ~line_width: 3 * 0.6, ~order: #'back)
-  let p = link(p, Find.bottom(s11), Find.top(s21))
-  let p = link(p, Find.bottom(s12), Find.top(s22))  
-  overlay.bottom(overlay.top(beside(~sep: 64,
-                                    @t{MEB CS},
-                                    @t{MEB EE}).pad(~top: 32),
-                             p),
-                 beside(~sep: 64,
-                        @t{WEB CS},
-                        @t{WEB EE}).pad(~bottom: 32))
-  
-block:
-  fun ex(p :~ Pict):
-    slide.right(
-      p.scale(0.75).colorize("blue")
-    )
-  slide(
-    ~title: "Virtual LAN",
-    slide.alts(
-      slide.align(
-        ~horiz: #'left,
-        lines(
-          @para{Because LAN-level organzation has traditionally implied ``local,''},
-          @para{various tools have built on that concept}
+  fun rightward(pkt :~ Pict) :~ Pict:
+    let q = pkt.pad(~right: 32)
+    connect(~on: q,
+            Find.right(pkt),
+            Find.right(q),
+            ~style: #'arrow,
+            ~line: "blue")
+      .refocus(pkt)
+
+  fun leftward(pkt :~ Pict) :~ Pict:
+    let q = pkt.pad(~left: 32)
+    connect(~on: q,
+            Find.left(pkt),
+            Find.left(q),
+            ~style: #'arrow,
+            ~line: "blue")
+      .refocus(pkt)
+
+  let laptop4 = delays.laptop.launder()
+  let switchbox1 = switchbox.launder()
+  let switchbox2 = switchbox.launder()
+
+  let laptop1 = delays.laptop.launder()
+  let laptop2 = delays.laptop.launder()
+  let laptop3 = delays.laptop.launder()
+  let router1 = delays.router.launder()
+
+  let vlan:
+    let p:
+      beside(~sep: 128,
+             stack(~sep: 128,
+                   laptop1,
+                   laptop2),
+             overlay(beside(~sep: 0.5 * delays.router.width,
+                            switchbox1,
+                            switchbox2).alpha(0.4),
+                     delays.router),
+             stack(~sep: 128,
+                   laptop3,
+                   laptop4))
+    fun link(p, from, to): connect(~on: p, from, to, ~line_width: 3)
+    let p = link(p, Find.right(laptop1), Find.left(switchbox1, ~dy: -5))
+    let p = link(p, Find.right(laptop2), Find.left(switchbox1, ~dy: 5))
+    let p = link(p, Find.left(laptop3), Find.right(switchbox2, ~dy: -5))
+    let p = link(p, Find.left(laptop4), Find.right(switchbox2, ~dy: 5))
+    p
+
+  let tunnel_vlan:
+    let r1 = delays.router.ghost()
+    let r2 = delays.router.ghost()
+    let s11 = switchbox1.ghost()
+    let s12 = switchbox2.ghost()
+    let s21 = switchbox1.ghost()
+    let s22 = switchbox2.ghost()
+    fun tag(p, x, g): pin(~on: p, ~at: Find.top_left(x), g)
+    let vlan1 = tag(tag(tag(vlan, delays.router, r1), switchbox1, s11), switchbox2, s12)
+    let vlan2 = tag(tag(tag(vlan, delays.router, r2), switchbox1, s21), switchbox2, s22)
+    let p: stack(~sep: 256,
+                 vlan1,
+                 vlan2).scale(0.6)
+    fun link(p, from :: Find, to :: Find):
+      let (x, y) = from.in(p)
+      let (ex, ey) = to.in(p)
+      pin(~on: p,
+          ~at: Find.abs(x - 10, y),
+          rectangle(~width: 20, ~height: ey - y, ~fill: "lightgray", ~line: #false))
+    let p = connect(~on: p, Find.bottom(r1), Find.top(r2), ~line_width: 3 * 0.6, ~order: #'back)
+    let p = link(p, Find.bottom(s11), Find.top(s21))
+    let p = link(p, Find.bottom(s12), Find.top(s22))  
+    overlay.bottom(overlay.top(beside(~sep: 64,
+                                      @t{MEB CS},
+                                      @t{MEB EE}).pad(~top: 32),
+                               p),
+                   beside(~sep: 64,
+                          @t{WEB CS},
+                          @t{WEB EE}).pad(~bottom: 32))
+
+  fun vitual_lan_slides(options :~ OptMap):
+    let packet :~ Pict:
+      if options[#'skip_to_end]
+      | let pkt:
+          beside(header(~tall: #true,
+                        @bold{IP},
+                        @para{src: ....},
+                        @para{dest: ....}),
+                 segment(~tall: #true,
+                         beside(header(@bold{Ethernet},
+                                       @para{src: ....},
+                                       @para{dest: ....}),
+                                header(@bold{IP},
+                                       @para{src: ....},
+                                       @para{dest: ....}),                              
+                                segment(@t{...}))))
+        rightward(pkt)
+      | blank()
+        
+    let tunnel_vlan:
+      if options[#'skip_to_end]
+      | overlay(tunnel_vlan, packet.pad(~right: -packet.width * 3/4))
+      | tunnel_vlan
+
+    fun ex(p :~ Pict):
+      slide.right(
+        p.scale(0.75).colorize("blue")
+      )
+
+    slide(
+      ~title: options[#'title] || "Virtual LAN",
+      (if options[#'skip_to_end]
+       | (fun (&args): slide.alts(& args.take_right(2)))
+       | slide.alts)(
+        slide.align(
+          ~horiz: #'left,
+          lines(
+            @para{Because LAN-level organzation has traditionally implied ``local,''},
+            @para{various tools have built on that concept}
+          ),
+          ex(@para{example: a network printer available only within the LAN}),
+          slide.next,
+          blank(64),
+          lines(
+            @para{Any time a concept like that becomes established, though, eventually},
+            @para{is gets @italic{virtualized}}
+          ),
+          ex(@para{example: splitting an office into two LANs}),
+          ex(@para{example: sharing filesystem access across remote locations})
         ),
-        ex(@para{example: a network printer available only within the LAN}),
-        slide.next,
-        blank(64),
-        lines(
-          @para{Any time a concept like that becomes established, though, eventually},
-          @para{is gets @italic{virtualized}}
-        ),
-        ex(@para{example: splitting an office into two LANs}),
-        ex(@para{example: sharing filesystem access across remote locations})
-      ),
-      overlay.top(beside(~sep: 64,
-                         @t{CS Department},
-                         @t{EE Department}).pad(~top: 64),
-                  vlan),
-      tunnel_vlan,
-      balloon.pin(~on: tunnel_vlan,
-                  ~at: Find.center(tunnel_vlan),
-                  ~spike: #'e,
-                  ~dx: 128,
-                  lines(
-                    @para{Tunnel link-leyer frames through},
-                    @para{network-layer packets}
-                  ))
+        overlay.top(beside(~sep: 64,
+                           @t{CS Department},
+                           @t{EE Department}).pad(~top: 64),
+                    vlan),
+        tunnel_vlan,
+        balloon.pin(~on: tunnel_vlan,
+                    ~at: if options[#'skip_to_end]
+                         | Find.left(packet)
+                         | Find.center(tunnel_vlan),
+                    ~spike: #'e,
+                    ~dx: 128,
+                    lines(
+                      @para{Tunnel link-layer frames through},
+                      @para{network-layer packets}
+                    ))
+      )
     )
-  )
+
+import self!vlan open
+
+vitual_lan_slides({})
 
 let payload:
   layout.row(layout.field(16, @t{payload}, ~varies: #true, ~height: 5, ~inset: 1))

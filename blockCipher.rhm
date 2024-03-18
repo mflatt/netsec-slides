@@ -8,6 +8,160 @@ runtime_path.def tux_png: "images/tux.png"
 runtime_path.def tux_unchained_png: "images/tux_unchained.png"
 runtime_path.def tux_chained_png: "images/tux_chained.png"
 
+module ~early des_key_sched ~lang rhombus/static:
+  import:
+    pict open
+    "common.rhm" open
+    "crypto.rhm"!key open
+
+  export:
+    all_defined
+
+  def spc = @tt{ }
+  fun Kt(n): @romanly{@(@t{K}.colorize("orange"))@subscript(to_string(n))}
+
+  def halfword_width = 128
+  def permute_color = "lightgreen"
+  def lw = 3
+  def t_pad = 4
+
+  fun make_k(n) :~ Pict:
+    let k = @romanly{K@subscript(to_string(n))}.pad(~vert: t_pad)
+    overlay(ellipse(~height: k.height, ~width: 64, ~fill: "gold", ~line: #'inherit), k)   
+
+  fun key_sched(n, ~input = #false, ~continues = #true,
+                ~options: options :~ OptMap = {}):
+    let k = make_k(n)
+    let rot = rectangle(~around: @t{@tt{<<<}@romanly{@subscript(to_string(n))}}.pad(~horiz: 5),
+                        ~fill: "white",
+                        ~line: #'inherit)
+    let rot_l = rot.launder()
+    let rot_r = rot.launder()
+    fun make_pc(n) :~ Pict:
+      rectangle(~around: @romanly{PC@n}.pad(~top: 3),
+                ~width: halfword_width,
+                ~fill: permute_color,
+                ~line: #'inherit)
+    let pc2 = make_pc("2")
+    let p = stack(~sep: 16,
+                  beside(~sep: halfword_width, rot_l, rot_r),
+                  pc2)
+    let p = connect(~on: p,
+                    Find.right(rot_l),
+                    Find.top(pc2, ~dx: -pc2.width/6),
+                    ~style: #'arrow,
+                    ~line_width: lw,
+                    ~start_angle: 0,
+                    ~end_angle: -pi/2)
+    let p = connect(~on: p,
+                    Find.left(rot_r),
+                    Find.top(pc2, ~dx: pc2.width/6),
+                    ~style: #'arrow,
+                    ~line_width: lw,
+                    ~start_angle: pi,
+                    ~end_angle: -pi/2)
+    let p = pin(~on: p,
+                ~at: Find.right(pc2, ~dx: pc2.width, ~dy: -k.height/2),
+                k)
+    let p = connect(~on: p,
+                    Find.right(pc2),
+                    Find.left(k),
+                    ~style: #'arrow,
+                    ~line_width: lw)
+    let rot_lb = rot_l.launder().ghost()
+    let rot_rb = rot_r.launder().ghost()
+    if !continues
+    | let p = stack(~sep: 16,
+                    beside(~sep: halfword_width, rot_lb, rot_rb),
+                    p)                  
+      let p = connect(~on: p,
+                      Find.top(rot_lb),
+                      Find.top(rot_l),
+                      ~style: #'arrow,
+                      ~line_width: lw)
+      let p = connect(~on: p,
+                      Find.top(rot_rb),
+                      Find.top(rot_r),
+                      ~style: #'arrow,
+                      ~line_width: lw)
+      p
+    | let p = stack(~sep: 16,
+                    p,
+                    beside(~sep: halfword_width, rot_lb, rot_rb))
+      let p = connect(~on: p,
+                      Find.bottom(rot_l),
+                      Find.bottom(rot_lb),
+                      ~style: #'arrow,
+                      ~line_width: lw)
+      let p = connect(~on: p,
+                      Find.bottom(rot_r),
+                      Find.bottom(rot_rb),
+                      ~style: #'arrow,
+                      ~line_width: lw)
+      if !input
+      | p
+      | let pc1 = make_pc("1")
+        let p = stack(~sep: 16,
+                      key,
+                      pc1.pad(~bottom: 20),
+                      p)
+        let p = connect(~on: p,
+                        Find.bottom(key),
+                        Find.top(pc1),
+                        ~style: #'arrow,
+                        ~line_width: lw,
+                        ~arrow_size: 12)
+        let p = connect(~on: p,
+                        Find.bottom(pc1, ~dx: -pc1.width/6),
+                        Find.top(rot_l),
+                        ~style: #'arrow,
+                        ~line_width: lw,
+                        ~start_angle: -pi/2,
+                        ~end_angle: -pi/2,
+                        ~arrow_size: 12)
+        let p = connect(~on: p,
+                        Find.bottom(pc1, ~dx: pc1.width/6),
+                        Find.top(rot_r),
+                        ~style: #'arrow,
+                        ~line_width: lw,
+                        ~start_angle: -pi/2,
+                        ~end_angle: -pi/2,
+                        ~arrow_size: 12)
+        let p:
+          if options[#'pc1]
+          | balloon.pin(~on: p,
+                        ~at: Find.left(pc1),
+                        ~spike: #'e,
+                        ~dx: 128,
+                        lines(@para{@italic{Permuted Choice}:},
+                              @para{@spc shuffle and pick 56 of 64 bits,},
+                              @para{then split into two}))
+          | p
+        let p:
+          if options[#'rot]
+          | balloon.pin(~on: p,
+                        ~at: Find.left(rot_l),
+                        ~spike: #'e,
+                        lines(@para{Different rotation amount each step}))
+          | p
+        let p:
+          if options[#'pc2]
+          | balloon.pin(~on: p,
+                        ~at: Find.left(pc2),
+                        ~spike: #'e,
+                        ~dx: 128,
+                        lines(@para{shuffle and pick 48 of 56 bits}))
+          | p
+        p
+
+  fun key_sched_stack(options):
+    stack(key_sched(0, ~input: #true, ~options: options),
+          key_sched(1),
+          @t{...},
+          key_sched(15, ~continues: #false))
+
+import self!des_key_sched open
+
 slide(~title: "Block Ciphers",
       slide.align(
         @para{A @defterm{block cipher} encodes a plaintext in blocks of @romanly{N} bits},
@@ -23,9 +177,6 @@ slide(~title: "Block Ciphers",
         blank(),
         @para{@defterm{Advanced Encryption Standard (AES)}: newer, very widely used}
       ))
-
-def spc = @tt{ }
-fun Kt(n): @romanly{@(@t{K}.colorize("orange"))@subscript(to_string(n))}
 
 block:
   slide(~title: "DES",
@@ -45,146 +196,8 @@ block:
                       .colorize("blue")
                       .translate(0, 64)))
 
-let halfword_width = 128
-let permute_color = "lightgreen"
-let lw = 3
-let t_pad = 4
-
-fun make_k(n) :~ Pict:
-  let k = @romanly{K@subscript(to_string(n))}.pad(~vert: t_pad)
-  overlay(ellipse(~height: k, ~width: 64, ~fill: "gold", ~line: #'inherit), k)   
-
-fun key_sched(n, ~input = #false, ~continues = #true,
-              ~options: options :~ OptMap = {}):
-  let k = make_k(n)
-  let rot = rectangle(~around: @t{@tt{<<<}@romanly{@subscript(to_string(n))}}.pad(~horiz: 5),
-                      ~fill: "white",
-                      ~line: #'inherit)
-  let rot_l = rot.launder()
-  let rot_r = rot.launder()
-  fun make_pc(n) :~ Pict:
-    rectangle(~around: @romanly{PC@n}.pad(~top: 3),
-              ~width: halfword_width,
-              ~fill: permute_color,
-              ~line: #'inherit)
-  let pc2 = make_pc("2")
-  let p = stack(~sep: 16,
-                beside(~sep: halfword_width, rot_l, rot_r),
-                pc2)
-  let p = connect(~on: p,
-                  Find.right(rot_l),
-                  Find.top(pc2, ~dx: -pc2.width/6),
-                  ~style: #'arrow,
-                  ~line_width: lw,
-                  ~start_angle: 0,
-                  ~end_angle: -pi/2)
-  let p = connect(~on: p,
-                  Find.left(rot_r),
-                  Find.top(pc2, ~dx: pc2.width/6),
-                  ~style: #'arrow,
-                  ~line_width: lw,
-                  ~start_angle: pi,
-                  ~end_angle: -pi/2)
-  let p = pin(~on: p,
-              ~at: Find.right(pc2, ~dx: pc2.width, ~dy: -k.height/2),
-              k)
-  let p = connect(~on: p,
-                  Find.right(pc2),
-                  Find.left(k),
-                  ~style: #'arrow,
-                  ~line_width: lw)
-  let rot_lb = rot_l.launder().ghost()
-  let rot_rb = rot_r.launder().ghost()
-  if !continues
-  | let p = stack(~sep: 16,
-                  beside(~sep: halfword_width, rot_lb, rot_rb),
-                  p)                  
-    let p = connect(~on: p,
-                    Find.top(rot_lb),
-                    Find.top(rot_l),
-                    ~style: #'arrow,
-                    ~line_width: lw)
-    let p = connect(~on: p,
-                    Find.top(rot_rb),
-                    Find.top(rot_r),
-                    ~style: #'arrow,
-                    ~line_width: lw)
-    p
-  | let p = stack(~sep: 16,
-                  p,
-                  beside(~sep: halfword_width, rot_lb, rot_rb))
-    let p = connect(~on: p,
-                    Find.bottom(rot_l),
-                    Find.bottom(rot_lb),
-                    ~style: #'arrow,
-                    ~line_width: lw)
-    let p = connect(~on: p,
-                    Find.bottom(rot_r),
-                    Find.bottom(rot_rb),
-                    ~style: #'arrow,
-                    ~line_width: lw)
-    if !input
-    | p
-    | let pc1 = make_pc("1")
-      let p = stack(~sep: 16,
-                    key,
-                    pc1.pad(~bottom: 20),
-                    p)
-      let p = connect(~on: p,
-                      Find.bottom(key),
-                      Find.top(pc1),
-                      ~style: #'arrow,
-                      ~line_width: lw,
-                      ~arrow_size: 12)
-      let p = connect(~on: p,
-                      Find.bottom(pc1, ~dx: -pc1.width/6),
-                      Find.top(rot_l),
-                      ~style: #'arrow,
-                      ~line_width: lw,
-                      ~start_angle: -pi/2,
-                      ~end_angle: -pi/2,
-                      ~arrow_size: 12)
-      let p = connect(~on: p,
-                      Find.bottom(pc1, ~dx: pc1.width/6),
-                      Find.top(rot_r),
-                      ~style: #'arrow,
-                      ~line_width: lw,
-                      ~start_angle: -pi/2,
-                      ~end_angle: -pi/2,
-                      ~arrow_size: 12)
-      let p:
-        if options[#'pc1]
-        | balloon.pin(~on: p,
-                      ~at: Find.left(pc1),
-                      ~spike: #'e,
-                      ~dx: 128,
-                      lines(@para{@italic{Permuted Choice}:},
-                            @para{@spc shuffle and pick 56 of 64 bits,},
-                            @para{then split into two}))
-        | p
-      let p:
-        if options[#'rot]
-        | balloon.pin(~on: p,
-                      ~at: Find.left(rot_l),
-                      ~spike: #'e,
-                      lines(@para{Different rotation amount each step}))
-        | p
-      let p:
-        if options[#'pc2]
-        | balloon.pin(~on: p,
-                      ~at: Find.left(pc2),
-                      ~spike: #'e,
-                      ~dx: 128,
-                      lines(@para{shuffle and pick 48 of 56 bits}))
-        | p
-      p
-      
-
 fun key_sched_slide(options :~ OptMap) :~ OptMap:
-  let p = stack(key_sched(0, ~input: #true, ~options: options),
-                key_sched(1),
-                @t{...},
-                key_sched(15, ~continues: #false))
+  let p = key_sched_stack(options)
   let p:
     if options[#'keys]
     | beside(~sep:160,
@@ -204,213 +217,245 @@ let aside_options = key_sched_slide(options ++ { #'rot })
 let options = key_sched_slide(options ++ { #'pc2 })
 let options = key_sched_slide(options ++ { #'keys })
 
-let xor = overlay(line(~dx: 18),
-                  line(~dy: 18),
-                  circle(~size: 18+1)).line_width(2)
+module ~early feistel ~lang rhombus/static:
+  import:
+    "common.rhm" open
+    "crypto.rhm"!key open
+    parent!des_key_sched open
+
+  export:
+    all_defined
+
+  def xor = xor_op
     
-fun feistel_legs():
-  let seg :~ Pict:
-    let p = blank(~height: 16)
-    connect(~on: p, Find.top(p), Find.bottom(p),
-            ~arrow_size: 12,
-            ~line_width: lw,
-            ~style: #'arrow)
-  beside(~sep: halfword_width, seg.colorize("forestgreen"), seg.colorize("firebrick"))
+  fun feistel_legs():
+    let seg :~ Pict:
+      let p = blank(~height: 16)
+      connect(~on: p, Find.top(p), Find.bottom(p),
+              ~arrow_size: 12,
+              ~line_width: lw,
+              ~style: #'arrow)
+    beside(~sep: halfword_width, seg.colorize("forestgreen"), seg.colorize("firebrick"))
 
-fun aes_leg():
-  let seg :~ Pict:
-    let p = blank(~height: 16)
-    connect(~on: p, Find.top(p), Find.bottom(p),
-            ~arrow_size: 12,
-            ~line_width: lw,
-            ~style: #'arrow)
-  beside(seg.colorize("blue"))
+  fun aes_leg():
+    let seg :~ Pict:
+      let p = blank(~height: 16)
+      connect(~on: p, Find.top(p), Find.bottom(p),
+              ~arrow_size: 12,
+              ~line_width: lw,
+              ~style: #'arrow)
+    beside(seg.colorize("blue"))
 
-fun feistel_in(astext = plaintext, str = "plaintext", ~options: options :~ OptMap = {}):
-  stack(astext(overlay(@t(str), blank(~width: 2*halfword_width - 2 * textpad))),
-        if options[#'aes]
-        | aes_leg()
-        | feistel_legs())
+  fun feistel_in(astext = plaintext, str = "plaintext", ~options: options :~ OptMap = {}):
+    stack(astext(overlay(@t(str), blank(~width: 2*halfword_width - 2 * textpad))),
+          if options[#'aes]
+          | aes_leg()
+          | feistel_legs())
                                                   
-fun feistel_out(astext = ciphertext, str = "ciphertext", ~options: options :~ OptMap = {}) :~ Pict:
-  stack(
-    if options[#'aes]
-    | aes_leg()
-    | feistel_legs(),
-    astext(overlay(@t(str), blank(~width: 2*halfword_width - 2 * textpad)))
-  )
+  fun feistel_out(astext = ciphertext, str = "ciphertext", ~options: options :~ OptMap = {}) :~ Pict:
+    stack(
+      if options[#'aes]
+      | aes_leg()
+      | feistel_legs(),
+      astext(overlay(@t(str), blank(~width: 2*halfword_width - 2 * textpad)))
+    )
 
-fun halfword_box(name, n, ~width: width = halfword_width) :~ Pict:
-  let l = @romanly{@name@subscript(to_string(n))}.pad(~vert: t_pad)
-  rectangle(~around: l, ~width: width, ~fill: "lightgray", ~line: #'inherit)
+  fun halfword_box(name, n, ~width: width = halfword_width) :~ Pict:
+    let l = @romanly{@name@subscript(to_string(n))}.pad(~vert: t_pad)
+    rectangle(~around: l, ~width: width, ~fill: "lightgray", ~line: #'inherit)
 
-fun feistel(n, ~k: k_n = n, ~head_only = #false, ~skip_head = #false,
-            ~options: options :: OptMap = {}):
-  let aes = options[#'aes]
-  let l :~ Pict = halfword_box("L", n, ~width: (if aes | 2 | 1) * halfword_width)
-  let r :~ Pict = (if aes | nothing | halfword_box("R", n))
-  let f = @romanly(if aes | (if options[#'mix_prime] | "R′" | "R") | "F").pad(~bottom: -3)
-  let f = (if options[#'mix_xor]
-           | xor.launder()
-           | square(~around: f, ~size: l.height, ~fill: alg_box_color, ~line: #'inherit))
-  let f = (if options[#'f_dot] | beside(options[#'f_dot], f) | f)
-  let head = beside(l, r)
-  if head_only
-  | head
-  | let k = make_k(k_n)
-    let p = stack(~sep: 16,
-                  match skip_head
-                  | n :: Real: overlay(@t{...}.alpha(n), head.alpha(1-n))
-                  | #true: head.ghost().pad(~top: -head.height)
-                  | ~else: head,
-                  k,
-                  blank(),
-                  f)
-    let opp_xor = blank()
-    let l_b = blank()
-    let r_b = blank()
-    let rl_b = blank()
-    let lr_b = blank()
-    let rl_bb = blank()
-    let lr_bb = blank()
-    let p = overlay.left_bottom(p, overlay(xor.ghost(aes), l.ghost().launder()))
-    let p = overlay.right_bottom(p, overlay(opp_xor, l.ghost().launder()))
-    let p = stack(~sep: l.height /  (if aes | 4 | 2),
-                  p,
-                  beside(~sep: l.width, l_b, r_b),
-                  beside(~sep: l.width, rl_b, lr_b),
-                  beside(~sep: l.width, rl_bb, lr_bb))
-    let p = connect(~on: p,
-                    Find.bottom(k),
-                    Find.top(f),
-                    ~style: #'arrow,
-                    ~line_width: lw)
-    let p:
-      if !aes
-      | let p = connect(~on: p,
-                        Find.center(opp_xor),
-                        Find.right(f),
-                        ~style: #'arrow,
-                        ~line_width: lw,
-                        ~line: "firebrick")
-        let p = connect(~on: p,
-                        Find.left(f),
-                        Find.right(xor),
-                        ~style: #'arrow,
-                        ~line_width: lw)
-        let p = connect(~on: p,
-                        Find.bottom(l),
-                        Find.top(xor),
-                        ~style: #'arrow,
-                        ~line_width: lw,
-                        ~line: "forestgreen")
-        let p = connect(~on: p,
-                        Find.bottom(xor),
-                        Find.center(l_b),
-                        ~line_width: lw,
-                        ~line: "blue")
-        p
-      | let p = connect(~on: p,
-                        Find.bottom(f),
-                        Find.bottom(p),
-                        ~style: #'arrow,
-                        ~line_width: lw,
-                        ~line: "blue")
-        let p = connect(~on: p,
-                        Find.bottom(l),
-                        Find.right(f),
-                        ~style: #'arrow,
-                        ~line_width: lw,
-                        ~start_angle: pi * -1/8,
-                        ~start_pull: 0.8,
-                        ~end_angle: pi,
-                        ~line: "blue")
-        p
-    let p:
-      if aes
-      | p
-      | let p = connect(~on: p,
-                        Find.bottom(r),
-                        Find.center(r_b),
-                        ~line_width: lw,
-                        ~line: "firebrick")
-        let p = connect(~on: p,
-                        Find.center(l_b),
-                        Find.center(lr_b),
-                        ~line_width: lw,
-                        ~line: "blue")
-        let p = connect(~on: p,
-                        Find.center(r_b),
-                        Find.center(rl_b),
-                        ~line_width: lw,
-                        ~line: "firebrick")
-        let p = connect(~on: p,
-                        Find.center(lr_b),
-                        Find.center(lr_bb),
-                        ~line_width: lw,
-                        ~line: "blue",
-                        ~style: #'arrow)
-        let p = connect(~on: p,
-                        Find.center(rl_b),
-                        Find.center(rl_bb),
-                        ~line_width: lw,
-                        ~line: "firebrick",
-                        ~style: #'arrow)
-        p
-    let p:
-      if options[#'split]
-      | balloon.pin(~on: p,
-                    ~at: Find.left(l),
-                    ~spike: #'e,
-                    ~dx: 64,
-                    @para{Split plaintext into 32-bit halves})
-      | p
-    let p:
-      if options[#'new_left]
-      | balloon.pin(~on: p,
-                    ~at: Find.left(rl_bb),
-                    ~spike: #'se,
-                    ~dx: 64,
-                    @para{New left half is old right half})
-      | p
-    let p:
-      if options[#'new_right]
-      | balloon.pin(~on: p,
-                    ~at: Find.left(lr_bb),
-                    ~spike: #'sw,
-                    ~dx: -128,
-                    lines(@para{New right half depends on},
-                          @para{both old halves as mixed},
-                          @para{through @romanly{K} and @romanly{F}}))
-      | p
-    let p:
-      if options[#'old_right]
-      | balloon.pin(~on: p,
-                    ~at: Find.bottom(r),
-                    ~spike: #'nw,
-                    ~dx: -64,
-                    lines(@para{Decode-step right half is},
-                          @para{previous left half}))
-      | p
-    let p:
-      if options[#'old_left]
-      | balloon.pin(~on: p,
-                    ~at: Find.bottom(l),
-                    ~spike: #'ne,
-                    ~dx: 128,
-                    lines(@para{Decode-step left half depends on},
-                          @para{both previous halves as mixed},
-                          @para{through @romanly{K} and @romanly{F}}))
-      | p
-    let p:
-      if options[#'feistel]
-      | balloon.pin(~on: p,
-                    ~at: Find.bottom_right(f),
-                    ~spike: #'nw,
-                    ~dx: -128,
-                    @para{Feistel function @romanly{F} is @italic{one-way}})                    
-      | p
-    p
+  fun feistel(n, ~k: k_n = n, ~head_only = #false, ~skip_head = #false,
+              ~options: options :: OptMap = {}):
+    let aes = options[#'aes]
+    let l :~ Pict = halfword_box("L", n, ~width: (if aes | 2 | 1) * halfword_width)
+    let r :~ Pict = (if aes | nothing | halfword_box("R", n))
+    let f = @romanly(if aes | (if options[#'mix_prime] | "R′" | "R") | "F").pad(~bottom: -3)
+    let f = (if options[#'mix_xor]
+             | xor.launder()
+             | square(~around: f, ~size: l.height, ~fill: alg_box_color, ~line: #'inherit))
+    let f = (if options[#'f_dot] | beside(options[#'f_dot], f) | f)
+    let head = beside(l, r)
+    if head_only
+    | head
+    | let k = make_k(k_n)
+      let p = stack(~sep: 16,
+                    match skip_head
+                    | n :: Real: overlay(@t{...}.alpha(n), head.alpha(1-n))
+                    | #true: head.ghost().pad(~top: -head.height)
+                    | ~else: head,
+                    k,
+                    blank(),
+                    f)
+      let opp_xor = blank()
+      let l_b = blank()
+      let r_b = blank()
+      let rl_b = blank()
+      let lr_b = blank()
+      let rl_bb = blank()
+      let lr_bb = blank()
+      let p = overlay.left_bottom(p, overlay(xor.ghost(aes), l.ghost().launder()))
+      let p = overlay.right_bottom(p, overlay(opp_xor, l.ghost().launder()))
+      let p = stack(~sep: l.height /  (if aes | 4 | 2),
+                    p,
+                    beside(~sep: l.width, l_b, r_b),
+                    beside(~sep: l.width, rl_b, lr_b),
+                    beside(~sep: l.width, rl_bb, lr_bb))
+      let p = connect(~on: p,
+                      Find.bottom(k),
+                      Find.top(f),
+                      ~style: #'arrow,
+                      ~line_width: lw)
+      let p:
+        if !aes
+        | let p = connect(~on: p,
+                          Find.center(opp_xor),
+                          Find.right(f),
+                          ~style: #'arrow,
+                          ~line_width: lw,
+                          ~line: "firebrick")
+          let p = connect(~on: p,
+                          Find.left(f),
+                          Find.right(xor),
+                          ~style: #'arrow,
+                          ~line_width: lw)
+          let p = connect(~on: p,
+                          Find.bottom(l),
+                          Find.top(xor),
+                          ~style: #'arrow,
+                          ~line_width: lw,
+                          ~line: "forestgreen")
+          let p = connect(~on: p,
+                          Find.bottom(xor),
+                          Find.center(l_b),
+                          ~line_width: lw,
+                          ~line: "blue")
+          p
+        | let p = connect(~on: p,
+                          Find.bottom(f),
+                          Find.bottom(p),
+                          ~style: #'arrow,
+                          ~line_width: lw,
+                          ~line: "blue")
+          let p = connect(~on: p,
+                          Find.bottom(l),
+                          Find.right(f),
+                          ~style: #'arrow,
+                          ~line_width: lw,
+                          ~start_angle: pi * -1/8,
+                          ~start_pull: 0.8,
+                          ~end_angle: pi,
+                          ~line: "blue")
+          p
+      let p:
+        if aes
+        | p
+        | let p = connect(~on: p,
+                          Find.bottom(r),
+                          Find.center(r_b),
+                          ~line_width: lw,
+                          ~line: "firebrick")
+          let p = connect(~on: p,
+                          Find.center(l_b),
+                          Find.center(lr_b),
+                          ~line_width: lw,
+                          ~line: "blue")
+          let p = connect(~on: p,
+                          Find.center(r_b),
+                          Find.center(rl_b),
+                          ~line_width: lw,
+                          ~line: "firebrick")
+          let p = connect(~on: p,
+                          Find.center(lr_b),
+                          Find.center(lr_bb),
+                          ~line_width: lw,
+                          ~line: "blue",
+                          ~style: #'arrow)
+          let p = connect(~on: p,
+                          Find.center(rl_b),
+                          Find.center(rl_bb),
+                          ~line_width: lw,
+                          ~line: "firebrick",
+                          ~style: #'arrow)
+          p
+      let p:
+        if options[#'split]
+        | balloon.pin(~on: p,
+                      ~at: Find.left(l),
+                      ~spike: #'e,
+                      ~dx: 64,
+                      @para{Split plaintext into 32-bit halves})
+        | p
+      let p:
+        if options[#'new_left]
+        | balloon.pin(~on: p,
+                      ~at: Find.left(rl_bb),
+                      ~spike: #'se,
+                      ~dx: 64,
+                      @para{New left half is old right half})
+        | p
+      let p:
+        if options[#'new_right]
+        | balloon.pin(~on: p,
+                      ~at: Find.left(lr_bb),
+                      ~spike: #'sw,
+                      ~dx: -128,
+                      lines(@para{New right half depends on},
+                            @para{both old halves as mixed},
+                            @para{through @romanly{K} and @romanly{F}}))
+        | p
+      let p:
+        if options[#'old_right]
+        | balloon.pin(~on: p,
+                      ~at: Find.bottom(r),
+                      ~spike: #'nw,
+                      ~dx: -64,
+                      lines(@para{Decode-step right half is},
+                            @para{previous left half}))
+        | p
+      let p:
+        if options[#'old_left]
+        | balloon.pin(~on: p,
+                      ~at: Find.bottom(l),
+                      ~spike: #'ne,
+                      ~dx: 128,
+                      lines(@para{Decode-step left half depends on},
+                            @para{both previous halves as mixed},
+                            @para{through @romanly{K} and @romanly{F}}))
+        | p
+      let p:
+        if options[#'feistel]
+        | balloon.pin(~on: p,
+                      ~at: Find.bottom_right(f),
+                      ~spike: #'nw,
+                      ~dx: -128,
+                      @para{Feistel function @romanly{F} is @italic{one-way}})                    
+        | p
+      p
+
+  fun aes_stack() :~ Map:
+    let options :~ OptMap = { #'aes: #true }
+    let aes_in = feistel_in(~options: options)
+    let aes_1 = feistel(1, ~options: options)
+    let aes_9_r = blank()
+    let aes_9 = feistel(9, ~options: options ++ { #'f_dot: aes_9_r }, ~skip_head: 1)
+    let aes_10 = feistel(10, ~options: options, ~head_only: #true)
+    let aes_out = feistel_out(~options: options)
+    { #'aes:
+        stack(aes_in,
+              @t{...},
+              aes_1,
+              feistel(2, ~options: options),
+              aes_9,
+              aes_10,
+              @t{...},
+              aes_out).scale(0.65),
+      #'aes_in: aes_in,
+      #'aes_1: aes_1,
+      #'aes_9_r: aes_9_r,
+      #'aes_10: aes_10,
+      #'aes_out: aes_out }
+
+import self!feistel open
 
 fun feistel_top(options):
   stack(feistel_in(),
@@ -634,24 +679,15 @@ slide(~title: "AES",
         but(@item{Reversible mixing function @(@romanly{R}.colorize(alg_color)) (instead of Feistal structure)},
             @para{includes @beside.baseline(xor, @t{}) of key from schedule})
       ))
-
+  
 block:
   let options :~ OptMap = { #'aes: #true }
-  let aes_in = feistel_in(~options: options)
-  let aes_1 = feistel(1, ~options: options)
-  let aes_9_r = blank()
-  let aes_9 = feistel(9, ~options: options ++ { #'f_dot: aes_9_r }, ~skip_head: 1)
-  let aes_10 = feistel(10, ~options: options, ~head_only: #true)
-  let aes_out = feistel_out(~options: options)
-  let aes:
-    stack(aes_in,
-          @t{...},
-          aes_1,
-          feistel(2, ~options: options),
-          aes_9,
-          aes_10,
-          @t{...},
-          aes_out).scale(0.65)
+  let { #'aes: aes,
+        #'aes_in: aes_in,
+        #'aes_1: aes_1,
+        #'aes_9_r: aes_9_r,
+        #'aes_10: aes_10,
+        #'aes_out: aes_out :~ Pict } = aes_stack()
   let aes_pre = stack(feistel_in(~options: options),
                       feistel(0, ~options: options ++ { #'mix_xor }),
                       feistel(1, ~options: options, ~head_only: #true)).scale(0.8)

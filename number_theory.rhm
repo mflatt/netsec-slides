@@ -1,0 +1,74 @@
+#lang rhombus
+
+export:
+  expt_mod
+  random_likely_prime
+  random_relatively_prime
+  modular_inverse
+
+fun expt_mod(base, power, m):
+  cond
+  | power <= 2: math.expt(base, power) mod m
+  | power mod 2 == 0:
+      let half_power = power div 2
+      let half_exp = expt_mod(base, half_power, m)    
+      (half_exp * half_exp) mod m
+  | ~else:
+      (base * expt_mod(base, power-1, m)) mod m
+
+def first_primes_list = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29,
+                         31, 37, 41, 43, 47, 53, 59, 61, 67,
+                         71, 73, 79, 83, 89, 97, 101, 103,
+                         107, 109, 113, 127, 131, 137, 139,
+                         149, 151, 157, 163, 167, 173, 179,
+                         181, 191, 193, 197, 199, 211, 223,
+                         227, 229, 233, 239, 241, 251, 257,
+                         263, 269, 271, 277, 281, 283, 293,
+                         307, 311, 313, 317, 331, 337, 347, 349]
+
+fun random_likely_prime(bits, ~k: k = 64):
+  recur loop (tries = 1):
+    def maybe_prime = 2 * math.random(2, 2 ** (bits-1)) + 1    
+    if (for any (n: first_primes_list):
+          skip_when maybe_prime == n
+          maybe_prime mod n == 0)
+    | loop(tries + 1)
+    | let s:
+        recur loop (s = 1):
+          if (maybe_prime-1) rem (2 ** s) == 0
+          | loop(s + 1)
+          | s-1
+      let d = (maybe_prime-1) div (2 ** s)
+
+      let seems_prime:
+        for all (i: 0..k):
+          let neg_one = maybe_prime - 1
+          let a = math.random(2, neg_one)
+          let x = expt_mod(a, d, maybe_prime)
+          (x == 1) || (x == neg_one)
+            || (recur loop (x = x, r = 1):
+                  if r == s
+                  | #false
+                  | let x = (x * x) mod maybe_prime
+                    (x == neg_one) || loop(x, r+1))
+      if seems_prime
+      | maybe_prime // [maybe_prime, tries]
+      | loop(tries + 1)
+
+fun random_relatively_prime(n):
+  let e = math.random(3, math.min(n, 2 ** 16))
+  if math.gcd(e, n) == 1
+  | e
+  | random_relatively_prime(n)
+
+fun modular_inverse(e, pq):
+  fun egcd(a, b):
+    if a == 0
+    | values(b, 0, 1)
+    | let b_div_a = b div a
+      let b_mod_a = b mod a
+      let (g, x, y) = egcd(b_mod_a, a)
+      values(g, y - b_div_a * x, x)
+  let (_, inv, _) = egcd(e, pq)
+  inv mod pq
+

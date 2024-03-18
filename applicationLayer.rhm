@@ -10,6 +10,7 @@ module ~early socket_slides ~lang rhombus/static:
     "layers.rhm"
 
   export:
+    layers_slides
     socket_slides
   
   def layers_title = "Network Layers"
@@ -62,10 +63,13 @@ module ~early socket_slides ~lang rhombus/static:
         slide(~title: layers_title,
               animate(fun (m): my_layers(1, m)))
         slide(~title: layers_title,
-              animate(fun (m): my_layers(1, 1-m)).sustain())
+              if overall_options.get(#'layers_ssl, #false)
+              | my_layers(1, 1)
+              | animate(fun (m): my_layers(1, 1-m)).sustain())
 
-    slide(~title: layers_title,
-          recap(basic_layers, overall_options))
+    unless overall_options.get(#'layers_ssl, #false)
+    | slide(~title: layers_title,
+            recap(basic_layers, overall_options))
 
   def ip_address = @italic{IP address}
   def port_number = @italic{port number}

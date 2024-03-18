@@ -248,7 +248,7 @@ module ~early socket ~lang rhombus/static:
       p
     let os = overlay(~vert: #'bottom,
                      block:
-                       let p = rectangle(~width: apps, ~height: 300, ~fill: "beige", ~line: #'inherit)
+                       let p = rectangle(~width: apps.width, ~height: 300, ~fill: "beige", ~line: #'inherit)
                        let p :~ Pict = if options[#'udp] | pin(~on: p, ~at: Find.abs(50, 140), sock0) | p
                        let p :~ Pict = if options[#'udp] | pin(~on: p, ~at: Find.abs(p.width - sock1.width - sock2.width - 30, 40), sock1) | p
                        let p :~ Pict = if options[#'udp] | pin(~on: p, ~at: Find.abs(p.width - sock2.width - 20, 100), sock2) | p
@@ -259,11 +259,11 @@ module ~early socket ~lang rhombus/static:
                                       | p
                        p,
                      @t{operating system}.pad(20))
-    let os = (if options[#'host]
-              | overlay(os, local.scale(0.75).pad(10), ~horiz: #'left, ~vert: #'bottom)
-              | os)
+    let os :~ Pict = (if options[#'host]
+                      | overlay(os, local.scale(0.75).pad(10), ~horiz: #'left, ~vert: #'bottom)
+                      | os)
     let link = rectangle(~around: @t{link}.pad(~horiz: 32, ~vert: 5).colorize("white"),
-                         ~width: os,
+                         ~width: os.width,
                          ~fill: layer_color,
                          ~line: #'inherit)
     let os_plus_apps:

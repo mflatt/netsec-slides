@@ -1,0 +1,76 @@
+#lang rhombus/static
+import:
+  pict open
+  draw open
+
+export:
+  curve_pict
+
+fun curve_pict(a, b, ~axes = #false) :~ Pict:
+  fun curve(x):
+    math.sqrt(x ** 3 + (a * x) + b)
+    
+  def epsilon = 0.001
+
+  def lo = -3
+  def hi = 3
+
+  def W = 400
+  def H = 400
+
+  fun i_to_x(i):
+    1.0 * i * (hi-lo) / W + lo
+
+  let ptss :~ List.of(List):
+    for values(ptss :: List.of(List) = [[]]) (i: 0..W):
+      let x = i_to_x(i)
+      let y = curve(x)
+      if y is_a Real
+      | let pts = ptss[0]
+        let pts = pts.insert(0, [i, -y]).add([i, y])
+        ptss.set(0, pts)
+      | if ptss[0] == []
+        | ptss
+        | ptss.insert(0, [])
+
+  let path :~ Path:
+    let path = Path()    
+    recur loop (ptss :~ List.of(List) = ptss.reverse()):
+      let pts = ptss[0]
+      path.move_to(pts[0])
+      for (pt: pts.drop_left(1)):
+        path.line_to(pt)
+      if ptss.rest == []
+      | path
+      | path.close()
+        loop(ptss.rest)
+    path
+      
+  let Rect(l, t, w, h) = path.bounding_box()
+  path.translate(0, h/2)
+  path.scale(1, H/h)
+
+  let p:
+    dc(fun (dc :: DC, dx, dy):
+         dc.path(path, ~dx: dx, ~dy: dy),
+       ~width: W,
+       ~height: H)
+  if !axes
+  | p
+  | let y = blank(~height: p.height)
+    let x = blank(~width: p.width + 16)
+    let y = connect(~on: y, Find.bottom(y), Find.top(y), ~style: #'arrow, ~line: "black")
+    let x = connect(~on: x, Find.left(x), Find.right(x), ~style: #'arrow, ~line: "black").pad(~left: -16)
+    let font = Font(~kind: #'roman, ~style: #'italic, ~size: 16)
+    let xl = beside(~sep: 8, x, text("x", ~font: font).colorize("black"))
+    let x = xl.refocus(x)
+    let yl = stack(~sep: 8, text("y", ~font: font).colorize("black"), y)
+    let y = yl.refocus(y)
+    beside(y, overlay(p, x))
+      .pad(~right: xl.width - x.width,
+           ~top: yl.height - y.height,
+           ~left: yl.width/2)
+
+
+module main:
+  curve_pict(-1, 3, ~axes: #true)

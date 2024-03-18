@@ -172,25 +172,37 @@ let home_net:
     stack(~horiz: #'left, ext_addr.scale(0.75), out).refocus(out)
   pin(~on: p, ~at: Find.right(delays.router), out)
 
-let spc = @tt{ }
+module ~early packet ~lang rhombus/static:
+  import:
+    "common.rhm" open
 
-fun packet(src, src_port, dest, dest_port,
-           ~dir: dir = #'right,
-           ~color: color = "lightblue",
-           ~pad: pad_pkt = fun (p): p) :~ Pict:
-  let p = rectangle(~around: pad_pkt(lines(if src_port
-                                           | @para{src: @src @spc @tt(to_string(src_port))}
-                                           | @para{src: @src},
-                                           if dest_port
-                                           | @para{dest: @dest @spc @tt(to_string(dest_port))}
-                                           | @para{dest: @dest}).pad(10).scale(0.6)),
-                    ~line: "blue",
-                    ~fill: color)
-  let q = p.pad(~left: if dir== #'right | 0 | 32, ~right: if dir== #'right | 32 | 0)
-  connect(~on: q,
-          if dir == #'right | Find.right(p) | Find.left(p),
-          if dir == #'right | Find.right(q) | Find.left(q),
-          ~line: "blue", ~style: #'arrow).refocus(p)
+  export:
+    packet
+    spc
+
+  def spc = @tt{ }
+
+  fun packet(src, src_port, dest, dest_port,
+             ~dir: dir = #'right,
+             ~color: color = "lightblue",
+             ~pad: pad_pkt = fun (p): p) :~ Pict:
+    let p = rectangle(~around: pad_pkt(lines(if src_port
+                                             | @para{src: @src @spc @tt(to_string(src_port))}
+                                             | @para{src: @src},
+                                             if dest_port
+                                             | @para{dest: @dest @spc @tt(to_string(dest_port))}
+                                             | @para{dest: @dest}).pad(10).scale(0.6)),
+                      ~line: "blue",
+                      ~fill: color)
+    let q = p.pad(~left: if dir== #'right | 0 | 32, ~right: if dir== #'right | 32 | 0)
+    if dir == #'none
+    | q
+    | connect(~on: q,
+              if dir == #'right | Find.right(p) | Find.left(p),
+              if dir == #'right | Find.right(q) | Find.left(q),
+              ~line: "blue", ~style: #'arrow).refocus(p)
+
+import self!packet open
 
 block:
   let orig_port = 7743
@@ -386,89 +398,101 @@ slide(~title: "Switching to IPv6",
         @item{applications with thin abstractions}
       ))
 
-fun mixed_network(options :~ OptMap):
-  let az = 0.75
-  let r1_addr = @tt{2604:c340::122}.scale(az)
-  let r2_addr = @tt{125.2.32.5}.scale(az)
-  let r3_addr = @tt{29.55.0.2}.scale(az)
-  let r4_addr = @tt{2607:f8b0:803::2004}.scale(az)
-  fun label(p, l):
-    stack(p, l).refocus(p)
-  let router1 = label(delays.router.launder(),
-                      r1_addr)
-  let router2 = label(delays.router.launder(),
-                      r2_addr)
-  let router5 = delays.router.launder()
-  let router3 = label(delays.router.launder(),
-                      r3_addr)
-  let router4 = label(delays.router.launder(),
-                      r4_addr)
-  let p1 = beside(~sep: 150, router1, router2)
-  let p2 = beside(~sep: 150, router3, router4)
-  let p = stack(~horiz: #'left,
-                ~sep: 70,
-                p1,
-                router5.pad(~left: p1.width * 1.2),
-                p2.pad(~left: p1.width * 1.8))
-  fun link(p, r1, r2, v):
-    let color = if v == 6 | "forestgreen" | "firebrick"
-    connect(~on: p,
-            if r1 is_a Find | r1 | Find.right(r1),
-            if r2 is_a Find | r2 | Find.left(r2),
-            ~line: color,
-            ~label: t("IPv" +& v).colorize(color).pad(~left: 32),
-            ~line_width: 3)
-  let p = link(p, router1, router2, 6)
-  let p = link(p, router2, Find.top(router5), 4)
-  let p = link(p, Find.bottom(router5), router3, 4)
-  let p = link(p, router3, router4, 6)
-  let p = balloon.pin(~on: p,
-                      ~at: Find.right_top(router2),
-                      ~spike: #'sw,
-                      @para{This node can cooperate with...})
-  let p = balloon.pin(~on: p,
-                      ~at: Find.left_bottom(router3),
-                      ~spike: #'ne,
-                      @para{... this node to implement a @defterm{tunnel}})
-  let pkt = packet(r1_addr, #false, r4_addr, #false, ~color: "lightgreen")
-  let wrapper_pkt = packet(r2_addr, #false, r3_addr, #false,
-                           ~pad: fun (p :~ Pict): p.pad(5, ~right: pkt.width + 5))
-  let pkt_g1 = pkt.launder().ghost()
-  let pkt_g2 = pkt.launder().ghost()
-  let pkt_g3 = pkt.launder().ghost()
-  let pkt_g4 = pkt.launder().ghost()
-  let p = pin(~on: p,
-              ~at: Find.left_top(router1, ~dy: -pkt.height),
-              pkt_g1)
-  let p = pin(~on: p,
-              ~at: Find.bottom(router2, ~dx: -pkt.width/2),
-              pkt_g2)
-  let p = pin(~on: p,
-              ~at: Find.top(router3, ~dx: -pkt.width/2, ~dy: -pkt.height),
-              pkt_g3)
-  let p = pin(~on: p,
-              ~at: Find.top(router4, ~dx: -pkt.width/2, ~dy: -pkt.height),
-              pkt_g4)
-  fun r2_scooter(pkt):
-    scooter(p, Find.left_top(pkt_g1), Find.left_top(pkt_g2), pkt)  
-  let pkt_scooter = r2_scooter(pkt)
-  fun wrapped_pkt(n):
-    overlay(~horiz: #'right,
-            wrapper_pkt.alpha(n),
-            pkt.pad(~right: 5)).refocus(pkt)
-  fun r3_scooter(pkt):
-    scooter(p, Find.left_top(pkt_g2), Find.left_top(pkt_g3), pkt)  
-  fun r4_scooter(pkt):
-    scooter(p, Find.left_top(pkt_g3), Find.left_top(pkt_g4), pkt)  
-  switch(animate(pkt_scooter),
-         animate(fun (n):
-                   r2_scooter(wrapped_pkt(n))(1)),
-         animate(fun (n):
-                   r3_scooter(wrapped_pkt(1))(n)),
-         animate(fun (n):
-                   r3_scooter(wrapped_pkt(1-n))(1)),
-         animate(r4_scooter(pkt)).sustain())
-            
+module ~early ipv6_tunnel ~lang rhombus/static:
+  import:
+    "common.rhm" open
+    "delays.rhm"!network as delays
+    parent!packet open
+
+  export:
+    mixed_network
+    
+  fun mixed_network(options :~ OptMap):
+    let az = 0.75
+    let r1_addr = @tt{2604:c340::122}.scale(az)
+    let r2_addr = @tt{125.2.32.5}.scale(az)
+    let r3_addr = @tt{29.55.0.2}.scale(az)
+    let r4_addr = @tt{2607:f8b0:803::2004}.scale(az)
+    fun label(p, l):
+      stack(p, l).refocus(p)
+    let router1 = label(delays.router.launder(),
+                        r1_addr)
+    let router2 = label(delays.router.launder(),
+                        r2_addr)
+    let router5 = delays.router.launder()
+    let router3 = label(delays.router.launder(),
+                        r3_addr)
+    let router4 = label(delays.router.launder(),
+                        r4_addr)
+    let p1 = beside(~sep: 150, router1, router2)
+    let p2 = beside(~sep: 150, router3, router4)
+    let p = stack(~horiz: #'left,
+                  ~sep: 70,
+                  p1,
+                  router5.pad(~left: p1.width * 1.2),
+                  p2.pad(~left: p1.width * 1.8))
+    fun link(p, r1, r2, v):
+      let color = if v == 6 | "forestgreen" | "firebrick"
+      connect(~on: p,
+              if r1 is_a Find | r1 | Find.right(r1),
+              if r2 is_a Find | r2 | Find.left(r2),
+              ~line: color,
+              ~label: t("IPv" +& v).colorize(color).pad(~left: 32),
+              ~line_width: 3)
+    let p = link(p, router1, router2, 6)
+    let p = link(p, router2, Find.top(router5), 4)
+    let p = link(p, Find.bottom(router5), router3, 4)
+    let p = link(p, router3, router4, 6)
+    let p = balloon.pin(~on: p,
+                        ~at: Find.right_top(router2),
+                        ~spike: #'sw,
+                        @para{This node can cooperate with...})
+    let p = balloon.pin(~on: p,
+                        ~at: Find.left_bottom(router3),
+                        ~spike: #'ne,
+                        @para{... this node to implement a @defterm{tunnel}})
+    let pkt = packet(r1_addr, #false, r4_addr, #false, ~color: "lightgreen")
+    let wrapper_pkt = packet(r2_addr, #false, r3_addr, #false,
+                             ~dir: #'none,
+                             ~pad: fun (p :~ Pict): p.pad(5, ~right: pkt.width + 5))
+    let pkt_g1 = pkt.launder().ghost()
+    let pkt_g2 = pkt.launder().ghost()
+    let pkt_g3 = pkt.launder().ghost()
+    let pkt_g4 = pkt.launder().ghost()
+    let p = pin(~on: p,
+                ~at: Find.left_top(router1, ~dy: -pkt.height),
+                pkt_g1)
+    let p = pin(~on: p,
+                ~at: Find.bottom(router2, ~dx: -pkt.width/2),
+                pkt_g2)
+    let p = pin(~on: p,
+                ~at: Find.top(router3, ~dx: -pkt.width/2, ~dy: -pkt.height),
+                pkt_g3)
+    let p = pin(~on: p,
+                ~at: Find.top(router4, ~dx: -pkt.width/2, ~dy: -pkt.height),
+                pkt_g4)
+    fun r2_scooter(pkt):
+      scooter(p, Find.left_top(pkt_g1), Find.left_top(pkt_g2), pkt)  
+    let pkt_scooter = r2_scooter(pkt)
+    fun wrapped_pkt(n):
+      overlay(~horiz: #'right,
+              wrapper_pkt.alpha(n),
+              pkt.pad(~right: 5)).refocus(pkt)
+    fun r3_scooter(pkt):
+      scooter(p, Find.left_top(pkt_g2), Find.left_top(pkt_g3), pkt)  
+    fun r4_scooter(pkt):
+      scooter(p, Find.left_top(pkt_g3), Find.left_top(pkt_g4), pkt)  
+    switch(animate(pkt_scooter),
+           animate(fun (n):
+                     r2_scooter(wrapped_pkt(n))(1)),
+           animate(fun (n):
+                     r3_scooter(wrapped_pkt(1))(n)),
+           animate(fun (n):
+                     r3_scooter(wrapped_pkt(1-n))(1)),
+           animate(r4_scooter(pkt)).sustain())
+
+import self!ipv6_tunnel open
+
 slide(~title: "Tunnelling",
       lines(@para{What if you have hosts that are happy to talk IPv6,},
             @para{but all routes involve IPv4?}),

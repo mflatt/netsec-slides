@@ -1,0 +1,263 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+  "proc_call.rkt"
+
+def name = @tt{name}
+def buffer_term = @defterm{buffer}
+
+fun make_say_hello(gets):
+  @verbatim{
+    void say_hello() {
+      char @(«name»)[10];
+      @gets;
+      printf("hello %s\n", name);
+    }
+  }
+
+def say_hello: make_say_hello(@tt{gets(name)})
+def bad_size = @tt{64}
+def say_hello_fgets_bad: make_say_hello(@tt{fgets(name, @bad_size, stdin)})
+def good_size = @tt{10}
+def say_hello_fgets: make_say_hello(@tt{fgets(name, @good_size, stdin)})
+
+block:
+  let b1 = balloon.pin(~on: say_hello,
+                       ~at: Find.top(name),
+                       ~spike: #'sw,
+                       ~dy: 64,
+                       @para{A @buffer_term receives data from a function call})
+  let b2 = balloon.pin(~on: b1,
+                       ~at: Find.top(buffer_term),
+                       ~spike: #'s,
+                       ~fill: "lightblue",
+                       @para{Usually a byte array})
+  let ten:
+    let p = @t{10}
+    switch(
+      p,
+      block:
+        stack(overlay(p, line(~dx: p.width, ~line: "red", ~line_width: 3)),
+              @t{9}).refocus(p)
+    )
+  slide(~title: "Buffers",
+        slide.alts(
+          say_hello,
+          b1,
+          b2
+        ),
+        slide.next,
+        blank(),
+        @para{What happens if the given name is longer than @ten bytes?},
+        slide.next,
+        @para{That's a @defterm{buffer overflow}})
+
+fun hilite(p):
+  switch(p, rectangle(~around: p, ~fill: "yellow"))
+
+def man_gets:
+  ttly(
+    @verbatim{
+@bold{FGETS}(3)          Library Functions Manual       FGETS(3)
+
+@bold{LIBRARY}
+     Standard C Library (libc, -lc)
+
+@bold{SYNOPSIS}
+     #include <stdio.h>
+
+     char *
+     fgets(char * restrict str, int size, FILE * restrict stream);
+
+     char *
+     gets(char *str);
+
+@bold{NAME}
+     @bold{fgets}, @bold{gets} – get a line from a stream
+
+[....]
+     
+@bold{SECURITY CONSIDERATIONS}
+     @hilite(@t{The gets() function cannot be used securely.}) [....]
+})
+
+slide(~title: @titlely{The @tt{gets} Man Page},
+      man_gets.scale(0.65))
+
+slide(~title: @titlely{Using @tt{fgets} Instead},
+      slide.alts(
+        stack.left(~sep: 32,
+                   @para{Problem solved?}.pad(~left: -32),
+                   switch(
+                     say_hello_fgets_bad,
+                     balloon.pin(~on: say_hello_fgets_bad,
+                                 ~at: Find.bottom(bad_size),
+                                 ~spike: #'n,
+                                 ~dy: -64,
+                                 @para{Bad buffer size})
+                   ))
+          .refocus(say_hello_fgets_bad),
+        say_hello_fgets,
+        balloon.pin(~on: say_hello_fgets,
+                    ~at: Find.bottom(good_size),
+                    ~spike: #'n,
+                    ~dy: -96,
+                    @para{Beware of varying null-terminator conventions})
+      ))
+
+slide(~title: "Bugs and Security",
+      slide.align(
+        @para{Using @tt{gets} is bad for correctness, but why is it a @italic{security} issue?},
+        slide.next,
+        blank(),
+        lines(
+          @para{@bold{General reason:} @italic{undefined} behavior in C/C++ means @italic{anything can happen}},
+          @item{crash}.pad(~left: 32),
+          @item{random file corruption}.pad(~left: 32),
+          @item{password exposure}.pad(~left: 32)
+        ),
+        slide.next,
+        blank(),
+        lines(
+          @para{@bold{Specific reason:} overflow of a buffer as local opens the door to a},
+          @para{@defterm{buffer overflow} attack}.pad(~left: 32)
+        )
+      ))
+
+slide(~title: "C Stack",
+      Pict.from_handle(proc_call.#{make-stack}(0)))
+
+slide(~title: "Function Calls in C",
+      slide.alts(& Pict.from_handle.map([& proc_call.#{call-example-picts}()])))
+
+slide(~title: "Local Buffers and Overflow",
+      slide.alts(& Pict.from_handle.map([& proc_call.#{overflow-example-picts}()])))
+
+slide(~title: "Buffer Overflow Insecurity",
+      slide.align(
+        @para{Crafting an input string to exploit a buffer overflow is a @defterm{buffer overflow attack}}.pad(~left: -32),
+        slide.next,
+        blank(),
+        @para{Possible strategies:}.pad(~left: -32),
+        @item{jumping to known code},
+        @item{running externally supplied machine code},
+        @item{stringing together existing code fragments as ``gadgets''},
+        slide.next,
+        blank(),
+        @para{Possible consequences:}.pad(~left: -32),
+        @item{circumventing a check by jumping past it},
+        @item{running arbitrary machine code in the host process},
+        @item{using the @tt{exec} system call to start @(block:
+                                                           let p = @tt{/bin/sh}
+                                                           switch(p,
+                                                                  balloon.pin(~on: p,
+                                                                              ~at: Find.right(p),
+                                                                              ~spike: #'sw,
+                                                                              @lines(@para{Even better if the},
+                                                                                     @para{compromised process},
+                                                                                     @para{runs a @tt{setuid} program}))))}                                                                                   
+      ))
+
+slide(~title: "Buffer Overflow Defenses",
+      slide.align(
+        @para{@bold{Strategy 1:} write bug-free code},
+        slide.next,
+        blank(32),
+        @para{@bold{Strategy 2:} use a safe language, or at least a safer API},
+        slide.right(@para{Java, C#, Rust, Go, etc.: overflow attack is not possible}),
+        slide.right(@para{C++: @tt{std::String} at least avoids many pitfalls}),
+        slide.next,
+        blank(32),
+        @para{@bold{Strategy 3:} adjust the compiler or OS to make attacks more difficult},
+        slide.right(@para{process limits, stack guards, ASLR, page protection and W^X}),        
+      ))
+
+slide(~title: "Process Limits",
+      slide.align(
+        @para{Every process runs as a particular user},
+        @slide.right(@para{e.g., file access granted to specific users and groups}.colorize("blue").scale(0.75)),
+        @item{Set up service-specific accounts with limited permissions},
+        @item{Avoid @tt{sudo} and other @tt{setuid} programs},
+        slide.next,
+        blank(),
+        @para{OpenBSD's @tt{pledge} system call can restrict capabilities further}
+      ))
+
+
+def canary_stack_protection:
+  @verbatim|{
+    say_hello:
+        subq    $40, %rsp
+        movq    %fs:40, %rax       # load canary
+        movq    %rax, 32(%rsp)     # store canary
+        leaq    22(%rsp), %rdi
+        movq    %rdi, 8(%rsp)
+        callq   gets@PLT
+        movq    8(%rsp), %rsi
+        leaq    .L.str(%rip), %rdi
+        xorl    %eax, %eax
+        callq   printf@PLT
+        movq    %fs:40, %rax       # get canary again
+        movq    32(%rsp), %rcx     # get stored value
+        cmpq    %rcx, %rax         # check canary intact
+        jne     .LBB0_2
+        addq    $40, %rsp
+        retq
+    .LBB0_2:
+        callq   __stack_chk_fail@PLT
+    .L.str:
+        .asciz  "hello %s\n"
+}|
+
+
+slide(~title: "Compiling with a Stack Guard",
+      slide.alts(
+        Pict.from_handle(proc_call.#{guarded-stack}()),
+        [@para{Compiling @tt{say_hello} with @tt{-fstack-protector} (default on macOS):},      
+         canary_stack_protection.scale(0.6)]
+      ))
+
+def here_c:
+  @verbatim{
+    #include <stdio.h>
+    int main() {
+      printf("%p\n", main);
+      return 0;
+    }
+}
+
+slide(~title: "Address Randomization",
+      slide.align(
+        para(@{@defterm{Address space layout randomization (ASLR)} causes code},
+             @{and the stack to have a different address on every run}),
+        blank(),
+        @item{Prevents easy construction of overflow strings},
+        @item{Doesn't require recompiling existing programs},
+        @item{Enabled by default on all modern OSes}
+      ),
+      blank(),
+      here_c)
+
+slide(~title: "Page Protection",
+      slide.align(
+        @para{Modern hardware supports file-like permissions on each memory page: @tt{read}, @tt{write}, and @tt{exec}},
+        blank(),
+        @para{Stack pages lack @tt{exec} permission, which blocks attempts to put machine code input buffers},
+        @blank(),
+        @para{@defterm{W^X}: a memory page can have either @tt{write} or @tt{exec}, but not both at the same time}
+      ))
+
+slide(~title: "Summary",
+      slide.align(
+        lines(@para{Unsafe programming languages allow @defterm{buffer overflow} errors,},
+              @para{and those often turn into exploits}),
+        blank(),
+        @para{Mitigation strategies include compiler-inserted stack checks, ASLR, and page protection},
+        slide.next,
+        blank(64),
+        @para{Rest of this week: buffer-overflow exploit as an in-class lab}
+      ))
+
+      

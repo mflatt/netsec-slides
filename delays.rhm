@@ -1,6 +1,7 @@
 #lang rhombus/static
 import:
   "layers.rhm"
+  "note.rkt"
   "common.rhm" open
 
 module ~early network ~lang rhombus/static/and_meta:
@@ -9,6 +10,7 @@ module ~early network ~lang rhombus/static/and_meta:
     slideshow open
     pict open
     "layers.rhm"
+    "note.rkt"
     "common.rhm" open
 
   export:
@@ -16,10 +18,14 @@ module ~early network ~lang rhombus/static/and_meta:
     laptop
     server
     router
+    switchbox
     clock
+    wifi
     magnifying_glass
     last_magnifying_glass
     last_router
+
+  def delay_ideas = note.make();
 
   runtime_path.def laptop_png: "images/laptop.png"
   runtime_path.def wifi_png: "images/wifi-ap.png"
@@ -27,6 +33,7 @@ module ~early network ~lang rhombus/static/and_meta:
   runtime_path.def server_png: "images/server.png"
   runtime_path.def magnifying_glass_png: "images/magnifying_glass.png"
   runtime_path.def clock_png: "images/clock.png"
+  runtime_path.def switch_png: "images/switch.png"
 
   def laptop = bitmap(laptop_png).scale(0.2)
   def wifi = bitmap(wifi_png).scale(0.2)
@@ -39,6 +46,8 @@ module ~early network ~lang rhombus/static/and_meta:
   def router1 = router.launder()
   def router2 = router.launder()
   def router3 = router.launder()
+
+  def switchbox = bitmap(switch_png).pad(~horiz: 5)
 
   def last_magnifying_glass = magnifying_glass.launder()
   def last_router = router2
@@ -215,6 +224,14 @@ module ~early network ~lang rhombus/static/and_meta:
     let p = wire(p, router2, router3)
     let p = wire(p, router3, server)
     let p:
+      if options.get(#'interactive, #false)
+      | overlay(p,
+                interactive(blank(~width: 400, ~height: 300),
+                            fun (f): note.add(f, delay_ideas)).pad(~left: -170, ~bottom: -140),
+                ~horiz: #'left,
+                ~vert: #'bottom)
+      | p                       
+    let p:
       if options.get(#'traceroute, #false)
       | stack(~sep: 32,
               p,
@@ -238,6 +255,7 @@ fun delay_slide(options :~ Map) :~ Map:
   options
 
 let base_options = delay_slide({ })
+let options = delay_slide(base_options ++ { #'interactive: #true })
 let options = delay_slide(base_options ++ { #'hilite_link: #true })
 let options = delay_slide(base_options ++ { #'hilite_out: #true })
 let options = delay_slide(base_options ++ { #'hilite_inspect: #true })

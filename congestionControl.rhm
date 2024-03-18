@@ -8,8 +8,6 @@ import:
   "state_machine.rhm" open
   "layers.rhm"
 
-let pi = math.pi
-
 let rtt_est = romanly(@t{RTT@subscript{@italic{est}}})
 let rtt_now = romanly(@t{RTT@subscript{@italic{measured}}})
 let spc = @tt{ }
@@ -455,7 +453,7 @@ fun stream(p :~ Pict, color,
   let p = p.pad(~right: p.width)
   let w = 32
   let n = (p.width + (w-1)) div w
-  let box = rectangle(~width: w, ~height: p, ~line: "white", ~fill: color)
+  let box = rectangle(~width: w, ~height: p.height, ~line: "white", ~fill: color)
   overlay(~horiz: #'left,
           beside(& for List (i: 0..delay):
                    box.ghost(),

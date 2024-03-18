@@ -1,0 +1,30 @@
+#lang rhombus/static/and_meta
+
+import:
+  pict open
+  draw open
+
+export:
+  ribbon
+
+def p = Path()
+p.arc([[0, 0], [100, 100]],
+      math.pi * -1/4,
+      math.pi * 5/4)
+p.line_to([0, 170])
+p.line_to([40, 180])
+p.line_to([50, 130])
+p.line_to([60, 180])
+p.line_to([100, 170])
+p.close()
+
+def ribbon:
+  dc(fun (dc :: DC, dx, dy):
+       dc.save()
+       dc.brush := Brush(~color: dc.pen.color)
+       dc.pen := Pen.none
+       dc.path(p, ~dx: dx, ~dy: dy)
+       dc.restore(),
+     ~width: 100,
+     ~height: 180)
+

@@ -23,7 +23,7 @@ fun field(n, label :~ Pict,
     if !varies
     | cond
       | no_outline:
-          blank()
+          blank(~width: w, ~height: h)
       | no_top:
           beside.bottom(line(~dy: h), line(~dx: w), line(~dy: h))
       | no_bottom:

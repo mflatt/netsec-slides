@@ -8,6 +8,7 @@ module ~early key ~lang rhombus/static/and_meta:
     rhombus/runtime_path
     "common.rhm" open
     lib("pict/face.rkt") as rkt_face
+    "face.rhm" as faces
   export:
     key
     key2
@@ -18,8 +19,12 @@ module ~early key ~lang rhombus/static/and_meta:
     alg_color
     alg_box_color
     alice
+    alice_face
+    xor_op
     bob
+    bob_face
     eve
+    eve_unscaled
     eve_face
     mallory
     mallory_unscaled
@@ -32,6 +37,10 @@ module ~early key ~lang rhombus/static/and_meta:
 
   def ciphertext_color = "blue"
 
+  def xor_op = overlay(line(~dx: 18),
+                       line(~dy: 18),
+                       circle(~size: 18+1)).line_width(2)
+
   def textpad = 5
   fun plaintext(p :~ Pict) :~ Pict: rectangle(~around: p.pad(textpad), ~refocus: #'around, ~fill: "beige", ~line: #'inherit)
   fun ciphertext(p :~ Pict) :~ Pict: rectangle(~around: p.pad(textpad).colorize("white"), ~refocus: #'around, ~fill: ciphertext_color, ~line: #'inherit)
@@ -41,16 +50,21 @@ module ~early key ~lang rhombus/static/and_meta:
 
   fun face(mood) :~ Pict: Pict.from_handle(rkt_face.face(mood)).scale(0.5)
 
-  def alice = stack(face(#'happy),
+  fun sized(p :~ Pict, p2 :~ Pict) :~ Pict: p.scale(p2.width/p.width, p2.height/p.height)
+
+  def alice_face = sized(faces.alice, face(#'happy))
+  def alice = stack(alice_face,
                     @t{Alice})
-  def bob = stack(face(#'happy),
+  def bob_face = sized(faces.bob, face(#'happy))
+  def bob = stack(bob_face,
                   @t{Bob})
   def mean_face :~ Pict:
     Pict.from_handle(rkt_face.#{face*}(#'angry, #'plain, #false, rkt_face.#{default-face-color}, 0)).scale(0.5)
-  def eve_face = mean_face.launder()
+  def eve_face = sized(faces.trudy, mean_face.launder())
   def eve = stack(eve_face.scale(0.5), @t{Eve})
-  def mallory_unscaled = stack(mean_face.launder(), @t{Mallory})
-  def mallory = stack(mean_face.launder().scale(0.6), @t{Mallory})
+  def eve_unscaled = stack(eve_face, @t{Eve})
+  def mallory_unscaled = stack(sized(faces.mallory, mean_face), @t{Mallory})
+  def mallory = stack(sized(faces.mallory, mean_face).launder().scale(0.6), @t{Mallory})
 
 import self!key open
 
@@ -714,7 +728,7 @@ slide(~title: "Summary",
         stack.left(
           ~sep: 16,
           @para{Goals are},
-          @item{@defterm{confidentiality}},
+          @item{@defterm{Confidentiality}},
           @item{@defterm{Integrity}},
           @item{@defterm{Authenticity}},
           @item{@defterm{Non-repudiation}}
