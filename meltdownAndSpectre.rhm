@@ -1,0 +1,954 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+  "face.rhm"
+  "minion.rhm".make_minion
+  "meltdownPage.rhm".page_table_slides
+
+def do_animations = #true
+
+runtime_path.def linux_png: "images/linux.png"
+runtime_path.def windows_png: "images/windows.png"
+runtime_path.def macos_png: "images/macos.png"
+runtime_path.def c_png: "images/c.png"
+runtime_path.def javascript_png: "images/javascript.png"
+runtime_path.def cpu_png: "images/cpu2.png"
+runtime_path.def webpage_png: "images/webpage.png"
+runtime_path.def safe_png: "images/safe.png"
+runtime_path.def unsafe_png: "images/unsafe.png"
+runtime_path.def stopwatch_png: "images/stopwatch.png"
+runtime_path.def meltdown_png: "images/meltdown.png"
+runtime_path.def spectre_png: "images/spectre.png"
+
+def all_scale = 0.5
+
+def linux = bitmap(linux_png).scale(all_scale)
+def windows = bitmap(windows_png).scale(0.8).scale(all_scale)
+def macos = bitmap(macos_png).scale(0.8).scale(all_scale)
+def c = bitmap(c_png).scale(0.5).scale(all_scale)
+def javascript = bitmap(javascript_png).scale(0.35).scale(all_scale)
+def cpu = bitmap(cpu_png).scale(0.8).scale(all_scale)
+def webpage = bitmap(webpage_png).scale(0.33).scale(all_scale)
+def safe_icon = bitmap(safe_png).scale(0.25).scale(all_scale)
+def unsafe_icon = bitmap(unsafe_png).scale(0.25).scale(all_scale)
+def stopwatch = bitmap(stopwatch_png).scale(0.25).scale(all_scale)
+def meltdown = bitmap(meltdown_png).scale(0.15).scale(all_scale)
+def spectre = bitmap(spectre_png).scale(0.75).scale(all_scale)
+
+def safe_note = safe_icon.scale(0.5)
+def unsafe_note = unsafe_icon.scale(0.5)
+
+slide(beside(beside(~sep: 32,
+                    meltdown,
+                    @t{and},
+                    spectre),
+             @para{are timing-channel attacks}),
+      slide.next,
+      blank(),
+      slide.align(
+        @para{Interesting because they're},
+        @item{recently discovered},
+        @item{relatively practical (before mitigations)},
+        @item{attacks about fundamental strategies for system performance}
+      ),
+      slide.next,
+      blank(),
+      parameterize { current_font:
+                       current_font() with (size = 20) }:
+        para(@{Like other timing channels, these attacks are probably not something},
+             @{you'll need to worry about in day-to-day programming},
+             @{but they're worth understanding as an example of security as},
+             @{a system-wide, cross-cutting concern}).colorize("blue"))
+
+fun boxed(~above: above :~ Pict = nothing,
+          content :~ Pict,
+          ~width: width = 1.2,
+          ~fill: fill = "lightblue",
+          ~add: icon :~ Pict = nothing,
+          ~add_right: right_icon :~ Pict = nothing,
+          ~on: on = #true,
+          ~wrap: wrap = values) :~ Pict:
+  stack(~sep: 8,
+        above,
+        wrap(overlay(~horiz: #'right,
+                     ~vert: #'top,
+                     rectangle(~around: beside.top(~sep: 4, icon, content).refocus(content),
+                               ~height: 1.2 * linux.height,
+                               ~width: if above == nothing
+                                       | width * content.width
+                                       | above.width,
+                               ~line: match fill
+                                      | c :: Color: c.scale(0.5)
+                                      | ~else: Color(fill).scale(0.5),
+                               ~fill: fill),
+                     right_icon).ghost(!on)))
+
+fun safety_slides(options :~ OptMap,
+                  ~nonarchival: is_nonarchival = #false) :~ OptMap:
+  let apps:
+    beside(~sep: 48,
+           boxed(webpage, ~fill: "lightyellow"),
+           boxed(webpage, ~fill: "lightyellow"))
+  let people:
+    beside(~sep: 32,
+           face.alice.scale(0.2), face.mallory.scale(0.2))
+  let c_apps = people.ghost(!options[#'clients])
+  let js_apps = overlay(apps.launder().ghost(!options[#'apps]),
+                        c_apps.launder().ghost(options[#'apps]))
+  let app_stopwatch :~ Pict:
+    if options[#'app_timing]
+    | stopwatch.pad(5)
+    | nothing
+  let js_safe_icon = safe_icon.launder()  
+  let js:
+    boxed(~above: js_apps,
+          javascript,
+          ~add: js_safe_icon,
+          ~add_right: app_stopwatch,
+          ~wrap:            
+            cond
+            | options[#'safe_client_security]:
+                fun (p):
+                  balloon.pin(~on: p,
+                              ~at: Find.bottom(p),
+                              ~spike: #'n,
+                              ~sprout: 0.7,
+                              lines(~horiz: #'right,
+                                    @para{@safe_note Safety simplifies reasoning about},
+                                    @para{isolation of data}))                  
+            | options[#'safe_webpage_security]:
+                fun (p):
+                  balloon.pin(~on: p,
+                              ~at: Find.bottom(p),
+                              ~spike: #'n,
+                              ~sprout: 0.7,
+                              lines(~horiz: #'right,
+                                    @para{@safe_note Safety also enables isolation between},
+                                    @para{web pages within a browser}))
+                  
+            | options[#'safety_checks]:
+                fun (p):
+                  balloon.pin(~on: p,
+                              ~at: Find.bottom(p),
+                              ~spike: #'n,
+                              ~sprout: 0.7,
+                              ~fill: "pink",
+                              beside.top(~sep: 8,
+                                         safe_note,
+                                         @lines(@para{Safety depends on run-time checks:},
+                                                lines(@item{bounds checks},
+                                                      @item{tag checks}).pad(~left: 16))))                  
+            | ~else: values).ghost(!options[#'javascript])
+  let c_host:
+    boxed(~above: c_apps,
+          c,
+          ~add: unsafe_icon.ghost(!options[#'unsafe]),
+          ~add_right: app_stopwatch,
+          ~wrap:            
+            if options[#'unsafe_client_security]
+            | fun (p):
+                balloon.pin(~on: p,
+                            ~at: Find.right(p),
+                            ~spike: #'w,
+                            ~dx: -32,
+                            lines(~horiz: #'right,
+                                  @para{@unsafe_note Unsafety of C is a security concern when},
+                                  @para{multiple clients use the same C application}))
+            | values)
+  let app_poll_stopwatch = app_stopwatch.launder()  
+  let c_host2:
+    boxed(~above: c_apps.launder().ghost(),
+          c,
+          ~add: unsafe_icon,
+          ~add_right: app_poll_stopwatch).ghost(!options[#'os])
+  let os_safe_icon = safe_icon.launder()
+  let os:
+    boxed(~above:
+            beside.bottom(~sep: 16,
+                          c_host,
+                          c_host2,
+                          js),
+          beside(linux, windows, macos),
+          ~fill: "lightgreen",
+          ~add: os_safe_icon,
+          ~on: options[#'os],
+          ~wrap:            
+            cond
+            | options[#'os_security]:
+                fun (p):
+                  balloon.pin(~on: p,
+                              ~at: Find.bottom(p),
+                              ~spike: #'n,
+                              lines(~horiz: #'right,
+                                    @para{@safe_note An operating system needs to be safe},
+                                    @para{to isolate applications from each other}))
+            | options[#'page_protection]:
+                fun (p):
+                  balloon.pin(~on: p,
+                              ~at: Find.bottom(p),
+                              ~spike: #'n,
+                              ~fill: "pink",
+                              lines(@para{@safe_note Safety depends on page protection}))
+            | ~else: values)
+  let cpu_safe_icon = safe_icon.launder()
+  let cpu_stopwatch = stopwatch.launder()
+  let p:
+    boxed(~above: os,
+          cond
+          | options[#'safe_cpu]:
+              balloon.pin(~on: cpu,
+                          ~at: Find.right(cpu),
+                          ~spike: #'w,
+                          ~sprout: 0.25,
+                          ~dx: -32,
+                          lines(~horiz: #'right,
+                                @para{@safe_note A processor is safe, because every},
+                                @para{instruction has a well-defined action},
+                                @para{for every possible case}))
+          | options[#'cpu_reasoning]:
+              balloon.pin(~on: cpu,
+                          ~at: Find.right(cpu),
+                          ~spike: #'w,
+                          ~sprout: 0.25,
+                          ~dx: -32,
+                          lines(~horiz: #'right,
+                                @para{To address timing attacks, we resorted},
+                                @para{to reasoning about instructions...}))
+          | options[#'cpu_timing]:
+              beside(~sep: 16, cpu, cpu_stopwatch).refocus(cpu)
+          | ~else:
+              cpu,
+          ~fill: Color("plum").scale(2),
+          ~add: cpu_safe_icon,
+          ~on: options[#'cpu])
+  let p :~ Pict:
+    if options[#'depends]
+    | let p:
+        connect(~on: p,
+                Find.bottom(os_safe_icon),
+                Find.left(cpu_safe_icon),
+                ~line_width: 3,
+                ~line: "purple",
+                ~label:
+                  let l = @t{page table}
+                  let l: if options[#'meltdown]
+                         | beside(~sep: 16, meltdown, l).refocus(l)
+                         | l
+                  l.translate(-l.width, 0),
+                ~style: #'arrow,
+                ~start_angle: -1/2 * math.pi,
+                ~end_angle: 0)
+      let p:
+        connect(~on: p,
+                Find.bottom(js_safe_icon),
+                Find.right(cpu_safe_icon),
+                ~line_width: 3,
+                ~line: "purple",
+                ~label:
+                  let l = @t{branching}
+                  let l: if options[#'spectre]
+                         | beside(~sep: 16, l, spectre).refocus(l)
+                         | l
+                  l.translate(1.6 * l.width, 0),
+                ~style: #'arrow,
+                ~start_angle: -1/2 * math.pi,
+                ~start_pull: 0.8,
+                ~end_angle: math.pi)
+      p
+    | p
+  let p:
+    if options[#'timing_channels]
+    | overlay.bottom_right(
+        p.pad(~bottom: 48, ~right: 250),
+        balloon.note(stack(~sep: 16,
+                           @para{... but safety does not include timing!},
+                           beside(~sep: 16,
+                                  safe_icon,
+                                  @t{+}.scale(2),
+                                  stopwatch,
+                                  @romanly{⇒}.scale(2).translate(0, -10),
+                                  unsafe_icon)))
+      ).refocus(p)
+    | p
+  let p:
+    if options[#'app_timing_channel]
+    | balloon.pin(~on: p,
+                  ~at: Find.top(app_poll_stopwatch),
+                  ~spike: #'s,
+                  lines(@para{Timing can distinguish source code paths},
+                        @para{intended to be kept secret}))
+    | p
+  let p:
+    if options[#'cpu_timing_channel]
+    | balloon.pin(~on: p,
+                  ~at: Find.right(cpu_stopwatch),
+                  ~spike: #'w,
+                  lines(@para{... but timing can reveal instruction},
+                        @para{details intended to be kept secret!}))
+    | p
+  let p:
+    if options[#'meltdown_fixed]
+    | balloon.pin(~on: p,
+                  ~at: Find.left_top(meltdown),
+                  ~spike: #'se,
+                  ~fill: "pink",
+                  lines(@para{Addressed in},
+                        @para{recent OS},
+                        @para{versions}))
+    | p
+  let p:
+    if options[#'spectre_not_fixed]
+    | balloon.pin(~on: p,
+                  ~at: Find.right_top(spectre),
+                  ~spike: #'sw,
+                  ~fill: "pink",
+                  lines(@para{A long-term},
+                        @para{problem for},
+                        @para{JS engines}))
+    | p
+  slide(~title: "Safety and Isolation",
+        if is_nonarchival
+        | nonarchival(p)
+        | p)
+  options
+
+let options = safety_slides({}, ~nonarchival: #true)
+let options = safety_slides( options ++ { #'unsafe }, ~nonarchival: #true)
+let options = options ++ { #'clients }
+let aside_options = safety_slides( options ++ { #'unsafe_client_security } )
+let options = options ++ { #'javascript }
+let aside_options = safety_slides( options ++ { #'safe_client_security } )
+let options = options ++ { #'apps }
+let aside_options = safety_slides( options ++ { #'safe_webpage_security } )
+let aside_options = safety_slides( options ++ { #'safety_checks } )
+let options = options ++ { #'os }
+let aside_options = safety_slides( options ++ { #'os_security })
+let aside_options = safety_slides( options ++ { #'page_protection })
+let options = safety_slides( options ++ { #'cpu })
+let aside_options = safety_slides( options ++ { #'safe_cpu })
+let options = safety_slides( options ++ { #'depends })
+let aside_options = safety_slides( options ++ { #'timing_channels })
+let aside_options = safety_slides( options ++ { #'app_timing, #'app_timing_channel })
+let aside_options = safety_slides( aside_options ++ { #'cpu_reasoning })
+let options = options ++ { #'cpu_timing }
+let options = safety_slides( options ++ { #'cpu_timing_channel })
+let options = safety_slides( options ++ { #'meltdown }, ~nonarchival: #true)
+let options = safety_slides( options ++ { #'spectre }, ~nonarchival: #true)
+let reminder_options = options.remove(#'cpu_timing_channel)
+let options = safety_slides( options ++ { #'meltdown_fixed }, ~nonarchival: #true)
+let options = safety_slides( options ++ { #'spectre_not_fixed })
+
+def ip_pip :~ Pict:
+  let pip = @tt{ }
+  pip.pad(~left: -pip.width)
+def ip:
+  for List (i: 0..12):
+    ip_pip.launder()
+def ip_loop_head = ip[0]
+def ip_ldr_index = 4
+def mem_pip = blank()
+def cache_pip = blank()
+def ins_time_pip = ip_pip.launder()
+
+def sum_path_asm:
+  @verbatim|{
+100003de4  cmp  x3, #0x1
+100003de8  b.lt 0x100003e1c
+100003dec  mov  x9, #0x0
+100003df0  |@(ip_loop_head)mov  x8, #-0x1
+100003df4  |@(ip[1])tbnz x2, #0x3f, 0x100003e14
+100003df8  |@(ip[2])cmp  x2, x1
+100003dfc  |@(ip[3])b.ge 0x100003e14
+100003e00  |@(ip[4])ldr  x2, [x0, x2,|@ins_time_pip lsl  #3]
+100003e04  |@(ip[5])add  x9, x2, x9
+100003e08  |@(ip[6])mov  x8, x9
+100003e0c  |@(ip[7])subs x3, x3, #0x1
+100003e10  |@(ip[8])b.ne 0x100003df0
+100003e14  mov  x0, x8
+100003e18  ret
+100003e1c  mov  x0, #0x0
+100003e20  ret
+}|.scale(0.75)
+
+def sum_path2_asm:
+  @verbatim|{
+100003db4  cmp	x3, #0x1
+100003db8  b.lt	0x100003df4
+100003dbc  |@(ip[0])mov  x9, #0x0
+100003dc0  |@(ip[1])mov  x1, #0x1
+100003dc4  |@(ip[2])mov  x8, #-0x1
+100003dc8  |@(ip[3])tbnz x2, #0x3f, 0x100003dec
+100003dcc  |@(ip[4])cmp  x2, x1
+100003dd0  |@(ip[5])b.ge 0x100003dec
+100003dd4  |@(ip[6])ldr  x2, [x0, x2, lsl  #3]
+100003dd8  |@(ip[7])add  x9, x2, x9
+100003ddc  |@(ip[8])mul  x1, x2, x1
+100003de0  |@(ip[9])subs x3, x3, #0x1
+100003de4  |@(ip[10])b.ne 0x100003dc8
+100003de8  |@(ip[11])add  x8, x1, x9
+100003dec  mov  x0, x8
+100003df0  ret
+100003df4  mov  w8, #0x1
+100003df8  mov  x0, x8
+100003dfc  ret
+}|.scale(0.75)
+
+def sum_path_c:
+  @verbatim|{
+long sum_path(long *array, long len, long pos, long count) {
+  long i = 0, sum = 0;
+
+  while (i < count) {
+    if (pos >= 0 && pos < len)
+      pos = array[pos];
+    else
+      return -1;
+    sum = sum + pos;
+    i = i + 1;
+  }
+
+  return sum;
+}
+}|
+
+def sum_path_core_c:
+  @verbatim|{
+  while (i < count) {
+    if (pos >= 0 && pos < len)
+      pos = array[pos];
+    else
+      return -1;
+    sum = sum + pos;
+    i = i + 1;
+  }
+}|
+
+def sum_path_input_c:
+  @verbatim|{
+#define N 10
+int aray[N] = { 9, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+}|
+
+def sum_path_drive_c:
+  @verbatim|{
+  for (long i = 0; i < 100; i++)
+    v = sum_path(array, N, i % N, 1000000);
+  }|
+
+
+fun added(s):
+  tt(s).colorize("blue")
+
+def sum_path2_c:
+  @verbatim|{
+long sum_path(long *array, long len, long pos, long count) {
+  long i = 0, sum = 0, |@added{product = 1};
+
+  while (i < count) {
+    if (pos >= 0 && pos < len)
+      pos = array[pos];
+    else
+      return -1;
+    sum = sum + pos;
+    |@added{product = product * pos};
+    i = i + 1;
+  }
+
+  return sum |@added{+ product};
+}
+}|
+
+def minion = make_minion().scale(0.5)
+def minion2 = make_minion(~pants: "red").scale(0.5)
+def minion3 = make_minion(~pants: "forestgreen").scale(0.5)
+def minion4 = make_minion(~pants: "orange").scale(0.5)
+
+def hex = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"]
+
+let any_val = @tt{0000}.alpha(0.5)
+
+fun shoebox(a, b) :~ Pict: stack(a, b)
+
+def cached_addr = shoebox(@tt{0x3023}, any_val)
+
+def memory_scale = 0.25
+
+def wait_dx = 96
+
+def no_problem = @para{which is no problem in itself...}
+
+fun cpu_state(ip,
+              options :~ OptMap,
+              ~to: to_ip = #false,
+              ~size: size = 1,
+              ~to_size: to_size = 1,
+              ~carry: carry: nothing) :~ Pict:
+  let code = options[#'code] || sum_path_asm
+  fun add_carry(minion) :~ Pict:
+    stack.right(minion, carry).refocus(minion)
+  fun bp(minion):
+    cond
+    | options[#'branch_prediction]:
+        balloon.pin(~on: minion,
+                    ~at: Find.bottom(minion),
+                    ~spike: #'nw,
+                    lines(@para{@defterm{branch prediction}: guess at branch},
+                          @para{result based on previous times through}))
+    | options[#'speculative_execution]:
+        balloon.pin(~on: minion,
+                    ~at: Find.right_top(minion),
+                    ~spike: #'sw,
+                    lines(@para{Unlike a data dependency, we could start early},
+                          @para{and then undo if the predicted branch was wrong},
+                          @para{--- and that's @defterm{speculative execution}}))
+    | ~else:
+        minion
+  fun spec(minion2):
+    cond
+    | options[#'speculative_cache]:
+        balloon.pin(~on: minion2,
+                    ~at: Find.bottom(minion2),
+                    ~spike: #'nw,
+                    lines(@para{Speculative read can start fetching},
+                          @para{memory, which might affect the cache}))
+    | options[#'cache_keep]:
+        let wrong = @t{wrong}
+        let wrong:
+          switch(wrong,
+                 balloon.pin(~on: wrong,
+                             ~at: Find.right(wrong),
+                             ~spike: #'w,
+                             ~dx: -64,
+                             ~fill: "lightblue",
+                             no_problem))
+        balloon.pin(~on: minion2,
+                    ~at: Find.bottom(minion2),
+                    ~spike: #'nw,
+                    lines(@para{Speculative cache changes are @italic{not}},
+                          @para{reverted if branch prediction was @wrong}))
+    | options[#'add_mult_parallel]:
+        balloon.pin(~on: minion2,
+                    ~at: Find.left(minion2),
+                    ~spike: #'se,
+                    lines(@para{Addition and multiplication},
+                          @para{can proceed in parallel}))
+    | ~else:
+        minion2
+  fun dependent(minion3):
+    cond
+    | options[#'data_dependent]:
+        balloon.pin(~on: minion3,
+                    ~at: Find.bottom(minion3),
+                    ~spike: #'n,
+                    ~dy: -64,
+                    lines(@para{Data-dependent instructions},
+                          @para{must wait for earlier result}))
+    | ~else:
+        minion3      
+  fun add_speculative(p, tag) :~ Pict:
+    if options[tag]
+    | stack(~sep: -4, @romanly{@bold{?}}.colorize("red").scale(0.6), p).refocus(p)
+    | p
+  let dots = @t{...}.pad(~top: -12, ~bottom: -2)
+  let memory:
+    stack(~sep: 4,
+          @t{memory}.scale(0.75),
+          dots,
+          overlay(
+            table(for List (j: 0..10):
+                    for List (i: 0..8):                      
+                      shoebox(@tt{0x30@(hex[j div 2])@(hex[i+(8 * (j bits.and 1))])},
+                              any_val).ghost(j == 4 && i == 3 && options[#'addr_taken]),
+                  ~pad: 4,
+                  ~line: "firebrick").scale(memory_scale),
+            mem_pip
+          ),
+          dots)
+  let registers:
+    stack(~sep: 4,
+          @t{registers}.scale(0.75),
+          table(for List (i: 0..10):
+                  [@boldly{@tt{x@to_string(i)}}.pad(~left: 8), any_val.pad(~right: 8)],
+                ~pad: 4,
+                ~line: "forestgreen").scale(0.65))
+  let cache_table:
+    options[#'cache]
+      && table(for List (i: 0..4):
+                 for List (j: 0..4):
+                   if i == 2 && j == 1 && options[#'addr_cached]
+                   | cached_addr
+                   | cached_addr.ghost().launder(),
+               ~pad: 4,
+               ~line: "forestgreen").scale(0.5)
+  let registers:
+    if options[#'cache]
+    | stack(~horiz: #'right,
+            ~sep: 32,
+            registers,
+            stack(~sep: 4,
+                  @t{cache}.scale(0.75),
+                  overlay(
+                    cache_pip.translate(0, -1/2 * minion.height),
+                    cache_table
+                  )))
+    | registers
+  let p:
+    beside(~sep: 64,
+           ~vert: #'top,
+           registers.ghost(options[#'just_asm]),
+           code,
+           memory.ghost(options[#'just_asm])).refocus(code)
+  let p:
+    cond
+    | options[#'l1]:
+        balloon.pin(~on: p,
+                    ~at: Find.right(cache_table),
+                    ~spike: #'nw,
+                    lines(@para{Typical @defterm{L1 cache} holds},
+                          @para{most recently accessed 128k bytes}))
+    | options[#'timing]:
+        let recently = @t{recently}
+        let q:
+          lines(@para{Time needed to fetch address contents},
+                @para{tells us whether it was used @recently})
+        balloon.pin(~on: p,
+                    ~at: Find.right(cache_table),
+                    ~spike: #'nw,
+                    switch(q,
+                           balloon.pin(~on: q,
+                                       ~at: Find.right(recently),
+                                       ~spike: #'w,
+                                       ~dx: -64,
+                                       ~fill: "lightblue",
+                                       no_problem)))
+    | options[#'more_realistic_with_cache]:
+        balloon.pin(~on: p,
+                    ~at: Find.right(cache_table),
+                    ~spike: #'nw,
+                    lines(@para{More realistic: memory reads},
+                          @para{are cached to speed up uses},
+                          @para{of the same address}))
+    | ~else:
+        p
+  fun global_note(p, n):
+    if n .= 0
+    | cond
+      | options[#'parallel]:
+          beside.bottom(~sep: 16,
+                        p,
+                        balloon.note(lines(@para{More realistic: multiple},
+                                           @para{independent instructions},
+                                           @para{execute at once}))
+                          .pad(~bottom: 32))
+            .refocus(p)
+      | ~else:
+          p
+    | p
+  fun find(ip):
+    if ip is_a Find
+    | ip
+    | Find.left(ip,
+                ~dx: -minion.width - 8,
+                ~dy: minion.height * -1/2)
+  cond
+  | ip is_a List:
+      fun adjust_minion(i, minion):
+        cond
+        | i == 0:
+            bp(minion)
+        | i == 1:
+            spec(minion)
+        | i == 2:
+            dependent(minion)
+        | ~else: minion
+      cond
+      | to_ip && do_animations:
+          animate(
+            fun (n):
+              let p = global_note(p, n)
+              for values(p = p) (ip: (ip :~ List),
+                                 to_ip: (to_ip :~ List),
+                                 minion: [add_speculative(minion, n .= 0 && #'spec1),
+                                          add_speculative(add_carry(minion2), #'spec2),
+                                          minion3,
+                                          minion4],
+                                 i: 0..):
+                let minion:
+                  if n .= 0
+                  | adjust_minion(i, minion)
+                  | minion
+                scooter(p, find(ip), find(to_ip), minion)(n)
+          )
+      | ~else:
+          let p = global_note(p, 0)
+          for values(p = p) (ip: (ip :~ List),
+                             minion: [add_speculative(minion, #'spec1),
+                                      spec(add_speculative(add_carry(minion2), #'spec2)),
+                                      minion3,
+                                      minion4],
+                             i: 0..):
+            let minion = adjust_minion(i, minion)
+            pin(~on: p,
+                ~at: find(ip),
+                minion)
+  | to_ip && do_animations:
+      let minion_g = minion.ghost()
+      let scoot = scooter(p, find(ip), find(to_ip), minion_g)
+      let minion = add_carry(minion)
+      animate(fun (n): pin(~on: scoot(n),
+                           ~at: Find.top_left(minion_g),
+                           minion.scale(size * (1 - n) + to_size * n)))
+  | ~else:
+      pin(~on: p,
+          ~at: find(ip),
+          add_carry(minion))
+
+slide(~title: cpu,
+      ~name: "CPU",
+      block:
+        let code0 = sum_path_asm
+        let code = balloon.pin(~on: code0,
+                               ~at: Find.top_right(code0,
+                                                   ~dy: 64,
+                                                   ~dx: -120),
+                               ~spike: #'sw,
+                               ~fill: "lightblue",
+                               lines(@para{Simple model of a processor:},
+                                     @para{a minion that steps through},
+                                     @para{instructions one-by-one}))
+        let config = { #'code: code, #'just_asm: #true }
+        switch(
+          code0,
+          & for List (i: 0..5):
+            nonarchival(cpu_state(ip[i], ~to: (i < 4) && ip[i+1], config)),
+          balloon.pin(~on: cpu_state(ip[4], config),
+                      ~at: Find.center(ins_time_pip),
+                      ~spike: #'nw,
+                      lines(@para{Each instruction might take a},
+                            @para{different amount of time from},
+                            @para{other instructions, but always},
+                            @para{the same itself?}))          
+        ))
+
+def tm = @t{150ms}
+def perf_table:
+  table([[@t{small @tt{array} with small jumps:}, tm],
+         [@t{big @tt{array} with big jumps:}, @t{750ms}]])
+
+slide(~title: "Example Program",
+      slide.align(
+        sum_path_c.scale(0.75),
+        slide.next,
+        blank(32),
+        slide.alts(
+          sum_path_input_c.scale(0.75),
+          nonarchival(sum_path_drive_c.scale(0.75)),
+          block:
+            let code = sum_path_drive_c.scale(0.75)
+            let p:
+              perf_table
+            let p:
+              rectangle(~around: p.pad(10),
+                        ~fill: "lightblue")
+            let p:
+              switch(nonarchival(p),
+                     balloon.pin(~on: p,
+                                 ~at: Find.top(tm),
+                                 ~spike: #'s,
+                                 @para{Same instructions, very different times!}))
+            stack.right(~sep: 64, p, code.pad(~right: 200)).refocus(code)
+        )
+      ))
+
+block:
+  let cached :~ OptMap = { #'cache: #true }
+  slide(~title: cpu,
+        ~name: "CPU",
+        slide.alts(
+          cpu_state(ip[ip_ldr_index-2], ~to: ip[ip_ldr_index-1], {}),
+          cpu_state(ip[ip_ldr_index-1], ~to: ip[ip_ldr_index], {}),
+          cpu_state(ip[ip_ldr_index], ~to: mem_pip, ~to_size: 2*memory_scale, {}),
+          cpu_state(mem_pip, ~to: ip[ip_ldr_index], ~size: 2*memory_scale, ~carry: any_val.scale(0.5), {}).sustain(),
+          cpu_state(ip[ip_ldr_index], ~to: cache_pip, cached ++ { #'more_realistic_with_cache }),
+          cpu_state(cache_pip, ~to: mem_pip, ~to_size: 2*memory_scale, cached),
+          cpu_state(mem_pip, ~to: cache_pip, ~size: 2*memory_scale, ~carry: cached_addr.scale(0.5), cached ++ { #'addr_taken }),
+          cpu_state(cache_pip, ~to: ip[ip_ldr_index], cached ++ { #'addr_taken, #'addr_cached }),
+          cpu_state(ip[ip_ldr_index], cached ++ { #'addr_taken, #'addr_cached, #'l1 }),
+          cpu_state(ip[ip_ldr_index], cached ++ { #'addr_taken, #'addr_cached, #'timing }),
+        ))
+
+slide(~title: "Example Program",
+      sum_path2_c.scale(0.75),
+      slide.next,
+      slide.alts(
+        perf_table,
+        balloon.pin(~on: perf_table,
+                    ~at: Find.top(tm),
+                    ~spike: #'s,
+                    @para{No difference with more instructions?})
+      ))
+
+block:
+  let cached :~ OptMap = { #'cache: #true, #'code: sum_path2_asm }
+  let step1 = [ip[0], ip[1], ip[2], ip[3]]
+  let step2 = [Find(ip[5], ~dx: -wait_dx, ~dy: 1/2*minion.height),
+               Find(ip[5], ~dx: -wait_dx - minion.width, ~dy: 1/2*minion.height),
+               Find(ip[5], ~dx: -wait_dx - 2 * minion.width, ~dy: 1/2*minion.height),
+               ip[5]]
+  let step3 = [ip[6],
+               Find(ip[6], ~dx: -wait_dx, ~dy: 1/2*minion.height),
+               Find(ip[7], ~dx: -wait_dx, ~dy: 1/2*minion.height),
+               ip[9]]
+  let step4 = [Find(ip[10], ~dx: -wait_dx, ~dy: 1/2*minion.height),
+               ip[7],
+               ip[8],
+               ip[10]]
+  let step4x = step4.set(0, Find(ip[2], ~dx: -wait_dx, ~dy: 1/2*minion.height))
+  let step4y = step4.set(0, ip[3])
+  let step5 = [ip[4],
+               Find(ip[4], ~dx: -wait_dx, ~dy: 1/2*minion.height),
+               Find(ip[4], ~dx: -wait_dx - minion.width, ~dy: 1/2*minion.height),
+               Find(ip[4], ~dx: -wait_dx - 2 * minion.width, ~dy: 1/2*minion.height)]
+  let step5x = [ip[4],
+                ip[6],
+                Find(ip[6], ~dx: -wait_dx, ~dy: 1/2*minion.height),
+                Find(ip[6], ~dx: -wait_dx - minion.width, ~dy: 1/2*minion.height)]
+  let step5y = step5x.set(1, cache_pip)
+  let step5m = step5x.set(1, mem_pip)
+  slide(~title: cpu,
+        ~name: "CPU",
+        slide.alts(
+          cpu_state(step1, ~to: step2, cached ++ { #'parallel }),
+          cpu_state(step2, ~to: step3, cached).sustain(),
+          cpu_state(step3, ~to: step4, cached ++ { #'data_dependent }).sustain(),
+          cpu_state(step4, cached ++ { #'add_mult_parallel }),
+          cpu_state(step4, ~to: step4x, cached ++ { #'branch_prediction }).sustain(),
+          cpu_state(step4x, ~to: step4y, cached ++ { #'speculative_execution }),
+          cpu_state(step4y, ~to: step5, cached ++ { #'spec1 }),
+          cpu_state(step5, ~to: step5x, cached),
+          cpu_state(step5x, ~to: step5y, cached ++ { #'spec2, #'speculative_cache }),
+          cpu_state(step5y, ~to: step5m, cached ++ { #'spec2 }),
+          cpu_state(step5m, ~to: step5y, cached ++ { #'spec2, #'addr_taken }, ~carry: cached_addr.scale(0.5)).sustain(),
+          cpu_state(step5y, cached ++ { #'spec2, #'addr_taken, #'addr_cached, #'cache_keep })
+        ))
+
+slide(~title: "Speculation and Caching Consequences",
+      slide.align(
+        lines(
+          @para{Caching and speculative execution are @bold{crucial} to performance,},
+          @para{and speculation may run many instructions --- not just one!}
+        ),
+        slide.next,
+        blank(),
+        @para{Speculative execution can try things that shouldn't happen},
+        @item{due to a bounds check or tag check that guards a read},
+        @item{due to page protection, which is a similarly pipelined check},
+        slide.next,
+        blank(),
+        para(@{These things-that-should-never-happen are rolled back, so the},
+             @{program never sees the effects}),
+        slide.next,
+        slide.right(stack.right(~sep: 8,
+                                @para{... execpt via timing}.colorize("blue"),
+                                stopwatch))
+      ))
+
+def probe_c:
+  @verbatim|{
+int *my_pages[256]; // array of pointers to different pages
+
+int probe(int check, void *addr) {
+  if (check) {
+    int8 index = *(int8 *)addr;
+    return *(my_pages[index]);
+  } else
+    return 0;
+}
+}|
+
+def stopwatch_inline:
+  let p = stopwatch.scale(0.5)
+  let s = @t{x}
+  let s = s.pad(~horiz: (p.width - s.width)/2)
+  overlay(s, p).refocus(s)
+
+slide(~title: "The Attack",
+      probe_c.scale(0.75),
+      slide.next,
+      blank(),
+      slide.align(
+        slide.alts(
+          [@para{@bold{Step 1}: call @tt{probe} many times with @tt{true} and a good address},
+           slide.next,
+           @para{⇒ convince the branch predictor that @tt{check} is probably true}],
+          [@para{@bold{Step 2}: read a lot of memory not in @tt{my_pages}},
+           slide.next,
+           @para{⇒ no pages in @tt{my_pages} are cached}],
+          [block:
+             let addr = @tt{addr}
+             let addr = switch(nonarchival(addr),
+                               balloon.pin(~on: addr,
+                                           ~at: Find.top(addr),
+                                           ~spike: #'s,
+                                           lines(@para{JavaScript variant: use an array and index},
+                                                 @para{instead of a raw address})))
+             @para{@bold{Step 3}: call @tt{probe} with @tt{false} and an @addr to attack},
+           slide.next,
+           @para{⇒ byte @(@italic{that you should never see}.colorize("firebrick")) at @tt{addr} is read speculatively},
+           slide.next,
+           @para{⇒ byte is used to index @tt{my_pages}, bringing one page into the cache}],
+          [@para{@bold{Step 4}: @stopwatch_inline time a read of each page in @tt{my_pages}},
+           slide.next,
+           @para{⇒ the fast one tells you what byte was read speculatively!}.colorize("firebrick")]
+        )
+      ))
+
+let options = safety_slides(reminder_options)
+
+slide(~title: spectre,
+      ~name: "Spectre",
+      slide.align(
+        @para{JavaScript implication: use array+index to read any byte of memory},
+        blank(),
+        @para{Browser implication: pages are not isolated},
+        slide.next,
+        blank(),
+        @para{Solutions:},
+        @item{turn off speculation, which makes things slow},
+        @item{generate code to cooperate less, which makes things slow},
+        @item{reduce timer resolution, which makes attacks harder},
+        @item{🤷‍♂️}
+      ))
+
+slide(~title: meltdown,
+      ~name: "Meltdown",
+      slide.align(
+        @para{Different processes have different memory pages},
+        @para{Within one process, C can read any address, anyway},
+        slide.right(@para{so what's the big deal?}.colorize("blue"))
+      ),
+      slide.next,
+      blank(32),
+      slide.align(
+        para(@{As it turns out, OS kernels map all physical memory},
+             @{in every process, but guards it with page protection}),
+        stack.left(
+          ~sep: slide.gap,
+          @item{enables access across process boundaries},
+          @item{avoids expensive page-table resets}
+        ).pad(~left: 32)
+      ))
+
+page_table_slides()
+
+slide(~title: "Summary",
+      slide.align(
+        @para{@defterm{Meltdown} and @defterm{Spectre} are recently discovered side-channel attacks},
+        blank(),
+        para(@{These exploits are not easy to block, because they take advantage of},
+             @{key implementation techniques for making processors run fast:}),
+        @item{@defterm{memory caches}},
+        @item{@defterm{speculative execution}}             
+      ))

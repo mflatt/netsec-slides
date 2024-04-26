@@ -1,0 +1,585 @@
+#lang rhombus/static/and_meta
+
+import:
+  "common.rhm" open
+  "face.rhm"
+  "delays.rhm"!network as delays
+  "crypto.rhm"!key open
+  "cryptoPublicKey.rhm"!key open
+  "cryptoPublicKey.rhm"!public_private open
+
+fun recap(p :~ Pict):
+  overlay(p.pad(~top: 64, ~left: 96),
+          @ellipse(~around: @italic{RECAP}.pad(10),
+                   ~fill: "palegreen").colorize("forestgreen"),
+          ~vert: #'top,
+          ~horiz: #'left).refocus(p)
+
+def non_re = @defterm{Non-repudiation}
+
+slide(~title: "Cryptography Application Goals",
+      block:
+        let p:
+          recap(
+            slide_pict(
+              slide.align(
+                @para{@defterm{Confidentiality}: only intended recipient can read a message},
+                blank(),
+                @para{@defterm{Integrity}: received message is unchanged from sender},
+                blank(),
+                @para{@defterm{Authenticity}: identity of each communicating party can be confirmed},
+                blank(),
+                @para{@non_re: parties cannot deny previous commitments}
+              )
+            )
+          )
+        slide.alts(
+          nonarchival(p),
+          balloon.pin(~on: p,
+                      ~at: Find.bottom(non_re),
+                      ~spike: #'n,
+                      @para{We still haven't covered this one})
+        ))
+
+def declare_scene:
+  stack(~sep: slide.gap,
+        balloon.pin(~on: face.alice.scale(0.25),
+                    ~at: Find.top_right(face.alice, ~dy: 16),
+                    ~spike: #'sw,
+                    ~corner_radius: 32,
+                    ~fill: "beige",
+                    ~line: "lightgray",
+                    lines(@para{Hey everyone,},
+                          @para{I'll give Mallory $10})
+                      .pad(8)),
+        blank(32),
+        beside(~sep: 200, face.bob, face.mallory, face.trudy).scale(0.25))
+
+fun make_scene(n, desc):
+  let p:
+    declare_scene.scale(1 - n * 0.25).pad(~right: 0.75 * n * declare_scene.width)
+  if (n .= 1)
+  | beside(~sep: -3/4 * declare_scene.width + 64,
+           p,                         
+           desc)
+      .refocus(p)         
+  | p
+
+slide(~title: "Commitment via Public Declarations",
+      slide.alts(
+        animate(fun (n): make_scene(n, blank())),
+        make_scene(1,
+                   block:
+                     let who = @t{who}
+                     let top:
+                       lines(@para{It's clear @who is making a promise})
+                     let next_top:
+                       lines(@para{Everyone must pay attention},
+                             @para{and remember correctly})
+                     slide_pict(
+                       slide.align(
+                         ~sep: 32,
+                         switch(top,
+                                balloon.pin(~on: top,
+                                            ~at: Find.top(who),
+                                            ~spike: #'sw,
+                                            lines(@para{We know how to handle},
+                                                  @defterm{authentication}))),
+                         slide.next,
+                         next_top,
+                         slide.next,
+                         block:
+                           let p:
+                             lines(@para{Can write things down, but need},
+                                   @para{a way to make sure that the record},
+                                   @para{is accurate and never rewritten})
+                           switch(nonarchival(p),
+                                  nonarchival(p),
+                                  balloon.pin(~on: p,
+                                              ~at: Find.left_bottom(p, ~dy: -16),
+                                              ~dx: 64,
+                                              ~spike: #'ne,
+                                              lines(@para{This is a question of @defterm{integrity,}},
+                                                    @para{and we know how to handle that, too}))),
+                         lines(@para{Does not scale to lots of},
+                               @para{people with many promises}).sustain().delay(1)
+                       )
+                     )
+                       .refocus(next_top))
+      ))
+
+let alice_private_key = private(key4, @romanly{@bold{A}}.colorize("blue"))
+let bob_private_key = private(key6, @romanly{@bold{B}}.colorize("firebrick"))
+let alice_public_key = public(key2, @romanly{@bold{A}}.colorize("blue"))
+let bob_public_key = public(key5, @romanly{@bold{B}}.colorize("firebrick"))
+let mallory_public_key = public(key3, @romanly{@bold{M}}.colorize("forestgreen"))
+
+def sha256: rectangle(~around: @roman{SHA-256}.scale(0.8).pad(~horiz: 4, ~top: 2),
+                      ~fill: alg_box_color,
+                      ~line: alg_color)
+fun sha_conn(p, f, t, ~horiz = #false) :~ Pict:
+  connect(~on: p,
+          if horiz | Find.right(f) | Find.bottom(f),
+          if horiz | Find.left(t) | Find.top(t),
+          ~line_width: 3,
+          ~line: alg_color,
+          ~style: #'arrow)
+
+def Enc = @romanly{Enc}.colorize(alg_color)
+
+fun make_block(from, to, amt, key, prev_hc, this_hc,
+               ~nonce = #false):
+  let blk:
+    rectangle(~around: stack(~sep:8,
+                             ~horiz: #'left,
+                             beside(~sep: 4,
+                                    @roman{@(«Enc»)(@key, @tt{@from}},
+                                    stack(~sep: -20, @tt{@amt }.scale(0.8), @tt{→}),
+                                    @roman{@tt{@to})}),
+                             @para{prev: @tt{@prev_hc}}.scale(0.8),
+                             if nonce
+                             | @para{nonce: @tt{@nonce}}.scale(0.8)
+                             | nothing)
+                         .pad(8))
+  let out = @tt{@this_hc}.scale(0.8)
+  let p: stack(~sep: 32, blk, sha256, out)
+  let p: sha_conn(sha_conn(p, blk, sha256), sha256, out)
+  let left_pad = 48
+  let q: p.pad(~left: left_pad)
+  connect(~on: q,
+          Find.left(blk, ~dx: -left_pad),
+          Find.left(blk),
+          ~line_width: 3,
+          ~style: #'arrow)
+
+fun hash_chain(alice_name, bob_name, mallory_name):
+  let alice_hc = "AA64FC78B56F"
+  beside(make_block(alice_name, bob_name, "$100", alice_private_key, "45DC87FF9E01", alice_hc),
+         make_block(bob_name, mallory_name, "$47", bob_private_key, alice_hc, "567FD0C9AB37"))
+
+slide(~title: "A Chain of Blocks",
+      slide.align(
+        @para{Define a @defterm{ledger} as a sequence of blocks},
+        slide.left(
+          ~sep: -8,
+          para(@{Define each @defterm{block} to include data plus the hash of the next-older},
+               @{block in the sequence}),
+          slide.center(@para{⇒ a @defterm{chain} via hashes})
+        ),
+        blank(8),
+        slide.alts(hash_chain("alice", "bob", "mallory"),
+                   hash_chain(alice_public_key, bob_public_key, mallory_public_key)),
+        slide.next,
+        blank(8),
+        para(@{As long as two entities agree on the current block (or even just its hash),},
+             @{they agree on the whole sequence of blocks})
+      ))
+
+slide(~title: "Trusting a Blockkeeper",
+      slide.align(
+        @para{Can we avoid having a trusted keeper of blocks that everyone will agree on?},
+        blank(64),
+        block:
+          let blocks = @t{blocks}
+          let evidence_of = @t{evidence of}.rotate(1/8*math.pi)
+          let p:
+            para(@{@boldly{Idea 1}: blockkeeper publishes @blocks regularly to some},
+                 @{third party})
+          switch(nonarchival(p),
+                 pin(~on: p,
+                     ~at: Find.left_top(blocks, ~dx: -20, ~dy: -evidence_of.height + 16),
+                     switch(nonarchival(evidence_of),
+                            balloon.pin(~on: evidence_of,
+                                        ~at: Find.bottom_left(evidence_of, ~dy: -24),
+                                        ~spike: #'se,
+                                        ~dy: 8,
+                                        ~fill: "lightblue",                             
+                                        @para{hash code})))),
+        slide.next,
+        slide.right(lines(@para{The company Surety has been doing this since 1995,},
+                          @para{using the @italic{New York Times} classifieds as the third party})
+                      .scale(0.8).colorize("blue")),
+        slide.next,
+        blank(32),
+        block:
+          let p:
+            para(@{@boldly{Idea 2}: every participant keeps all blocks and agree --- without a designated leader --- through},
+                 @{a @defterm{consensus} algorithm})
+          switch(nonarchival(p),
+                 balloon.pin(~on: p,
+                             ~at: Find.bottom(p),
+                             ~spike: #'nw,
+                             ~dy: -8,
+                             ~fill: "lightblue",
+                             @para{Avoids a gatekeeper for adding the ledger})),
+        slide.next,
+        blank(48),
+        balloon.note(@para{The term @defterm{blockchain} may imply Idea 2})
+      ))
+
+def server = delays.server.scale(0.5)
+def server1 = server.launder()
+def server2 = server.launder()
+def server3 = server.launder()
+def server4 = server.launder()
+def server5 = server.launder()
+
+def slot = blank(~width: 32, ~height: 32)
+def slot1 = slot.launder()
+def slot2 = slot.launder()
+def slot3 = slot.launder()
+def slot4 = slot.launder()
+def slot5 = slot.launder()
+
+def network:
+  let p:
+    stack(~sep: 64,
+          stack(slot1, server1).refocus(server1),
+          stack(~sep: 96,
+                beside(~sep: 200,
+                       beside(slot2, server2).refocus(server2),
+                       beside(server3, slot3).refocus(server3)),
+                beside(~sep: 120,
+                       stack(server4, slot4).refocus(server4),
+                       stack(server5, slot5).refocus(server5))))
+  let p:
+    for values(p = p) ([f, t]: [[Find.bottom(server1), Find.top(server2)],
+                                [Find.bottom(server1), Find.top(server3)],
+                                [Find.bottom(server2), Find.top(server4)],
+                                [Find.bottom(server3), Find.top(server5)],
+                                [Find.right(server4), Find.left(server5)],
+                                [Find.right(server2), Find.top(server5)],
+                                [Find.bottom(server1), Find.top(server5)]]):
+      connect(~on: p, f, t, ~line_width: 2)
+  p                   
+
+let v0 = blank()
+let v1 = rectangle(~width: 16, ~fill: "blue")
+let v2 = v1.launder()
+let v = beside(~sep: 16, v0, v1, v2)
+fun conn(v, f, t) :~ Pict:
+  connect(~on: v,
+          Find.right(f),
+          Find.left(t),
+          ~style: #'arrow,
+          ~arrow_size: 8)
+let v = conn(v, v0, v1)
+let v = conn(v, v1, v2)
+let new_v :~ Pict:
+  let v3 = rectangle(~width: 16, ~fill: "firebrick")
+  conn(beside(~sep: 16, v, v3), v2, v3)
+let new2_v :~ Pict:
+  let v3 = rectangle(~width: 16, ~fill: "forestgreen")
+  conn(beside(~sep: 16, v, v3), v2, v3)
+
+def checkmark = @bold{✓}.scale(2).colorize("forestgreen")
+
+fun network_state(options :~ OptMap) :~ Pict:
+  let p:
+    for values(p = network) (s: [slot1, slot2, slot3, slot4, slot5],
+                             at: [Find.center, Find.right, Find.left, Find.center, Find.center],
+                             i: 1..):
+      pin(~on: p,
+          ~at: at(s),
+          ~pinhole: at(v),
+          cond
+          | i == 4 && options[#'new]:
+              stack.left(~sep: 8,
+                         v.alpha(if options[#'voted] | 0.0 | 0.3),
+                         new_v).refocus(v)
+          | i == 3 && options[#'new2]:
+              stack.left(~sep: 8,
+                         v.alpha(0.3),
+                         new2_v).refocus(v)
+          | options[#'voted]:
+              v.ghost()
+          | ~else:
+              v.alpha(1 - 0.7 * (options[#'vote] || 0)))
+  let to2_1_5: options[#'to2_1_5]
+  let to_2_5: options[#'to_2_5] || to2_1_5
+  let p:
+    cond
+    | (to_2_5 || 0) > 0:
+        let p:
+          scooter(p,
+                  Find.bottom_left(slot4),
+                  Find.bottom_left(slot2, ~dy: 4, ~dx: -(new_v.width-slot.width)/2 - (new_v.width - v.width)),
+                  new_v)(to_2_5)
+        let p:
+          scooter(p,
+                  Find.bottom_left(slot4),
+                  Find.bottom_left(slot5, ~dy: 4, ~dx: -(new_v.width-v.width)/2),
+                  if options[#'voting]
+                  | balloon.pin(~on: new_v,
+                                ~at: Find.right(new_v),
+                                ~spike: #'w,
+                                ~dx: -32,
+                                ~fill: "lightblue",
+                                block:
+                                  let p:
+                                    lines(@para{Voting leads to agreement},
+                                          @para{on one chain or the other,},
+                                          @para{eventually})
+                                  if options[#'dos]
+                                  | balloon.pin(~on: p,
+                                                ~at: Find.top(p),
+                                                ~spike: #'s,
+                                                ~dy: 250,
+                                                lines(@para{Potential DoS attack:},
+                                                      @para{spam network with},
+                                                      @para{candidates and votes}))
+                                  | p)
+                  | new_v)(to_2_5)
+        p
+    | ~else:
+        p
+  let p:
+    cond
+    | (options[#'to_1_3] || 0) > 0:
+        let p:
+          scooter(p,
+                  Find.bottom_left(slot2),
+                  Find.bottom_left(slot1, ~dy: -4-2*v.height-1/2*slot1.height, ~dx: -slot1.width/2),
+                  new_v)(options[#'to_1_3])
+        let p:
+          scooter(p,
+                  Find.bottom_left(slot5),
+                  Find.bottom_left(slot3, ~dy: 4),
+                  new_v)(options[#'to_1_3])
+        p
+    | ~else:
+        p
+  let p:
+    cond
+    | (to2_1_5 || 0) > 0:
+        let p:
+          scooter(p,
+                  Find.bottom_left(slot3),
+                  Find.bottom_left(slot1, ~dy: -4-2*v.height-1/2*slot1.height, ~dx: -slot1.width/2),
+                  new2_v)(to2_1_5)
+        let p:
+          scooter(p,
+                  Find.bottom_left(slot3),
+                  Find.bottom_left(slot5, ~dy: 12 + v.height, ~dx: -(new_v.width-v.width)/2),
+                  new2_v)(to2_1_5)
+        p
+    | ~else:
+        p
+  let p:
+    cond
+    | ((options[#'vote] || 0) > 0) && !options[#'voted]:
+        for values(p = p) ([f, t]: [[slot1, slot2],
+                                    [slot1, slot3],
+                                    [slot3, slot5],
+                                    [slot5, slot4],
+                                    [slot2, slot4],
+                                    [slot3, slot1]]):
+          scooter(p,
+                  Find(f),
+                  Find(t),
+                  checkmark.alpha(options[#'vote]))(options[#'vote])
+    | ~else:
+        p
+  p
+
+fun consensus_slide(options :~ OptMap, ~animate: a_key = #false) :~ OptMap:
+  slide(~title: "Consensus",
+        if options[#'chain]
+        | if a_key
+          | animate(fun (n): network_state(options ++ { a_key: n }))
+          | network_state(options)
+        | network)
+  if a_key
+  | options ++ { a_key: 1 }
+  | options
+
+let options = consensus_slide({})
+let chain_options = consensus_slide(options ++ { #'chain })
+let options = consensus_slide(chain_options ++ { #'new }, ~animate: #'to_2_5)
+let options = consensus_slide(options, ~animate: #'to_1_3)
+let options = consensus_slide(options, ~animate: #'vote)
+let options = consensus_slide(options)
+let options = consensus_slide(options ++ { #'voted })
+
+let options = consensus_slide(chain_options ++ { #'new, #'new2 }, ~animate: #'to2_1_5)
+let options = consensus_slide(options)
+let options = consensus_slide(options ++ { #'voting })
+let options = consensus_slide(options ++ { #'dos })
+
+slide(~title: @para{@titlely{Proof of} @titlely{Work}},
+      ~name: "Proof of Work",
+      slide.align(
+        para(@{To defend against DoS attacks, make them prohibitively expensive}),
+        para(@{Vote only on candidates that},
+             @{provide evidence that substantial resources have been invested in the},
+             @{candidate, i.e., @defterm{proof of work}}),
+        slide.next,
+        blank(),
+        para(@{In Bitcoin, proof of work takes the form of finding a nonce to include such that},
+             @{the resulting hash code starts with some number of @(@boldly(@tt{0}).colorize("firebrick"))s:}),
+        slide.center(make_block(alice_public_key, bob_public_key, "$100", alice_private_key, "45DC87FF9E01",
+                                @tt{@(@boldly(@tt{000}).colorize("firebrick"))4FC78B56F},
+                                ~nonce: @boldly(@tt{15743}.colorize("firebrick"))))
+      ))
+
+slide(~title: "Scaling Up",
+      slide.align(
+        @para{To scale to a large number of transactions:}.pad(~left: -32),
+        blank(),
+        @item{Use a better data structure than a linked list},
+        slide.right(@para{⇒ a @defterm{Merkle tree}}),
+        blank(),
+        @item{Group multiple transactions into a single blockchain extension},
+        slide.right(@para{⇒ incentives to perform transaction work},
+                    @para{via mining rewards and transaction fees}),        
+      ))
+
+fun leaf(n) :~ Pict:
+  let blk: rectangle(~around: @romanly{T@subscript(to_string(n))}.pad(~vert: 4, ~horiz: 40))
+  let out: @romanly{hash@subscript(to_string(n))}
+  let p: stack(~sep: 32, blk, sha256, out)
+  let p: sha_conn(sha_conn(p, blk, sha256), sha256, out)  
+  p
+
+fun node(a, b, n) :~ Pict:
+  let blk: rectangle(~around: lines(@romanly{hash@subscript(to_string(a))},
+                                    if b
+                                    | @romanly{hash@subscript(to_string(b))}
+                                    | @t{ })
+                                .pad(~vert: 4, ~horiz: 40))
+  let out: @romanly{hash@subscript(to_string(n))}
+  let p: beside(~sep: 32, blk, stack(~sep: 32, sha256, out))
+  let p: sha_conn(sha_conn(p, blk, sha256, ~horiz: #true), sha256, out)  
+  values(blk, p)
+
+fun merkle_tree(options :~ OptMap) :~ Pict:
+  let dim = 0.2
+  let l1 = leaf(1)
+  let l2 = leaf(2)
+  let l3 = leaf(3)
+  let l4 = leaf(4)
+  let l5 = leaf(5)
+  let l6 = leaf(6)
+  let l7 = leaf(7)
+  let l8 = leaf(8).ghost()
+  let (i1, i1x) = node(1, 2, "A")
+  let (i2, i2x) = node(3, 4, "B")
+  let (i3, i3x) = node(5, 6, "C")
+  let (i4, i4x) = node(7, #false, "D")
+  let (j1, j1x) = node("A", "B", "α")
+  let (j2, j2x) = node("C", "D", "β")
+  let (k, kx) = node("α", "β", 0)
+  fun in_path(p):
+    p == l4 || p == i2 || p == i2x || p == j1 || p == j1x || p == k || p == kx
+  fun h(p :~ Pict):
+    if options[#'path] && !in_path(p)
+    | p.alpha(dim)
+    | p
+  let p:
+    stack(~sep: 40,
+          h(kx),
+          beside(~sep: 200, h(j1x), h(j2x)).pad(~left: 100),
+          beside(~sep: 10, h(i1x), h(i2x), blank(50), h(i3x), h(i4x)).pad(~left: 100),
+          beside(~sep: 64, h(l1), h(l2), h(l3), h(l4), h(l5), h(l6), h(l7), h(l8)))
+  let p :~ Pict:
+    for values(p = p) ([f, t]: [[i1, l1],
+                                [i1, l2],
+                                [i2, l3],
+                                [i2, l4],
+                                [i3, l5],
+                                [i3, l6],
+                                [i4, l7],
+                                [j1, i1],
+                                [j1, i2],
+                                [j2, i3],
+                                [j2, i4],
+                                [k, j1],
+                                [k, j2]]):
+      connect(~on: p,
+              Find.bottom(f),
+              Find.top(t),
+              ~line: if options[#'path]
+                     | if !in_path(t)
+                       | Color("black") with (alpha = dim)
+                       | "red"
+                     | "black",
+              ~line_width: 3)
+  p.scale(0.8)
+
+slide(~title: "Merkle Tree",
+      para(@{Instead of adding to the front of a linked list,},
+           @{add to the right of a balanced binary tree}),
+      slide.alts(
+        merkle_tree({}),
+        overlay.left_top(merkle_tree({ #'path: #true }),
+                         balloon.note(lines(@para{Can confirm transaction is in the},
+                                            @para{tree using only a spine to that leaf}))
+                           .translate(-100, 0)),
+        overlay.right_top(merkle_tree({ }),
+                          balloon.note(lines(@para{Can validate the entire tree},
+                                             @para{with parallelism}))
+                            .translate(0, -16))
+      ))
+
+slide(~title: "Transaction Processing Incentives",
+      slide.align(
+        @para{Batching multiple transactions reduces consensus traffic},
+        @para{... but why do the work (and prove it) for someone else's transactions?},
+        blank(),
+        @para{Successful addition to the blockchain is rewarded in two ways:},
+        @item{Transaction fees: paid by transaction parties},
+        block:
+          let p = @item{Mining: compensated via newly minted money}
+          switch(nonarchival(p),
+                 balloon.pin(~on: p,
+                             ~at: Find.bottom(p),
+                             ~spike: #'n,
+                             @para{Bitcoin: mining reward decays until the year 2140}))
+      ))
+
+slide(~title: "Proof of Stake",
+      slide.align(
+        @para{A problem with @bold{proof of work}: it's literally busy work},
+        slide.center(@para{Energy expended for Bitcoin mining = medium-sized country}.colorize("blue")),
+        slide.next,
+        blank(32),
+        para(@{@defterm{Proof of stake} is an alternative where voting is modulated not by how much},
+             @{work you do, but how invested you are}),
+        slide.right(@para{prevents DoS, because participants want system to work}.colorize("blue")),
+        slide.next,
+        slide.right(@para{Etherium switched from proof of work to proof of stake}.colorize("blue")),
+        slide.next,
+        blank(32),
+        @para{A problem with @bold{proof of stake}: the rich get richer}
+      ))
+
+slide(~title: "Blockchain Uses",
+      slide.align(
+        @para{Although blockchain does not necessarily mean cryptocurrency, that's easily the largest use:},
+        stack.left(
+          ~sep: slide.gap / 2,
+          @item{Bitcoin},
+          @item{Etherium},
+          @item{Many others}
+        ).pad(~left: 32),
+        slide.next,
+        blank(),
+        @para{A Bitcoin transaction is a simple script},
+        blank(),
+        @para{An Etherium transaction is a program in a Turing-complete language},
+        @item{supports @defterm{smart contracts} whose effect depends on future activity},
+        @item{each transaction specifies @defterm{gas} to be used, which affects its cost}
+      ))
+
+slide(~title: "Summary",
+      slide.align(
+        para(@{A @defterm{blockchain} implements non-repudiation via a public},
+             @{record of authorized transactions}),
+        blank(),
+        para(@{A @defterm{consensus} protocol is needed to maintain the record in a distributed way,},
+             @{which avoids the need for a central trusted party}),
+        blank(),
+        @para{A @defterm{Merkle tree} provides integrity with log-time access},
+        blank(),
+        @para{Two mechanisms to prevent DoS: @defterm{proof of work} and @defterm{proof of stake}}
+      ))

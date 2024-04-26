@@ -336,7 +336,7 @@ let plot:
   let H = 16
   let p = blank(~width: W * sx, ~height: H * sy)
   let p :~ Pict:
-    recur loop (p = p, [x0, y0, color] = pts[0], pts = pts.drop_left(1)):
+    recur loop (p = p, [x0, y0, color] = pts[0], pts = pts.drop(1)):
       match pts
       | []: p
       | [[x, y, next_color], & pts]:

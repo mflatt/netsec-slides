@@ -67,7 +67,7 @@ fun pict([[layer_str, examples, interface], ...],
         | p.scale(1, interfaces)            
         | p
     let [intf, ...] = [arrows(intf), ...]
-    stack(~horiz: #'left, & List.append([intf, layer], ...).drop_left(1))
+    stack(~horiz: #'left, & List.append([intf, layer], ...).drop(1))
   | stack(~horiz: #'left, layer, ...)
 
 module main:

@@ -198,11 +198,11 @@ module ~early network ~lang rhombus/static/and_meta:
            ~line: color,
            ~line_width: w,
            ~label: (ttl
-                      && (options.get(#'ttl, 100) <= ttl)
+                      && (options.get(#'ttl, 100) .<= ttl)
                       && (block:
                             let p = lines(explain(para(TTL, t("= " +& ttl)).scale(0.5)),
                                           to_right(packet.scale(2))).pad(~bottom: 10)
-                            if options.get(#'bounce, -1) >= ttl
+                            if options.get(#'bounce, -1) .>= ttl
                             | stack(~sep: 10, p, lines(~horiz: #'right,
                                                        to_left(packet.scale(2)),
                                                        explain_fail(t("fail").scale(0.5))))

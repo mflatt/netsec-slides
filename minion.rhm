@@ -1,0 +1,55 @@
+#lang rhombus/static/and_meta
+
+import:
+  pict open
+
+export:
+  make_minion
+
+fun make_minion(~body: yellow = "gold",
+                ~pants: blue = "dodgerblue") :~ Pict:
+  fun base(color) :~ Pict:
+    rectangle(~width: 35,
+              ~height: 60,
+              ~fill: color,
+              ~rounded: 15)
+
+  fun back(color) :~ Pict:
+    rectangle(~width: 45,
+              ~height: 20,
+              ~fill: color,
+              ~rounded: 8)
+
+  let eye = overlay(ellipse(~width: 16,
+                            ~height: 16,
+                            ~fill: "white",
+                            ~line: "gray",
+                            ~line_width: 3),
+                    circle(~size: 8,
+                           ~fill: "black"))
+  let mouth = ellipse(~width: 25,
+                      ~height: 20,
+                      ~arc: #'cw,
+                      ~start: -1/4 * math.pi,
+                      ~end: -3/4 * math.pi)
+
+  let leg = stack(rectangle(~width: 8,
+                            ~height: 8,
+                            ~fill: blue),
+                  rectangle(~width: 8,
+                            ~height: 4,
+                            ~fill: "black"))
+  let legs = beside(~sep: 5, leg, leg)
+
+  let arms = overlay.bottom(back(yellow),
+                            back("black").pad(~top: -15).clip())
+
+  overlay(~vert: #'top,
+          arms.pad(~top: 32),
+          stack(~sep: -4,
+                overlay.bottom(base(yellow),
+                               base(blue).pad(~top: -40).clip()),
+                legs),
+          stack(~sep: -10,
+                beside(eye, eye).pad(~top: 10),
+                mouth))

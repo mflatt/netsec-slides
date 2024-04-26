@@ -323,8 +323,8 @@ fun bellman_ford_slides(nodes:~ Map.of(String, Node),
       let spc = tt(" ")
       fun two_column(l :~ List):
         if l.length() mod 2 == 0
-        | let [left :~ List, ...] = l.take_left(l.length() div 2)
-          let [right :~ List, ...] = l.take_right(l.length() div 2)
+        | let [left :~ List, ...] = l.take(l.length() div 2)
+          let [right :~ List, ...] = l.take_last(l.length() div 2)
           [left ++ [spc] ++ right, ...]
         | two_column(l ++ [[blank(), blank()]])
       let [dist_p, ...] = [to_dist(routes[name]), ...]

@@ -32,7 +32,7 @@ module ~early socket_slides ~lang rhombus/static:
     | overlay(~vert: #'top,
               ~horiz: #'left,
               p.ghost(),
-              layers.pict(l.take_left(3), ~interfaces: 1))
+              layers.pict(l.take(3), ~interfaces: 1))
     | p
 
   def basic_layers = my_layers(1, 0, ~top: #true)

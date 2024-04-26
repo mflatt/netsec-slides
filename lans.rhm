@@ -567,8 +567,8 @@ slide(
   ~title: router_vs_switch_title,
   lace(
     [comm_step(@t{host}, delays.laptop, layers.make()),
-     comm_step(@t{switch}, switchbox, layers.make().drop_left(3)),
-     comm_step(@t{router}, delays.router, layers.make().drop_left(2)),
+     comm_step(@t{switch}, switchbox, layers.make().drop(3)),
+     comm_step(@t{router}, delays.router, layers.make().drop(2)),
      comm_step(@t{host}, delays.laptop, layers.make())]
   )
 )
@@ -901,7 +901,7 @@ module ~early vlan ~lang rhombus/static:
     slide(
       ~title: options[#'title] || "Virtual LAN",
       (if options[#'skip_to_end]
-       | (fun (&args): slide.alts(& args.take_right(2)))
+       | (fun (&args): slide.alts(& args.take(2)))
        | slide.alts)(
         slide.align(
           ~horiz: #'left,

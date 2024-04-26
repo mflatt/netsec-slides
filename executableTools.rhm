@@ -1,0 +1,70 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+  "proc_call.rkt"
+
+slide(~title: "Setup for Buffer Overflow Lab",
+      slide.align(
+        @para{Today: tools that you'll find useful},
+        @para{Friday: complete the lab}
+      ))
+
+slide(~title: "Some Useful Command-Line Tools",
+      slide.align(      
+        @tt{file},
+        @tt{xxd},
+        @tt{strings},
+        @tt{nm},
+        @tt{otool -tV},
+        @tt{objdump -d}
+      ))
+
+slide(~title: "Compile and Decompile Resources",
+      @para{You don't need these for the buffer overflow lab, but they're fun to try out},
+      blank(),
+      slide.align(
+        @tt{https://godbolt.org/},
+        blank(),
+        @tt{https://dogbolt.org/}
+      ))
+
+def expr = @romanly{@italic{expr}}
+
+slide(~title: "Compilation Flags",
+      slide.align(
+        @para{Compile with @tt{--target=macos-x86_64} for 64-bit x86},
+        blank(),
+        @para{Compile with @tt{-g} to enable debugging information:},
+        @item{then LLDB can show source while stepping},
+        @item{also, LLDB expressions can refer to local variables}        
+      ))
+
+slide(~title: "LLDB",
+      slide.align(     
+        @para{Start a debugging session:},
+        @verbatim{$ lldb a.out
+                  (lldb) run}.pad(~left: 32)
+      ),
+      blank(),
+      beside(
+        ~sep: 64,
+        ~vert: #'bottom,
+        stack(~sep: 16,
+              ~horiz: #'left,
+              @para{Some useful LLDB commands:},
+              @item{@tt{b @expr} --- set a breakpoint},
+              @item{@tt{c} --- continue from a breakpoint},
+              @item{@tt{s} --- step one C expression},
+              @item{@tt{si} --- step one machine code instruction},
+              @item{@tt{p @expr} --- print the value of an expression},
+              @item{@tt{p/x @expr} --- print in hexadecimal}),
+        stack(~horiz: #'left,
+              ~sep: current_line_sep(),
+              @para{Use @tt{$rsp} to get the value},
+              @para{in RSP, such as in},
+              @tt{ (lldb) p/x $rsp},
+              @para{and similar for other registers})
+      ))
+

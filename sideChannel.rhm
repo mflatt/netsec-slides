@@ -1,0 +1,380 @@
+#lang rhombus/static/and_meta
+
+import:
+  draw
+  rhombus/runtime_path
+  pict/radial
+  "common.rhm" open
+  "face.rhm"
+  "proc_call.rkt".#{decrypt-stack}
+
+runtime_path.def stopwatch_png: "images/stopwatch.png"
+runtime_path.def power_graph_png: "images/power-graph.png"
+runtime_path.def em_png: "images/em.png"
+runtime_path.def pencil_png: "images/pencil.png"
+runtime_path.def fact_paper_png: "images/fact-paper.png"
+runtime_path.def power_capture_png: "images/power-capture.png"
+runtime_path.def power_plot_png: "images/power_plot.png"
+runtime_path.def motherboard_sound_png: "images/motherboard-sound.png"
+runtime_path.def keyboard_png: "images/keyboard.png"
+runtime_path.def mic_icon_png: "images/mic-icon.png"
+runtime_path.def sound_wave_png: "images/sound-wave.png"
+runtime_path.def cpu_png: "images/cpu.png"
+
+def stopwatch = bitmap(stopwatch_png).scale(0.4)
+def power_graph = bitmap(power_graph_png).scale(0.5)
+def em = bitmap(em_png).scale(0.3)
+def pencil = bitmap(pencil_png).scale(0.5)
+def keyboard = bitmap(keyboard_png).scale(0.05)
+def mic_icon = bitmap(mic_icon_png).scale(0.1)
+def sound_wave = bitmap(sound_wave_png).scale(0.2)
+def cpu = bitmap(cpu_png).scale(0.2)
+
+fun comic_sans(s) :~ Pict:
+  parameterize { current_font:
+                   current_font() with (name = "Comic Sans MS") }:
+    t(s)
+
+def reveal:
+  overlay.left(
+    dc(fun (dc :: draw.DC, dx, dy):
+         dc.save()
+         dc.pen := draw.Pen(~color: "lightgray",
+                            ~width: 30,
+                            ~cap: #'butt,
+                            ~join: #'bevel)
+         dc.lines([[0, 55],
+                   [180, 15],
+                   [10, 75],
+                   [170, 55],
+                   [0, 95],
+                   [150, 100],
+                   [0, 125],
+                   [180, 115],
+                   [10, 175],
+                   [170, 155],
+                   [0, 195]],
+                  ~dx: dx,
+                  ~dy: dy)
+         dc.restore(),
+       ~width: 200,
+       ~height: 200)
+      .scale(1, 0.5),
+    @comic_sans{clock to}.scale(1.5).colorize("white").pad(~left: 20)
+  )
+
+def residual:
+  pin(~on: reveal,
+      ~at: Find.center(reveal),
+      pencil.rotate(-1/4 * math.pi)).pad(~bottom: pencil.width * 0.5)
+
+fun label(s, p) :~ Pict:
+  stack(~sep:16, p, t(s).colorize("blue"))
+
+slide(~title: "Side Channels",
+      para(@{A @defterm{side channel} is visible information about how your program},
+           @{runs that is not part of its normal input and output}),
+      blank(),
+      beside(~sep: 96,
+             ~vert: #'bottom,
+             label("timing", stopwatch).pad(~right: 16),
+             label("power", power_graph),
+             label("emissions", em).pad(~horiz: -16),
+             label("remenance", residual).pad(~horiz: -16)))
+
+def check_password_bad_c:
+  @verbatim|{
+int check_password(char *provided, int p_len,
+                   char *expected, int e_len) {
+  if (p_len != e_len)
+    return 0;
+ 
+  for (int i = 0; i < p_len; i++)
+    if (provided[i] != expected[i])
+       return 0;
+
+  return 1;
+}
+}|
+
+def check_password_good_c:
+  @verbatim|{
+int check_password(char *provided, int p_len,
+                   char *expected, int e_len) {
+  int ok = (p_len == e_len);
+ 
+  for (int i = 0; i < p_len; i++)
+    ok = ok & (i < e_len) & (provided[i] == expected[i % e_len]);
+
+  return ok;
+}
+}|
+
+fun timing_slide(n :: Real):
+  fun at(i, p :~ Pict): p.ghost(n < i)
+  let p:
+    beside(~sep: 128,
+           check_password_bad_c.scale(0.75),
+           stack(~sep: 32,
+                 stopwatch.scale(0.5).ghost(n < 0),
+                 table([[at(1, @tt{""}), at(1, @t{1ns})],
+                        [at(2, @tt{"a"}), at(2, @t{1ns})],
+                        [at(3, @t{...}), blank()],
+                        [at(3, @tt{"aaaaa"}), at(3, @t{1ns})],
+                        [at(4, @tt{"aaaaaa"}), at(4, @t{2ns})],
+                        [at(5, @tt{"baaaaa"}), at(5, @t{2ns})],
+                        [at(6, @t{...}), blank()],
+                        [at(6, @tt{"saaaaa"}), at(6, @t{3ns})],
+                        [at(7, @t{...}), blank()],
+                        [at(7, @tt{"secaaa"}), at(7, @t{5ns})],
+                        [at(8, @t{...}), blank()],
+                        [at(8, @tt{"secret"}), at(8, @t{success!}.colorize("red"))]])))
+  let p:
+    if n < 8
+    | nonarchival(p)
+    | p
+  slide(~title: "String Comparison",
+        p)
+
+for (n: -1..=8): timing_slide(n)
+
+slide(~title: "Timing-Safe String Comparison",
+      check_password_good_c,
+      slide.next,
+      blank(),
+      block:
+        let p = balloon.note(@para{Time to check depends only on provided string length})
+        switch(p,
+               balloon.pin(~on: p,
+                           ~at: Find.bottom(p, ~dy: -5),
+                           ~spike: #'n,
+                           ~fill: "lightblue",
+                           @para{... unless the C compiler notices a shortcut})))
+
+slide(~title: "Cauligi et al., SecDev 2017",
+      rectangle(~around: bitmap(fact_paper_png).scale(0.5)))
+
+slide(~title: "Another Idea: Don’t Compare Password Strings",
+      slide.align(
+        @para{As you know, a server should not store and compare password strings},
+        slide.next,
+        blank(32),
+        @para{Comparing @italic{hashes} is not so dangerous:},
+        @item{Hash of input depends only on the input length},
+        @item{Getting a prefix of a hash right doesn't help find the whole hash}
+      ))
+
+def exp_mod_c:
+  @verbatim|{
+result = x;
+for (int i = KEY_BITS-1; i >= 0; i--) {
+   result = (result * result) % N;
+   if (is_bit_set(private_key, i))
+     result = (x * result) % N;
+}
+}|
+
+def plus_ = @bold{+}.colorize("forestgreen")
+def minus_ = @bold{-}.colorize("firebrick")
+
+slide(~title: "Modular Exponentiation for RSA Decryption",
+      @romanly{Dec(x) = x@superscript{private_key} mod N},
+      blank(32),
+      exp_mod_c.scale(0.75),
+      slide.next,
+      blank(32),
+      slide.align(
+        ~sep: 8,        
+        @item(~bullet: plus_){Iteration count is independent of private key},
+        slide.next,      
+        blank(),
+        @item(~bullet: minus_){More work every time a key bit is set},
+        slide.right(@para{⇒ timing indicates number of bits set}.colorize("blue")),
+        slide.next,      
+        blank(),
+        @item(~bullet: minus_){The extra work is reflected not only by time, but power!},
+        block:
+          let which = @italic{which}
+          let p:
+            @para{⇒ power indicates @which bits are set}.colorize("blue")
+          slide.right(
+            switch(p,
+                   balloon.pin(~on: p,
+                               ~at: Find.top(which),
+                               ~spike: #'s,
+                               bitmap(power_plot_png).scale(0.25)))
+          )
+      ))
+      
+slide(~title: "Genkin et al., CHES 2014",
+      bitmap(power_capture_png).scale(0.5),
+      slide.next,
+      balloon.note(@para{Same idea works with electromagnetic field measurements!}))
+
+slide(~title: "Genkin et al., CRYPTO 2014",
+      balloon.note(@para{... or even with sound!}),
+      bitmap(motherboard_sound_png).scale(0.40))
+
+fun make_waves(angle, color) :~ Pict:
+  fun mk(size):
+    circle(~size: size,
+           ~arc: #'ccw,
+           ~start: angle - pi * 1/6, ~end: angle + pi * 1/6,
+           ~line: color,
+           ~line_width: 5)
+  overlay(mk(64), mk(128), mk(192)).pad(~left: -192/2)
+
+def waves = make_waves(0, "blue").rotate(1/8 * pi);
+
+
+slide(~title: "Acoustic Side Channel Attack",
+      beside(~sep: 64,
+             ~vert: #'top,
+             beside(~sep: 64,
+                    stack(face.alice.scale(0.25),
+                          keyboard.scale(0.5)),
+                    waves),
+             stack(beside(~sep: 16,
+                          mic_icon,
+                          face.mallory.scale(0.25)),
+                   stack(~sep: 16,
+                         sound_wave,
+                         radial.arrow(~rotate: -1/2 * math.pi, ~fill: "forestgreen"),
+                         @tt{"superSecret"}))),
+      slide.next,
+      blank(32),
+      @t{@para{Harrison et al. (EuroS&PW'23)}: practical with 25 samples from each of 36 keys})
+
+slide(~title: "Differential Fault Analysis",
+      slide.align(
+        @para{@defterm{Differential fault analysis} pokes at hardware to see what happens:},
+        @item{apply too-high or too-low voltage},
+        @item{short pins},
+        @item{expose to radiation},
+        slide.center(cpu),
+        slide.next,
+        blank(),
+        slide.right(
+          @para{... well outside anything you have to worry about in software}
+        )
+      ))
+
+def decrypt_pip :~ Pict:
+  let p = @tt{ }
+  p.pad(~right: -p.width)
+def secret_pip = decrypt_pip.launder()
+def work_pip = decrypt_pip.launder()
+def buffer_pip = decrypt_pip.launder()
+
+def decrypt_c:
+  @verbatim|{
+void decrypt(....) {
+  key private_key;
+
+  load_private_key(&private_key);
+
+  |@(secret_pip)rsa_decrypt(&private_key, ....);
+}
+
+void work(....) {
+  |@(buffer_pip)char buffer[16];
+  ....
+}
+
+int main() {
+  |@(decrypt_pip)decrypt(....);
+  |@(work_pip)work(....);
+}
+}|
+
+fun rip(p, options :~ OptMap) :~ Pict:
+  def pip:
+    cond
+    | options[#'buffer]: buffer_pip
+    | options[#'work]: work_pip
+    | options[#'secret]: secret_pip
+    | options[#'decrypt]: decrypt_pip
+    | ~else: #false
+  if pip
+  | let a = radial.arrow(~fill: "purple").scale(0.5, 0.25)
+    pin(~on: p,
+        ~at: Find.left(pip, ~dx: -a.width - 5, ~dy: -a.height/2),
+        a)
+  | p
+
+def remenance_title = "Remenance"
+
+fun remenance_slide(options :~ OptMap) :~ OptMap:  
+  slide(~title: remenance_title,
+        beside(~sep: 150,
+               rip(decrypt_c.scale(0.75), options),                   
+               Pict.from_handle(#{decrypt-stack}(~secret: options[#'secret],
+                                                 ~returned: options[#'returned] || !options[#'secret],
+                                                 ~buffer: options[#'buffer]))
+                 .scale(0.75)
+                 .ghost(!options[#'decrypt])))
+  options
+
+let options = remenance_slide({})
+let options = remenance_slide(options ++ { #'decrypt })
+let options = remenance_slide(options ++ { #'secret })
+let ret_options = remenance_slide(options ++ { #'returned, #'work })
+let options = remenance_slide(options ++ { #'buffer })
+
+def erase_c:
+  @verbatim|{
+#include <string.h>
+
+extern void go(char *);
+
+int work() {
+  char buffer[10];
+  go(buffer);
+  memset(buffer, 0, 10);
+  return 0;
+}
+}|
+
+def erase_asm:
+  @verbatim|{
+_work:
+00000000  subq	$0x18, %rsp
+00000004  leaq	0xe(%rsp), %rdi
+00000009  callq	_go
+0000000e  xorl	%eax, %eax
+00000010  addq	$0x18, %rsp
+00000014  retq
+}|
+
+slide(~title: remenance_title,
+      slide.align(
+        @para{Stack-allocated values are not erased on return},
+        @para{Heap-allocated values are not erased by @tt{free}},
+        slide.next,
+        @para{C compiler is likely to eliminate an unnecessary(!) @tt{memset}},
+        blank(),
+        slide.alts(
+          slide.center(
+            beside(~sep: 96,
+                   ~vert: #'bottom,
+                   erase_c.scale(0.75),
+                   erase_asm.scale(0.75))
+            ),
+          [blank(),
+           @para{Java's @tt{SecretKey} class versus @tt{Key}:},
+           @item{@tt{Key} has no destructor},
+           @item{@tt{SecretKey} destructor zeroes out memory},
+           slide.next,
+           blank(),
+           @para{Unlike @tt{malloc}, the @tt{mmap} system call delivers zeroed memory}]
+        )))
+
+slide(~title: "Summary",
+      slide.align(
+        @para{A @defterm{side channel} exposes program behavior outside of normal I/O channels:},
+        @para{timing, power, EM, acoustics, remenance}.pad(~left: 32),
+        blank(32),
+        @para{A @defterm{side channel attack} tries to take advantage of side channels},
+        blank(32),
+        @para{Typical practice: use good languages and APIs, then hope for the best!}
+      ))

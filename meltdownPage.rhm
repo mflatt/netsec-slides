@@ -1,0 +1,205 @@
+#lang rhombus/static/and_meta
+
+import:
+  slideshow open
+  "common.rhm" open
+
+export:
+  page_table_slides
+
+def color1 = "lightblue"
+def color2 = "lightgreen"
+def color3 = "beige"
+
+fun physical(phys, ~color: color) :~ Pict:
+  overlay.left_top(rectangle(~width: 120,
+                             ~height: 30,
+                             ~fill: color),
+                   tt(phys).scale(0.5).pad(8))
+
+def x0000 = physical("0x0000",
+                     ~color: color1)
+def x1000 = physical("0x1000",
+                     ~color: color3)
+def x2000 = physical("0x2000",
+                     ~color: color3)
+def x3000 = physical("0x3000",
+                     ~color: color3)
+def x4000 = physical("0x4000",
+                     ~color: color2)
+def x5000 = physical("0x5000",
+                     ~color: color2)
+def x6000 = physical("0x6000",
+                     ~color: color1)
+def x7000 = physical("0x7000",
+                     ~color: color1)
+
+def maps_to = @t{→}.scale(0.5)
+def maps_to_p3 = maps_to.launder()
+
+fun page(virt, phys, ~maps_to: maps_to = maps_to) :~ Pict:
+  beside(~sep: 4,
+         tt(virt).scale(0.5),
+         maps_to,
+         phys)
+
+def all_pages:
+  stack(~sep: 4,
+        page("0x8000",
+             x0000),
+        page("0x9000",
+             x1000),
+        page("0xA000",
+             x2000),
+        page("0xB000",
+             x3000),
+        page("0xC000",        
+             x4000),
+        page("0xD000",
+             x5000),
+        page("0xE000",
+             x6000),
+        page("0xF000",
+             x7000))
+
+def pip1 = blank()
+def pip2 = pip1.launder()
+def pip3 = pip1.launder()
+
+fun make_memory(all_pages :~ Pict):
+  fun process(name, pip, pages, ~color: color) :~ Pict:
+    let all_pages :~ Pict:
+      if all_pages == nothing | nothing | beside(pip, all_pages)
+    rectangle(~around:
+                stack(~sep: 16,
+                      @t{process @name}.scale(0.5),
+                      stack(~sep: 4,
+                            pages,
+                            rectangle(~around: all_pages.pad(8),
+                                      ~refocus: all_pages,
+                                      ~fill: "lightgray")))
+                  .pad(16, ~top: 0),
+              ~line: Color(color).scale(0.5))
+
+  def skip:
+    page("0x3000",
+         x0000).ghost()
+  
+  def p:
+    beside.top(
+      ~sep: 16,
+      process("1",
+              pip1,
+              ~color: color1,
+              stack(~sep: 4,
+                    skip,
+                    page("0x1000",
+                         x6000),
+                    page("0x2000",
+                         x7000),
+                    skip,
+                    page("0x4000",
+                         x0000,
+                         ~maps_to: maps_to_p3),
+                    skip,
+                    skip,
+                    skip)),
+      process("2",
+              pip2,
+              ~color: color1,
+              stack(~sep: 4,
+                    skip,
+                    page("0x1000",
+                         x4000),
+                    page("0x2000",
+                         x5000),
+                    skip,
+                    skip,
+                    skip,
+                    skip,
+                    skip)),
+      process("3",
+              pip3,
+              ~color: color1,
+              stack(~sep: 4,
+                    skip,
+                    page("0x1000",
+                         x1000),
+                    skip,
+                    skip,
+                    skip,
+                    page("0x5000",
+                         x2000),
+                    page("0x6000",
+                         x3000),
+                    skip))
+    )
+  beside.top(
+    ~sep: 16, 
+    @t{Physical:},
+    stack(~sep: 4, x0000, x1000, x2000, x3000, x4000, x5000, x6000, x7000),
+    blank(32),
+    @t{Virtual:},
+    p
+  )
+
+fun page_table_slides():
+  let pre = make_memory(nothing)
+  let post = make_memory(all_pages)
+  slide(~title: "Page Tables",
+        ~layout: #'tall,
+        slide.alts(
+          pre,
+          balloon.pin(~on: pre,
+                      ~at: Find.bottom(maps_to_p3),
+                      ~dy: -96,                            
+                      ~spike: #'n,
+                      ~sprout: 0.3,
+                      stack(~sep: 16,
+                            ~horiz: #'left,
+                            @para{Every memory access needs to use this translation},
+                            block:
+                              let p = @para{The @defterm{translation lookaside buffer (TLB)} caches it}
+                              switch(nonarchival(p),
+                                     balloon.pin(~on: p,
+                                                 ~at: Find.bottom(p),
+                                                 ~spike: #'n,
+                                                 ~fill: "lightgray",
+                                                 @para{must be flushed when changing processes})))),
+          block:
+            let only = @t{only}
+            let itself = @t{itself}
+            let desc = lines(@para{Kernel allows read at},
+                             @para{these virtual addresses},
+                             @para{@only by @itself})
+            let desc:
+              switch(nonarchival(desc),
+                     balloon.pin(~on: desc,
+                                 ~at: Find.bottom(itself),
+                                 ~spike: #'n,
+                                 ~sprout: 0.8,
+                                 ~fill: "lightgray",
+                                 lines(@para{to reach any memory},
+                                       @para{without a TLB flush})),
+                     balloon.pin(~on: desc,
+                                 ~at: Find.bottom(only),
+                                 ~spike: #'n,
+                                 ~sprout: 0.2,
+                                 ~fill: "pink",
+                                 block:
+                                   let p = lines(@para{check happens after},
+                                                 @para{speculative reads})
+                                   switch(nonarchival(p),
+                                          balloon.pin(~on: p,
+                                                      ~at: Find.right(p),
+                                                      ~spike: #'w,
+                                                      lines(boldly: @para{Solution: don't map kernel pages this way!},
+                                                            @para{But also: hardware change to avoid TLB flush})))))
+            balloon.pin(~on: post,
+                        ~at: Find.left(pip1),
+                        ~spike: #'e,
+                        desc)
+        ))
+
+module main:
+  page_table_slides()

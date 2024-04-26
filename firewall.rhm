@@ -1,0 +1,487 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  pict/radial
+  "common.rhm" open
+  "delays.rhm"!network as delays
+
+runtime_path.def bricks_png: "images/bricks.png"
+runtime_path.def router_png: "images/router.png"
+runtime_path.def laptop_png: "images/laptop.png"
+
+def bricks = bitmap(bricks_png).scale(0.4)
+
+def laptop = delays.laptop.scale(0.5)
+def router = delays.router.scale(0.5)
+def server = delays.server.scale(0.5)
+
+fun make_firewall(alpha) :~ Pict:
+  stack(bricks.alpha(alpha), router)
+def firewall = make_firewall(1)
+
+def internet = overlay(radial.cloud(~width: 400, ~height: 300, ~fill: "lightgray"),
+                       @t{internet})
+
+fun firewall_pict(n,
+                  ~only_way = #false,
+                  ~just_laptop_explain = #false,
+                  ~just_laptop = just_laptop_explain) :~ Pict :
+  let firewalls:
+    if just_laptop
+    | [beside(laptop, bricks)]
+    | for List (i: 0..n): firewall.launder()
+  let wall = overlay(stack(~sep: 64, & firewalls),
+                     blank(~height: 64 * 2 + firewall.height * 3))
+  let local:
+    if just_laptop
+    | blank()
+    | overlay(radial.cloud(~width: 300, ~height: 200, ~fill: "lightgray"),
+              @t{local network})  
+  let p = beside(~sep: 64, local, wall, internet)
+  let p:
+    for values(p = p) (firewall: firewalls,
+                       i: 0..):
+      let dy = (i - (n div 2)) / n
+      let dx = math.abs(0.25 * ((i - (n div 2)) / n))
+      let p:
+        if just_laptop
+        | p
+        | connect(~on: p,
+                  Find.right(local, ~dy: dy * local.height, ~dx: -dx * local.width),
+                  Find.left(firewall, ~dx: -5),
+                  ~end_angle: 0,
+                  ~end_pull: 0.4,
+                  ~line_width: 3)
+      let p = connect(~on: p,
+                      Find.right(firewall, ~dx: 5),
+                      Find.left(internet, ~dy: dy * internet.height, ~dx: dx * local.width),
+                      ~start_angle: 0,
+                      ~start_pull: 0.4,
+                      ~line_width: 3)
+      let p:
+        if only_way
+        | balloon.pin(~on: p,
+                      ~at: Find.bottom(firewalls[firewalls.length()-1]),
+                      ~spike: #'n,
+                      @para{Firewall must guard all paths into the network})
+        | p
+      let p:
+        if just_laptop_explain
+        | balloon.pin(~on: p,
+                      ~at: Find.bottom(bricks),
+                      ~spike: #'ne,
+                      lines(@para{Firewall can be at any level, including a},
+                            @para{host's immediate network connection}))
+        | p
+      p
+  p
+
+slide(~title: "Firewalls",
+      block:
+        let security = @t{security}
+        let p:
+          para(@{A @defterm{firewall} is a network link that restricts traffic},
+               @{in a way that is meant to improve @security})
+        slide.alts(
+          p,
+          balloon.pin(~on: p,
+                      ~at: Find.right(security),
+                      ~spike: #'nw,
+                      @para{e.g., prevent access to an internal service}.time_clip())
+        ),
+      slide.sync,
+      block:
+        let fw3 = firewall_pict(3)
+        slide.alts(
+          firewall_pict(1),
+          nonarchival(fw3),
+          firewall_pict(3, ~only_way: #true),
+          nonarchival(overlay.right(fw3.ghost(),
+                                    firewall_pict(1, ~just_laptop: #true))),
+          overlay.right(fw3.ghost(),
+                        firewall_pict(1, ~just_laptop_explain: #true))
+        ))
+
+def laptop1 = laptop.launder()
+def laptop2 = laptop.launder()
+def laptop3 = laptop.launder()
+
+def server_addr = @tt{155.98.65.55}
+def remote_addr = @tt{172.217.7.36}
+
+slide(~title: "Network/Transport Layer Firewalls",
+      block:
+        let p:
+          beside(~sep: 96,
+                 stack(~sep: 64,
+                       laptop1,
+                       laptop2)
+                   .pad(~bottom: 64),
+                 stack(~sep: 32,
+                       stack(@t{web server}.scale(0.75),
+                             server,
+                             server_addr.scale(0.5)),
+                       laptop3))
+        let local:
+          overlay(radial.cloud(~width: 1.5*p.width,
+                               ~height: 1.5*p.height,
+                               ~fill: "lightgray"),
+                  p)
+        let outside: blank()
+        let p:
+          beside(~sep: 64,
+                 local,
+                 firewall,
+                 outside)
+        let p:
+          connect(~on: p,
+                  Find.right(local),
+                  Find.left(firewall, ~dx: -5),
+                  ~line_width: 3)
+        let p:
+          connect(~on: p,
+                  Find.right(firewall, ~dx: 5),
+                  Find.center(outside),
+                  ~line_width: 3)
+        fun protocol(p :~ Pict, proto :~ Pict, desc = #false,
+                     ~at: at = 0.5) :~ Pict:
+          let proto:
+            rectangle(~around: proto.scale(0.75).pad(5),
+                      ~fill: "beige",
+                      ~line: "gray")
+          let p:
+            connect(~on: overlay.right_top(p.pad(~top: 64, ~right: 200),
+                                           proto),
+                    Find.top(firewall),
+                    Find.bottom(proto))
+              .refocus(p)
+          if desc
+          | switch(p,
+                   balloon.pin(~on: p,
+                               ~at: Find.top_left(proto, ~dvert: at),
+                               ~spike: #'ne,
+                               ~dy: 0,
+                               desc))
+          | p
+        slide.alts(
+          p,
+          balloon.pin(~on: p,
+                      ~at: Find.top(server),
+                      ~spike: #'s,
+                      ~dy: 96,
+                      @para{Allow external access to web server}),
+          balloon.pin(~on: p,
+                      ~at: Find.bottom(laptop2),
+                      ~spike: #'n,
+                      ~sprout: 0.6,
+                      ~dy: -64,
+                      @para{Allow internal clients to access external web servers}),
+          protocol(p,
+                   lines(@para{allow incoming TCP port @tt{80}, @tt{443}},
+                         @para{allow outgoing TCP port @tt{80}, @tt{443}},
+                         @para{drop otherwise}),
+                   @para{Allows incoming HTTP attempts for non-servers}, ~at: 0.15),
+          protocol(p,
+                   lines(beside.topline(@para{allow incoming TCP },
+                                        @stack.left(@t{ address @server_addr},
+                                                    @t{ port @tt{80}, @tt{443}})),
+                         @para{allow outgoing TCP port @tt{80}, @tt{443}},
+                         @para{drop otherwise}),
+                   block:
+                     let p: lines(@para{Doesn't allow replies to server clients,},
+                                  @para{who receive replies at ephemeral ports})
+                     switch(p,
+                            lines(p,
+                                  @tt{ },
+                                  @para{Outgoing web access has the same},
+                                  @para{issue for incoming replies})),
+                   ~at: 0.60),
+          protocol(p,
+                   lines(beside.topline(@para{allow incoming TCP },
+                                        @stack.left(@t{ address @server_addr},
+                                                    @t{ port @tt{80}, @tt{443}})),
+                         @para{allow incoming TCP port > @tt{1024}},
+                         @para{allow outgoing TCP port @tt{80}, @tt{443}, > @tt{1024}},
+                         @para{drop otherwise}),
+                   lines(@para{Allows port scanning, which could discover},
+                         @para{a development server at port @tt{8080}}),
+                   ~at: 0.5),
+          block:
+            fun make(condition) :~ Pict:
+              protocol(p,
+                       lines(beside.topline(@para{allow incoming TCP },
+                                            @stack.left(@t{ address @server_addr},
+                                                        @t{ port @tt{80}, @tt{443}})),
+                             beside.topline(@para{allow incoming TCP },
+                                            @stack.left(@t{ port > @tt{1024}},
+                                                        @t{ with @condition})),
+                             @para{allow outgoing TCP port @tt{80}, @tt{443}, > @tt{1024}},
+                             @para{drop otherwise}))
+            let ACK = @t{ACK}
+            let connected = @t{connected}.colorize("red")
+            let ACK_p = make(ACK)
+            let connected_p = make(connected)
+            slide.alts(
+              ACK_p,
+              balloon.pin(~on: ACK_p,
+                          ~at: Find.bottom(ACK),
+                          ~spike: #'n,
+                          ~dy: -200,
+                          @para{Prevents packets that would start a connection}),
+              stack(~sep: slide.gap,
+                    ACK_p,
+                    @para{Stateless firewalls like this are @defterm{packet filter firewalls}})
+                .refocus(ACK_p),              
+              connected_p,
+              balloon.pin(~on: make(connected),
+                          ~at: Find.bottom(connected),
+                          ~spike: #'n,
+                          ~dy: -200,
+                          block:
+                            let p = @para{Needs NAT-like connection tracking}
+                            switch(p,
+                                   lines(p,
+                                         @t{ },
+                                         @para{Firewall and NAT functionality},
+                                         @para{are often bundled together}))),
+              stack.right(connected_p.pad(~right: 200),
+                          stack(~sep: 16,
+                                ~horiz: #'left,
+                                @para{Options for DNS:},
+                                @item{Allow UDP port @tt{53} and > @tt{1024}},
+                                item(lines(@para{Make internal hosts use an internal DNS server,},
+                                           @para{and allow UDP only for that server}))))
+                .refocus(p)
+            )
+        ))
+
+slide(~title: "Example Firewall",
+      slide.align(
+        @para{On Linux, @tt{iptables} implements a NAT-capable firewall},
+        @item{Can work as a host-specific firewall on user machine},
+        @item{Can work as a firewall router when forwarding packets between interfaces}
+      ),
+      blank(16),
+      @verbatim{
+        $ iptables -A INPUT -p tcp --dport 80 -j DROP
+
+        $ iptables -A OUTPUT -d 75.126.153.206 -j DROP
+
+        $ iptables -A INPUT -i eth1 -s 10.0.0.0/8 -j DROP
+      },
+      slide.next,
+      blank(32),
+      @para{Windows and macOS have firewall options in their system-settings dialogs})
+
+slide(~title: "More Filters",
+      slide.align(
+        para(@{Instead of looking only at headers at the network/transport layer,},
+             @{a firewall could inspect packet payloads, and maybe keep even more state},
+             @{about inferred connections}),
+        @para{This idea is sometimes called @defterm{deep packet inspection}},
+        slide.next,
+        blank(),
+        @para{Less common now than in the early 2000s, because payloads are now more often encrypted}
+      ))
+
+fun packet(addr, port, payload, ~down = #false) :~ Pict:
+  let ip = stack.left(@t{IP}, @t{dest: @addr})
+  let tcp = stack.left(@t{TCP}, @t{dest port: @tt(to_string(port))})
+  let fill = overlay(ip, tcp, payload).ghost().launder()
+  fun part(p :~ Pict):
+    rectangle(~around: overlay(p, blank(~height: fill.height)).pad(~horiz: 4),
+              ~fill: "lightblue",
+              ~line: "blue")
+  let pkt = beside(part(ip), part(tcp), part(payload))
+  let pkt :~ Pict:
+    let q = pkt.pad(~right: if down | 0 | 32, ~bottom: if down | 32 | 0)
+    connect(~on: q,
+            if down | Find.bottom(pkt) | Find.right(pkt),
+            if down | Find.bottom(q) | Find.right(q),
+            ~style: #'arrow,
+            ~line: "blue")
+  pkt.scale(0.5)
+
+fun proxy_pict(options :~ OptMap) :~ Pict:
+  let proxy = server.launder()
+  let labeled_proxy:
+    stack(@t{gateway}.scale(0.75),
+          proxy,
+          server_addr.scale(0.5))
+      .ghost(!options[#'proxy])
+  let p:
+    beside(~sep: 500,
+           ~vert: #'bottom,
+           stack(~sep: 64,
+                 laptop,
+                 labeled_proxy),
+           stack(server,
+                 remote_addr.scale(0.5)))
+  let req = @tt{GET /index.html}
+  let p:
+    connect(~on: p,
+            if options[#'proxy]
+            | Find.right(proxy)
+            | Find.right(laptop),
+            Find.left(server),
+            ~label: packet(remote_addr, 443, req)
+                      .rotate(if options[#'proxy] | 0 | -1/12 * math.pi)
+                      .translate(if options[#'proxy] | 0 | 32,
+                                 if options[#'proxy] | 48 | 56),
+            ~line_width: 3)
+  let p:
+    if options[#'proxy]
+    | connect(~on: p,
+              Find.bottom(laptop, ~dy: 4),
+              Find.top(labeled_proxy),
+              ~label:
+                packet(server_addr, 8080, lines(@tt{to @remote_addr 443},
+                                                req),
+                       ~down: #true)
+                  .translate(200, 0),
+              ~line_width: 3)
+    | p
+  let p:
+    if options[#'limit]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(proxy),
+                  ~spike: #'nw,
+                  ~dy: -64,
+                  @para{Could limit access, authenticate, rewrite dangerous queries, etc.})
+    | p
+  p
+
+fun proxy_slide(options :~ OptMap) :~ OptMap:
+  fun proxy_protos(p):
+    if options[#'proxy_protos]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(p),
+                  ~spike: #'n,
+                  @para{Proxy-request protocols include HTTP and SOCKS5})
+    | p
+  slide(~title: "Application Gateways",
+        slide.align(
+          para(@{Unlike filtering at the network/transport layer, an @defterm{application} @defterm{gateway}},
+               @{requires the cooperation of applications}),
+          blank(32),
+          slide.center(proxy_pict(options)),
+          blank(32),
+          @para{Most applications that use HTTP honor the @proxy_protos(@tt{HTTP_PROXY}) environment variable}.ghost(!options[#'envvar]),
+          @para{These kinds of proxies tend to be slow and inconvenient}.ghost(!options[#'inconvenient])))
+  options
+        
+let options = proxy_slide({})
+let options = proxy_slide(options ++ { #'proxy })
+let aside_options = proxy_slide(options ++ { #'limit })
+let options = proxy_slide(options ++ { #'envvar })
+let aside_options = proxy_slide(options ++ { #'proxy_protos })
+let options = proxy_slide(options ++ { #'inconvenient })
+
+fun dmz_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: "DMZ",
+        para(@{Organizing some servers into a @defterm{demilitarized zone (DMZ)}},
+             @{is one common way to manage access}),
+        blank(32),
+        block:
+          fun encloud(p :~ Pict) :~ Pict:
+            overlay(radial.cloud(~width: 1.25*p.width,
+                                 ~height: 1.5*p.height,
+                                 ~fill: "lightgray"),
+                    p)
+              .refocus(p)
+          let private:
+            beside(~sep: 96,
+                   stack(~sep: 64,
+                         laptop1,
+                         laptop2)
+                     .pad(~bottom: 64),
+                   laptop3)
+          let private:
+            if options[#'dmz] | encloud(private) | private
+          let firewall:
+            make_firewall(if options[#'normal] | 0.5 | 1)
+          let normal_firewall:
+            make_firewall(1)
+          fun dmz(p :~ Pict):
+            if options[#'dmz_label]
+            | overlay.top(
+                rectangle(~around: p.pad(~horiz: 10,
+                                         ~top: 64,
+                                         ~bottom: 16),
+                          ~fill: "pink"),
+                @t{DMZ}
+              ).refocus(p)
+            | p
+          let public:
+            stack(~sep: 32,
+                  beside(~sep: 48,
+                         ~vert: #'top,
+                         firewall.ghost(!options[#'dmz]),
+                         stack(dmz(stack(@t{public server}.scale(0.75),
+                                         server)),
+                               blank(64),
+                               normal_firewall.ghost(!options[#'normal]))
+                           .refocus(server)),
+                  blank())
+          let local:
+            beside(~sep: 64,
+                   private,
+                   public)
+          let local:
+            if options[#'dmz] | local | encloud(local)
+          let ext_firewall = make_firewall(if options[#'dmz] | 0.5 | 1).launder()
+          let p:
+            beside(~sep: 64,
+                   local,
+                   ext_firewall,
+                   internet)
+          fun conn(p, f, t, ~dx = 0, ~dy = 0):
+            connect(~on: p,
+                    Find.right(f, ~dx: dx, ~dy: dy),
+                    Find.left(t, ~dy: dy),
+                    ~line_width: 3)
+          let p = conn(p, ext_firewall, internet)
+          let p:
+            if options[#'dmz]
+            | let p = conn(p, server, ext_firewall)
+              let p = conn(p, private, firewall, ~dx: 16)
+              conn(p, firewall, server)
+            | conn(p, local, ext_firewall, ~dx: 32)
+          let p:
+            if options[#'normal]
+            | let p = conn(p, private, normal_firewall, ~dx: 16, ~dy: 8)
+              conn(p, normal_firewall, internet, ~dy: 8)
+            | p
+          let p:
+            if options[#'strict]
+            | balloon.pin(~on: p,
+                          ~at: if options[#'normal] | Find.bottom(normal_firewall) | Find.top(firewall),
+                          ~spike: if options[#'normal] | #'n | #'sw,
+                          ~dy: if options[#'normal] | -32 | 64,
+                          @para{Strict firewall for internal network})
+            | p
+          let p:
+            if options[#'permissive]
+            | balloon.pin(~on: p,
+                          ~at: Find.top(ext_firewall),
+                          ~spike: #'sw,
+                          @para{Permissive firewall for external service})
+            | p
+          p)
+  options
+
+let options = dmz_slide({})
+let options = dmz_slide(options ++ { #'dmz })
+let options = dmz_slide(options ++ { #'permissive })
+let options = dmz_slide(options ++ { #'strict })
+let options = dmz_slide(options ++ { #'normal })
+let options = dmz_slide(options ++ { #'dmz_label })
+
+slide(~title: "Summary",
+      slide.align(
+        para(@{A @defterm{firewall} is part of a security-in-depth architecture that},
+             @{prevents security breaches through message filtering, especially at the packet level}),
+        blank(),
+        para(@{Firewall configuration relies on many networking concepts across several layers})
+      ))

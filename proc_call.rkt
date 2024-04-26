@@ -7,7 +7,11 @@
 (provide make-stack
          call-example-picts
          overflow-example-picts
-         guarded-stack)
+         guarded-stack
+         code-on-stack-picts
+         example-rop-stack
+         example-rop2-stack
+         decrypt-stack)
 
 (define (diagram-box label w h
                      #:position [superimpose cc-superimpose]
@@ -69,7 +73,7 @@
                          (apply para* s)))
 
 (define (stack-element h #:color [color "lightblue"])
-  (frame (colorize (filled-rectangle (* gap-size 10)
+  (frame (colorize (filled-rectangle (* gap-size 12)
                                      (* gap-size h))
                    color)
          #:line-width 1))
@@ -94,6 +98,7 @@
                                                      p rc-find))))
 
 (define (make-stack popped
+                    #:stack-base-size [stack-base-size 11]
                     #:shadow [shadow 0]
                     #:concrete? [concrete? #f]
                     #:stack-addresses? [stack-addresses? concrete?]
@@ -101,6 +106,7 @@
                     #:recents [recents null]
                     #:bytes? [bytes? #f]
                     #:rbp [rbp-pos #f]
+                    #:old-rsp [old-rsp-pos #f]
                     #:links [links null]
                     #:early-val [early-val "0xB5A9"]
                     #:mid-val [mid-val "0x789ABC"]) 
@@ -113,7 +119,6 @@
                                mid-val
                                "0x2" "0x3" "0xFADE"
                                "0x7FFFFE0")))
-  (define stack-base-size 11)
   (define recents-len (length recents))
   (vc-append
    stack-bottom
@@ -191,12 +196,19 @@
                   p)
          links))
       (refocus (hb-append (inset 
-                           (if rbp-pos
-                               (vr-append (* (- stack-base-size (+ rbp-pos popped) 1)
-                                             (sub1 (pict-height stack-slot)))
-                                          (colorize rbp frame-pointer-color)
-                                          rsp)
-                               rsp)
+                           (cond
+                             [rbp-pos
+                              (vr-append (* (- stack-base-size (+ rbp-pos popped) 1)
+                                            (sub1 (pict-height stack-slot)))
+                                         (colorize rbp frame-pointer-color)
+                                         rsp)]
+                             [old-rsp-pos
+                              (vr-append (* (- stack-base-size (+ old-rsp-pos popped) 1)
+                                            (sub1 (pict-height stack-slot)))
+                                         (cellophane (hbl-append (t "old ") rsp) 0.3)
+                                         rsp)]
+                             [else
+                              rsp])
                            0 0 0 (* -1/3 (pict-height rsp)))
                           main-stack)
                main-stack))
@@ -324,7 +336,8 @@
                       #:note [note #f] 
                       #:val0 [val0 ""]
                       #:val1 [val1 ""]
-                      #:val2 [val2 #f])
+                      #:val2 [val2 #f]
+                      #:code-fade [code-fade values])
   (define %rip
     (tt (case step
           [(0) "0x400457"]
@@ -343,26 +356,28 @@
      (scale
       (vl-append
        (* 2 gap-size)
-       (ht-append (* 2 gap-size) main-c main-asm)
+       (code-fade (ht-append (* 2 gap-size) main-c main-asm))
        (rc-superimpose
         (lc-superimpose
          (launder (ghost main-asm))
-         ((if stack? values ghost)
-          (diagram-box
-           (table 2
-                  (list (t "register") (t "value")
-                        (tt "%rip") %rip)
-                  (cons lbl-superimpose rbl-superimpose) cbl-superimpose
-                  gap-size (current-line-sep))
-           14 4
-           #:color CPU-color)))
-        ((if gets? values ghost) (inset (refocus (vl-append
-                                                    (current-line-sep)
-                                                    (tt "gets")
-                                                    gets-asm)
+         (code-fade
+          ((if stack? values ghost)
+           (diagram-box
+            (table 2
+                   (list (t "register") (t "value")
+                         (tt "%rip") %rip)
+                   (cons lbl-superimpose rbl-superimpose) cbl-superimpose
+                   gap-size (current-line-sep))
+            14 4
+            #:color CPU-color))))
+        ((if gets? values ghost) (code-fade
+                                  (inset (refocus (vl-append
+                                                   (current-line-sep)
+                                                   (tt "gets")
                                                    gets-asm)
-                                          0 (- (* 2 gap-size)) (- (* 2 gap-size)) 0)))
-       (ht-append (* 2 gap-size) f-c f-asm))
+                                                  gets-asm)
+                                         0 (- (* 2 gap-size)) (- (* 2 gap-size)) 0))))
+       (code-fade (ht-append (* 2 gap-size) f-c f-asm)))
       sz)
      ((if stack? values ghost)
       (make-stack (case step
@@ -374,7 +389,7 @@
                   #:shadow (case step
                              [(5) '("0x400575")]
                              [(7) '("0x40045c")]
-                             [(6) (if (eq? note 'stack-attack)
+                             [(6) (if (memq note '(stack-attack stack-attack+w^x))
                                       (let ([a (tt "mov $0x1,%eax")]
                                             [b (tt "syscall")])
                                         (list (scale (lt-superimpose b (ghost a)) 0.8)
@@ -395,7 +410,8 @@
                         in-asm (shifted lt-find 0 (* sz (+ (current-line-sep) (pict-height (tt " "))) (+ 0.5 asm-line)))
                         #:end-angle 0
                         #:color "purple"
-                        #:line-width 3)
+                        #:line-width 3
+                        #:alpha (code-fade 1.0))
         p))
   (cond
     [(eq? note 'unlucky)
@@ -428,21 +444,29 @@
                    (current-line-sep)
                    (para* "Hopefully crashes... but")
                    (para* "could jump to unexpected code")))]
-    [(eq? note 'stack-attack)
+    [(memq note '(stack-attack stack-attack+w^x))
      (pin-balloon p2
                   lc-find val2
                   #:spike 'ne
                   #:dx 64
                   #:dy -64
                   #:color "gold"
-                  (vl-append
-                   (current-line-sep)
-                   (para* "Could even jump to buffer content")
-                   (para* "crafted to hold new instructions")))]
+                  (let ([p (vl-append
+                            (current-line-sep)
+                            (para* "Could even jump to buffer content")
+                            (para* "crafted to hold new instructions"))])
+                    (if (eq? note 'stack-attack+w^x)
+                        (pin-balloon p
+                                     cb-find p
+                                     #:spike 'n
+                                     #:color "lightgreen"
+                                     (para* "Blocked by W^X"))                        
+                        p)))]
     [else p2]))
 
 (define (call-example* #:addr? [addr? #t]
                        #:note [note #f]
+                       #:code-fade [code-fade values]
                        . args)
   (apply call-example args
          #:local? #t
@@ -450,10 +474,11 @@
          #:val0 (tt "\"12345678\"")
          #:val1 (tt "\"90123456\"")
          #:val2 (tt (if addr?
-                        (if (eq? note 'stack-attack)
+                        (if (memq note '(stack-attack stack-attack+w^x))
                             "0x7FFFF810"
                             "0x30393837")
-                        "\"7890\\0\""))))
+                        "\"7890\\0\""))
+         #:code-fade code-fade))
 
 (define (call-example-picts)
   (list
@@ -491,8 +516,63 @@
               #:shadow 0
               #:recents (list "0x400575" "" (vector "name" 2 "") "" (it "canary") "0x40045c")))
 
+(define (code-on-stack-picts)
+  (define (code-fade p)
+    (if (pict? p)
+        (cellophane p 0.25)
+        0.25))
+  (list
+   (call-example* 6 f-asm 4 #:note 'stack-attack #:code-fade code-fade)
+   (call-example* 6 f-asm 4 #:note 'stack-attack+w^x #:code-fade code-fade)))
+
+(define (example-rop-stack #:ret1 [ret1 (tt "0x0100003eb0")]
+                           #:ret2 [ret2 (tt "0x0100003ecb")])
+  (define val0 "aaaaaaaa")
+  (define val1 "aa")
+  (make-stack 2
+              #:old-rsp 6
+              #:concrete? #f
+              #:desc? #f
+              #:recents (list "" (vector "name" 2 val0) val1
+                              ret1
+                              ret2)))
+
+(define (example-rop2-stack #:rets [rets (list (tt "??????"))]
+                            #:ret2 [ret2 (tt "0x0100003ecb")])
+  (define val0 "/bin/bas")
+  (define val1 "h\\0")
+  (make-stack 2
+              #:stack-base-size (+ 10 (length rets))
+              #:old-rsp (+ 5 (length rets))
+              #:concrete? #f
+              #:desc? #f
+              #:recents (append (list "" (vector "name" 2 val0) val1)
+                                rets
+                                (list ret2))))
+
+(define (decrypt-stack #:secret [secret? #t]
+                       #:returned [returned? #f]
+                       #:buffer [buffer? #f])
+  (define val0 (if secret? "super" ""))
+  (define val1 (if secret? "Secret" ""))
+  (make-stack (if returned? 5 2)
+              #:shadow (if returned? (list val1 val0) 0)
+              #:stack-base-size 10
+              #:old-rsp (and (not returned?) 5)
+              #:concrete? #f
+              #:desc? #f
+              #:recents (if returned?
+                            null
+                            (list "" (vector (if buffer? "buffer" "private_key") 2 val0) val1
+                                  "...."))))
 
 (module+ main
+  (slide (decrypt-stack))
+  (slide (decrypt-stack #:returned #t))
+  #;
+  (for-each slide (code-on-stack-picts))
+  #;
   (slide (guarded-stack))
+  #;
   (for-each slide (append (call-example-picts)
                           (overflow-example-picts))))

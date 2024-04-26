@@ -52,7 +52,7 @@ fun networks_slide(options :~ OptMap) :~ OptMap:
                      ~line_width: w,
                      ~style: #'arrow,
                      ~label: @name("lo0", @tt{127.0.0.1}, ~below: #true).scale(ts).translate(0, 150))
-           | p) :~ Pict
+           | p)
   let p = overlay(~vert: #'bottom,
                   ~horiz: #'right,
                   p.pad(~right: 100, ~bottom: 100),
@@ -171,9 +171,9 @@ module ~early socket ~lang rhombus/static:
     let src_ip = (if server_flip(options[#'reply]) | remote | local)
     let tcp_out_port_2 = tcp_out_port.launder()
     let tcp_port_2 = portno("7796")
-    let sock3 :~ Pict: if options[#'server]
-                       | socket("TCP", tcp_out_port, remote, tcp_port)
-                       | socket("TCP", tcp_port, tcp_remote, tcp_out_port)
+    let sock3: if options[#'server]
+               | socket("TCP", tcp_out_port, remote, tcp_port)
+               | socket("TCP", tcp_port, tcp_remote, tcp_out_port)
     let sock3_2 :~ Pict = (if options[#'another_tcp]
                            | let port = tcp_port_2
                              let port = if options[#'ports] | port | port.ghost()
@@ -249,19 +249,19 @@ module ~early socket ~lang rhombus/static:
     let os = overlay(~vert: #'bottom,
                      block:
                        let p = rectangle(~width: apps.width, ~height: 300, ~fill: "beige", ~line: #'inherit)
-                       let p :~ Pict = if options[#'udp] | pin(~on: p, ~at: Find.abs(50, 140), sock0) | p
-                       let p :~ Pict = if options[#'udp] | pin(~on: p, ~at: Find.abs(p.width - sock1.width - sock2.width - 30, 40), sock1) | p
-                       let p :~ Pict = if options[#'udp] | pin(~on: p, ~at: Find.abs(p.width - sock2.width - 20, 100), sock2) | p
-                       let p :~ Pict = if options[#'tcp] | overlay(p, sock3.pad(~right: 40)).refocus(p) | p
+                       let p = if options[#'udp] | pin(~on: p, ~at: Find.abs(50, 140), sock0) | p
+                       let p = if options[#'udp] | pin(~on: p, ~at: Find.abs(p.width - sock1.width - sock2.width - 30, 40), sock1) | p
+                       let p = if options[#'udp] | pin(~on: p, ~at: Find.abs(p.width - sock2.width - 20, 100), sock2) | p
+                       let p = if options[#'tcp] | overlay(p, sock3.pad(~right: 40)).refocus(p) | p
                        let p = if options[#'another_tcp] | overlay(~horiz: #'right, p, sock3_2.pad(~right: 20)).refocus(p) | p
-                       let p :~ Pict: if options[#'tcp_listen]
-                                      | overlay(~horiz: #'left, p, sock4.pad(~left: 50)).refocus(p)
-                                      | p
+                       let p: if options[#'tcp_listen]
+                              | overlay(~horiz: #'left, p, sock4.pad(~left: 50)).refocus(p)
+                              | p
                        p,
                      @t{operating system}.pad(20))
-    let os :~ Pict = (if options[#'host]
-                      | overlay(os, local.scale(0.75).pad(10), ~horiz: #'left, ~vert: #'bottom)
-                      | os)
+    let os = (if options[#'host]
+              | overlay(os, local.scale(0.75).pad(10), ~horiz: #'left, ~vert: #'bottom)
+              | os)
     let link = rectangle(~around: @t{link}.pad(~horiz: 32, ~vert: 5).colorize("white"),
                          ~width: os.width,
                          ~fill: layer_color,
@@ -285,7 +285,7 @@ module ~early socket ~lang rhombus/static:
                | if options[#'server]
                  | connect(~on: p, Find.right_bottom(app2, ~dx: -32), Find.top(sock3_2))
                  | connect(~on: p, Find.bottom(app3, ~dx: 10), Find.top(sock3_2))
-               | p) :~ Pict
+               | p)
       let p = (if options[#'tcp]
                | if options[#'syn] && options[#'tcp_listen]
                  | connect(~on: p, Find.right(sock4), Find.left(sock3))
@@ -294,12 +294,12 @@ module ~early socket ~lang rhombus/static:
                                      && (block:
                                            let p = (if options[#'reply]
                                                     | going_up(msg(reply_data))
-                                                    | going_down(msg(msg_data))) :~ Pict
+                                                    | going_down(msg(msg_data)))
                                            p.scale(0.6)))
-               | p) :~ Pict
+               | p)
       let p: (if options[#'tcp_listen]
               | connect(~on: p, Find.left_bottom(app2, ~dx: 32), Find.top(sock4))
-              | p) :~ Pict
+              | p)
       let p = p.pad(~bottom: 60)
       let p = (if options[#'socket]
                | balloon.pin(~on: p,
@@ -348,13 +348,13 @@ module ~early socket ~lang rhombus/static:
                                    @para{with multiple hosts}))
                | p)
       let p = (if options[#'connect_syscall] || options[#'listen_syscall] || options[#'accept_syscall]
-               | let c :~ Pict: cond
-                                | options[#'connect_syscall]:
-                                    @tt{tcp_connect(~on: @tcp_remote, @tcp_out_port)}
-                                | options[#'listen_syscall]:
-                                    @tt{lnr = tcp_listen(@tcp_out_port)}
-                                | ~else:
-                                    @tt{tcp_accept(lnr)}
+               | let c: cond
+                        | options[#'connect_syscall]:
+                            @tt{tcp_connect(~on: @tcp_remote, @tcp_out_port)}
+                        | options[#'listen_syscall]:
+                            @tt{lnr = tcp_listen(@tcp_out_port)}
+                        | ~else:
+                            @tt{tcp_accept(lnr)}
                  let c = c.scale(0.8)
                  let c = rectangle(~around: c.pad(3),
                                    ~fill: syscall_color,

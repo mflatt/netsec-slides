@@ -441,7 +441,7 @@ block:
   fun mk(len):
     let (p, _, _):
       let tab = add_start(tab, startx, starty)
-      for values(tab = tab, px = startx, py = starty) ([x, y]: states.take_left(len)):
+      for values(tab = tab, px = startx, py = starty) ([x, y]: states.take(len)):
         values(connect(~on: tab,
                        Find.center(cubes[px][py]),
                        Find.center(cubes[x][y]),

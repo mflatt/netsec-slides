@@ -1,0 +1,803 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  pict/radial
+  "common.rhm" open
+  "delays.rhm"!network as delays
+
+runtime_path.def desert_island_png: "images/desert-island.png"
+runtime_path.def city_png: "images/city.png"
+runtime_path.def file_png: "images/file.png"
+runtime_path.def windows_png: "images/windows.png"
+runtime_path.def linux_png: "images/linux.png"
+runtime_path.def c_png: "images/c.png"
+runtime_path.def javascript_png: "images/javascript.png"
+runtime_path.def xen_gif: "images/xen.gif"
+runtime_path.def kvm_png: "images/kvm.png"
+runtime_path.def cpu_png: "images/cpu2.png"
+
+def desert_island = bitmap(desert_island_png)
+def city = bitmap(city_png)
+def file = bitmap(file_png)
+def linux = bitmap(linux_png).scale(0.2)
+def windows:
+  let p = bitmap(windows_png).scale(0.2)
+  p.scale(linux.height / p.height)
+def c = bitmap(c_png).scale(0.5).scale(0.2)
+def javascript = bitmap(javascript_png).scale(0.35).scale(0.2)
+def xen = bitmap(xen_gif).scale(0.5)
+def kvm:
+  let p = bitmap(kvm_png)
+  p.scale(linux.height / p.height)
+def cpu = bitmap(cpu_png).scale(0.4)
+
+slide(~title: "Perfect Security",
+      slide.alts(nonarchival(blank()),
+                 overlay(desert_island,
+                         delays.laptop.translate(-25, 50))))
+
+slide(~title: @titlely{Ok, Not @italic{Completely} Isolated...},
+      slide.align(
+        para(@{The notion of @defterm{isolation} is useful for security, even if},
+             @{it doesn't mean completely disconnected from the world}),
+        slide.next,
+        blank(32),
+        para(@{The @defterm{principle of least privilege} means that actors},
+             @{should have only the capabilities and connectivity that they need}),
+        slide.next,
+        @item{Implemented in part with access control},
+        @item{Implemented in part with isolation},
+        parameterize { current_font: current_font() with (size = math.floor(current_font().size * 8/10)) }:
+          item(~bullet: @t{•}.ghost(),
+               @{Isolation as a kind of capability: If two actors don't share a thing, then misuse of the thing by one},
+               @{(whether malicious or accidental) can't break a use of the thing by the other}),
+        slide.next,
+        blank(),
+        slide.center(@para{Good for maintenance and deployment as well as security })          
+      ))
+
+def point_size = 10
+def row_height = 40
+def row_sep = 32
+
+fun point(p, [status, ...], status_on) :~ Pict:
+  let p:
+    overlay(stack(~sep: 16,
+                  circle(~size: point_size, ~fill: "black"),
+                  p),
+            blank(~width: 200))
+  fun sized(p :~ Pict):
+    p.scale(row_height / p.height).ghost(!status_on)
+  stack(~sep: row_sep,
+        p,
+        sized(status),
+        ...)
+    .refocus(p)
+
+def [object, ...] = [@t{stack},
+                     stack(~sep: -8,
+                           @t{address space}),
+                     stack(~sep: -8,
+                           @t{file descriptors}),
+                     @t{filesystem},
+                     @t{devices},
+                     @t{kernel},
+                     @t{processor}]
+
+fun task_slide(options :~ OptMap, ~archival = #false) :~ OptMap:
+  let iso = desert_island
+  let sh = city
+  let semi :~ Pict:
+    let p = table([[desert_island, blank()],
+                   [blank(), city.scale(desert_island.height / city.height)]],
+                  ~hsep: 0, ~vsep: 0)
+    connect(~on: p, Find.bottom_left(p), Find.top_right(p), ~line_width: 3)
+  slide(~title: if options[#'tradeoffs]
+                | "Tradeoffs"
+                | "Representing Tasks",
+        block:
+          fun two(p): lines(p, @t{ })
+          fun shrink(p :~ Pict): if p.height > row_height | p.scale(row_height / p.height) | p
+          fun maybe_defterm(s) :~ Pict: if options[#'tradeoffs] | t(s) | defterm(s)
+          let rows: [overlay(shrink(object), blank(~height: row_height)), ...]
+          let thread_sh = sh.launder()
+          let process_semi = semi.launder()
+          let vm_sh = sh.launder()
+          let fs_semi = semi.launder()
+          let dev_semi = semi.launder()
+          let kernel_sh = sh.launder()
+          let processes = @t{processes}
+          let containers = @maybe_defterm{containers}
+          let p:
+            beside.top(        
+              point(two(@t{threads}), [iso, thread_sh, sh, sh, sh, sh, sh], options[#'threads_rows])
+                .ghost(!options[#'threads]),
+              point(two(processes), [iso, iso, process_semi, sh, sh, sh, sh], options[#'processes_rows]),
+              point(two(block:
+                          let p = containers
+                          if options[#'docker]
+                          | stack(~sep: 16, p, @italic{e.g., Docker}).refocus(p)
+                          | p),
+                    [iso, iso, iso, fs_semi, dev_semi, kernel_sh, sh], options[#'containers_rows])
+                .ghost(!options[#'containers]),
+              point(block:
+                      let p: lines(~horiz: #'center,
+                                   @maybe_defterm{virtual},
+                                   @maybe_defterm{machines})
+                      if options[#'virtual_box]
+                      | stack(~sep: 16, p, @italic{e.g., VirtualBox}).refocus(p)
+                      | p,
+                    [iso, iso, iso, iso, iso, iso, vm_sh], options[#'vms_rows]).ghost(!options[#'vms]),
+              point(two(@t{machines}),
+                    [iso, iso, iso, iso, iso, iso, iso], options[#'machines_rows]).ghost(!options[#'machines])
+            )
+          let p:
+            overlay(~vert: #'top,
+                    line(~dx: p.width, ~line_width: 3).pad(point_size / 2),
+                    p)
+          let p:
+            overlay.right_top(stack.left(~sep: 8,
+                                         @italic{less isolated}.colorize(if options[#'tradeoffs] | "black" | "firebrick"),
+                                         p),
+                              @italic{more isolated}.colorize(if options[#'tradeoffs] | "black" | "forestgreen"))
+          let rows = stack(~sep: row_sep, & rows).ghost(!options[#'rows]).colorize("mediumblue")
+          let p:
+            table(~vsep: row_sep,
+                  [[blank(), p, blank()],
+                   [rows, blank(), rows.ghost()]])
+          let p :~ Pict:
+            cond
+            | options[#'threads_objects]:
+                balloon.pin(~on: p,
+                            ~at: Find.right(thread_sh),
+                            ~spike: #'w,
+                            lines(@para{Threads can easily interfere with},
+                                  @para{each other via shared objects}))
+            | options[#'processes_fds]:
+                balloon.pin(~on: p,
+                            ~at: Find.right(process_semi),
+                            ~spike: #'w,
+                            lines(@para{Processes mostly have separate},
+                                  @para{file descriptors, but can share},
+                                  @para{them via @tt{fork}}))
+            | options[#'vms_cpu]:
+                balloon.pin(~on: p,
+                            ~at: Find.left(vm_sh),
+                            ~spike: #'se,
+                            lines(@para{Virtual machines pretend},
+                                  @para{to be real machines, but},
+                                  @para{run within some OS}))
+            | options[#'containers_fs]:
+                balloon.pin(~on: p,
+                            ~at: Find.right(fs_semi),
+                            ~spike: #'w,
+                            lines(@para{Containers mostly have their},
+                                  @para{own filesystems, but can be},
+                                  @para{made to share with the host}))
+            | options[#'containers_dev]:
+                balloon.pin(~on: p,
+                            ~at: Find.right(dev_semi),
+                            ~spike: #'w,
+                            lines(@para{Containers use host devices,},
+                                  @para{but virtualized, so that},
+                                  @para{access can be limited and},
+                                  @para{adressing can be separate}))
+            | options[#'containers_kernel]:
+                balloon.pin(~on: p,
+                            ~at: Find.left(kernel_sh),
+                            ~spike: #'se,
+                            lines(@para{Unlike a virtual machine, a},
+                                  @para{container uses the same kernel},
+                                  @para{as its host---but the rest of the},
+                                  @para{OS in a container can be different,},
+                                  @para{because the filesystem is separate}))
+            | options[#'deployment]:
+                balloon.pin(~on: p,
+                            ~at: Find.top(containers),
+                            ~spike: #'sw,
+                            ~dy: 64,
+                            lines(@para{Especially helpful for deployment}))
+                
+            | options[#'chroot_namespaces]:
+                balloon.pin(~on: p,
+                            ~at:
+                              block:
+                                let (px, py) = Find.top(processes).in(p)
+                                let (cx, cy) = Find.top(containers).in(p)
+                                Find.abs((px + cx) / 2, py - point_size),
+                            ~spike: #'sw,
+                            ~dy: 64,
+                            lines(@para{More points in between: @tt{chroot} and namespaces}))
+            | options[#'tradeoffs]:
+                let t = 200
+                let h = rows.width
+                let color = "blue"
+                let faster = @bold{⇐ faster and easier}.colorize(color).pad(~top: t, ~left: h)
+                let p:
+                  overlay.top_left(p, faster)
+                let p:
+                  overlay.top_right(p,
+                                    @bold{slower and more secure ⇒}.colorize(color).pad(~top: t, ~right: h))
+                fun good(p :~ Pict): p.colorize("forestgreen")
+                fun bad(p :~ Pict): p.colorize("firebrick")
+                overlay.top(p,
+                            table([[@bold{Threads},
+                                    @lines(good(@para{sharing data is very fast, and})
+                                           good(@para{and starting a thread is easy, but})
+                                           bad(@para{any thread failure also takes down other threads}))],
+                                   [@bold{Machines}.ghost(!options[#'process_tradeoff]),
+                                    @lines(bad(@para{sharing data is slow, and})
+                                           bad(@para{maintaining machines is difficult, but})
+                                           good(@para{machines are completely autonomous}))
+                                      .ghost(!options[#'process_tradeoff])],
+                                   [@bold{Containers}.ghost(!options[#'container_tradeoff]),
+                                    @para{a great compromise for many purposes}
+                                      .ghost(!options[#'container_tradeoff])]],
+                                  ~hsep: 16,
+                                  ~vsep: 32,
+                                  ~horiz: #'left,
+                                  ~vert: #'topline)
+                              .ghost(!options[#'thread_tradeoff])
+                              .pad(~top: faster.height + 64))
+            | ~else:
+                p
+          let p: if archival | p | nonarchival(p)            
+          p.scale(0.9))
+  options
+
+let options = task_slide({})
+let options = task_slide(options ++ { #'threads })
+let options = task_slide(options ++ { #'machines })
+let options = options ++ { #'vms }
+let aside_options = task_slide(options ++ { #'virtual_box }, ~archival: #true)
+let options = options ++ { #'containers }
+let all_options = options
+let aside_options = task_slide(options ++ { #'docker }, ~archival: #true)
+let options = task_slide(options ++ { #'rows })
+let options = task_slide(options ++ { #'threads_rows })
+let aside_options = task_slide(options ++ { #'threads_objects }, ~archival: #true)
+let options = task_slide(options ++ { #'machines_rows })
+let options = task_slide(options ++ { #'processes_rows })
+let aside_options = task_slide(options ++ { #'processes_fds }, ~archival: #true)
+let options = task_slide(options ++ { #'vms_rows })
+let aside_options = task_slide(options ++ { #'vms_cpu }, ~archival: #true)
+let options = task_slide(options ++ { #'containers_rows })
+let aside_options = task_slide(options ++ { #'containers_fs }, ~archival: #true)
+let aside_options = task_slide(options ++ { #'containers_dev }, ~archival: #true)
+let aside_options = task_slide(options ++ { #'containers_kernel }, ~archival: #true)
+let options = task_slide(options, ~archival: #true)
+let aside_options = task_slide(options ++ { #'deployment }, ~archival: #true)
+let aside_options = task_slide(options ++ { #'chroot_namespaces }, ~archival: #true)
+
+fun filesystem(p :~ Pict) :~ Pict:
+  let h = math.min(64, p.height * 1.2)
+  let p: p.pad(~horiz: 32, ~top: h/4)
+  let color = Color("plum").scale(1.4)
+  fun e(color): ellipse(~width: p.width,
+                        ~height: h,
+                        ~fill: color)
+  let p_g = p.ghost().launder()
+  pin(~on: stack(~sep: -h/2,
+                 ~order: #'back,
+                 e(color.scale(1.2)),
+                 rectangle(~around: p_g,
+                           ~fill: color),
+                 e(color)),
+      ~at: Find.top_left(p_g),
+      p)
+
+fun make_tree(root :~ Pict, children :~ List, ~slice = #false) :~ Pict:
+  let p:
+    stack(~sep: 48,
+          root,
+          beside.top(~sep: 32, & children))
+  let p :~ Pict:
+    for values(p = p) (c: children):
+      connect(~on: p,
+              Find.bottom(root),
+              Find.top(c),
+              ~line_width: 2)
+  if slice
+  | p.pad(~horiz: -(p.width - root.width)/2)
+  | p
+
+def project_name = @tt{project}
+
+fun example_filesystem(options :~ OptMap = {}) :~ Pict:
+  def faded_color = "white"
+  def root_name = @tt{/}
+  def root = rectangle(~around: root_name,
+                       ~rounded: #'default,
+                       ~fill: "yellow")
+
+  def project_tree = make_tree(overlay(project_name.colorize(if options[#'reroot] | faded_color | "black"),
+                                       root.ghost(!options[#'reroot])),
+                               [@tt{a.out}, @tt{data}],
+                               ~slice: #true).colorize("black")
+  def alice_tree = make_tree(@tt{alice},
+                             [@tt{docs}, project_tree],
+                             ~slice: #true)
+  def home_tree = make_tree(@tt{home},
+                            [alice_tree, @tt{bob}],
+                            ~slice: #true)
+  filesystem(
+    make_tree(if options[#'reroot] | root_name | root,
+              [@tt{usr}, home_tree, @tt{tmp}, @tt{opt}])
+      .colorize(if options[#'reroot] | faded_color | "black")
+      .pad(~horiz: 32)
+  ).scale(0.8)
+
+fun chroot_slide(options :~ OptMap) :~ OptMap:
+  def chroot = @boldly{@tt{chroot}}
+  def fs_tree = example_filesystem(options)
+
+  slide(~title: @titlely{Toward Containers: @tt{chroot}},
+        ~name: "chroot",
+        if options[#'reroot]
+        | balloon.pin(~on: fs_tree,
+                      ~at: Find.right(project_name),
+                      ~spike: #'w,
+                      @para{Filesystem as seen by @tt{a.out}})
+        | fs_tree,
+        blank(),
+        block:
+          let p = @boldly{@tt{$ @chroot /home/alice/project /a.out}}.ghost(!options[#'chroot])
+          if options[#'fs_only]
+          | balloon.pin(~on: p,
+                        ~at: Find.bottom(chroot),
+                        ~spike: #'nw,
+                        lines(@para{Isolates only the filesystem},
+                              @para{--- and not, for example, process IDs}))
+          | p,
+        balloon.note(para(@{@chroot is tricky to use directly, because executables need},
+                          @{shared libraries that are provided by the operating system}),
+                     ~fill: "lightblue").ghost(!options[#'dll]))
+  options
+
+let options = chroot_slide({})
+let options = chroot_slide(options ++ { #'chroot })
+let options = chroot_slide(options ++ { #'reroot })
+let aside_options = chroot_slide(options ++ { #'dll })
+let aside_options = chroot_slide(options ++ { #'fs_only })
+
+fun namespace_slide(options :~ OptMap, ~archival = #false) :~ OptMap:
+  slide(~title: "Linux Namespaces",
+        slide.align(
+          @para{A @defterm{namespace} in Linux is a generalization of @tt{chroot}},
+          blank(),
+          block:
+            let p: stack.left(~sep: slide.gap,
+                              @item{filesystem},
+                              @item{process IDs},
+                              @item{network interfaces (and therefore addresses)},
+                              @item{interprocess communication},
+                              @item{hostname},
+                              @item{users and groups},
+                              @item{time})
+            let p: if archival | p | nonarchival(p)
+            beside.bottom(p,
+                          @balloon.note(lines(@para{Related concept: a @defterm{sandbox} is the},
+                                              @para{same kind of functionality more generally,},
+                                              @para{sometimes based on runtime support in a},
+                                              @para{programming language}))
+                            .pad(~left: -170).ghost(!options[#'sandbox]))
+              .refocus(p),
+          blank(),
+          @para{A @defterm{container} system is a manageable API for namespaces}.ghost(!options[#'container])
+        ))
+  options
+
+let options = namespace_slide({})
+let options = namespace_slide(options ++ { #'container })
+let options = namespace_slide(options ++ { #'sandbox }, ~archival: #true)
+
+fun aside(s): @para(s).scale(0.8)
+
+def docker_image_ls:
+  @verbatim{
+$ docker image ls
+REPOSITORY     TAG        IMAGE ID       CREATED         SIZE
+debian         testing    0713af5d6328   8 months ago    117MB
+ubuntu         18.04      8d5df41c547b   20 months ago   63.1MB
+ubuntu         20.04      ba6acccedd29   2 years ago     72.8MB
+archlinux      latest     481b70173ad4   2 years ago     387MB
+racket/racket  latest     1ca0bea7d02d   4 months ago    244MB
+pkg-build      latest     c6a6792dec0a   2 years ago     1.96GB
+}
+
+def docker_container_ls:
+  @verbatim{
+$ docker container ls -a
+CONTAINER ID   IMAGE           COMMAND      CREATED      ....
+8f476a83a297   debian:testing  "bash"       8 months ago ....
+7052d25067bd   racket/racket   "/bin/bash"  2 years ago  ....
+d88cb393d42f   racket/racket   "/bin/bash"  2 years ago  ....
+}
+
+fun program(color) :~ Pict:
+  radial.gear(~width: 96,
+              ~arms: 6,
+              ~fill: color)
+
+def image = overlay(file, example_filesystem().scale(0.6)).scale(0.3)
+fun process(p) :~ Pict:
+  rectangle(~around: p,
+            ~fill: "lightblue",
+            ~line: "blue")
+fun container_like(prog) :~ Pict:
+  process(beside(~sep: -48,
+                 ~vert: #'top,
+                 ~order: #'back,
+                 prog,
+                 image)
+            .pad(16))                          
+fun container(color = "darkblue") :~ Pict:
+  container_like(program(color))               
+
+block:
+  let docker = @bold{Docker}
+  let namespaces = @t{namespaces}
+  let p:
+    slide_pict(
+      slide.align(
+        @para{@docker builds on Linux @namespaces:},
+        @item{An @defterm{image} contains a filesystem, normally with a copy of an OS},
+        slide.center(image),
+        @item{A @defterm{container} starts with a copy of an image plus a configuration},
+        slide.center(beside(~sep: 100,
+                            container(),
+                            container("forestgreen")))
+      )
+    )
+  let p1:
+    balloon.pin(~on: p,
+                ~at: Find.top(docker),
+                ~spike: #'s,
+                ~fill: "lightblue",
+                @para{and similar container systems})
+  let p2:
+    balloon.pin(~on: p1,
+                ~at: Find.top(namespaces),
+                ~spike: #'s,
+                ~sprout: 0.3,
+                ~fill: "lightblue",
+                @para{and similar in other OSes})
+  slide(~title: "Docker",
+        slide.align(
+          blank(),
+          slide.alts(
+            nonarchival(p),
+            nonarchival(p1),
+            p2),
+        ))
+
+
+slide(~title: "Docker",
+      slide.align(
+        @para{Typical uses:},
+        @item{different OS distribution @(@t{(capatible with host kernel)}.scale(0.75))},
+        @item{different set of installed libraries},
+        @item{sandboxing to restrict network access, limit computation time, etc.},
+        @item{reproducible builds}
+      ))
+
+/*
+slide.next,
+          blank(),
+  */
+
+fun what_label(p, l :~ Pict):
+  beside.top(~sep: 64, l.scale(0.5), p).refocus(p)
+
+block:
+  slide(~title: "Docker",
+        slide.align(
+          what_label(docker_image_ls.scale(0.75), image),
+          blank(),
+          what_label(docker_container_ls.scale(0.75), container())
+        ))
+
+def debian = @tt{debian:stable-slim}
+       
+def dockerfile:
+  @verbatim{
+FROM @debian
+
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends ca-certificates curl sqlite3 \
+    && apt-get clean
+
+RUN curl --retry 5 -Ls "${RACKET_INSTALLER_URL}" > racket-install.sh \
+    && echo "yes\n1\n" | sh racket-install.sh --create-dir --unix-style --dest /usr/ \
+    && rm racket-install.sh
+
+ENV SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt"
+ENV SSL_CERT_DIR="/etc/ssl/certs"
+
+RUN raco setup
+RUN raco pkg config --set catalogs \
+    "https://download.racket-lang.org/releases/${RACKET_VERSION}/catalog/" \
+    "https://pkg-build.racket-lang.org/server/built/catalog/" \
+    "https://pkgs.racket-lang.org" \
+    "https://planet-compats.racket-lang.org"
+}
+
+slide(~title: "Dockerfiles",
+      slide.align(
+        @para{Docker images are created by @bold{Dockerfile} scripts},
+        block:
+          let p = what_label(dockerfile.scale(0.55), image)
+          switch(
+            nonarchival(p),
+            balloon.pin(~on: p,
+                        ~at: Find.right(debian),
+                        ~spike: #'w,
+                        @para{Fetched from DockerHub})
+          ),
+        slide.next,
+        blank(),
+        lines(@para{Smart sharing of data among images and containers makes them},
+              @para{relatively lightweight})
+      ))
+
+
+block:
+  def it = @tt{-it}
+  def ia = @tt{-ia}
+  slide(~title: "Creating Docker Containers",
+        slide.align(
+          @para{Create and start a container with @tt{docker run @romanly{@italic{image}}}},
+          blank(),
+          block:
+            let p = what_label(@tt{$ docker run @it debian:testing}, container().scale(0.5))
+            slide.center(
+              switch(p,
+                     balloon.pin(~on: p,
+                                 ~at: Find.bottom(it),
+                                 ~spike: #'n,
+                                 lines(@para{@tt{-i} = interactive},
+                                       @para{@tt{-t} = as a terminal}).time_clip()))
+            ),
+          slide.next,
+          blank(),
+          @para{Start an existing container with @tt{docker start @romanly{@italic{container_id}}}},
+          blank(),
+          block:
+            let p = @tt{$ docker start @ia 8f476a83a297}
+            slide.center(
+              switch(p,
+                     balloon.pin(~on: p,
+                                 ~at: Find.bottom(ia),
+                                 ~spike: #'n,
+                                 lines(@para{Like @tt{-it}, but for @tt{start} instead of @tt{run}}).time_clip()))
+            ),
+          slide.next,
+          blank(),
+          @para{Different containers from the same image have separate filesystem state},
+          slide.center(beside(~sep: 100,
+                              container(),
+                              container("forestgreen"),
+                              container("brown")).scale(0.75))
+
+        ))
+
+fun hardware_layer(os :~ Pict, ~hypervisor = #false) :~ Pict:
+  let laptop:
+    if hypervisor
+    | xen
+    | beside(~sep: 16, cpu, delays.laptop)
+  rectangle(~around: overlay(laptop.scale(0.8 * os.height / laptop.height),
+                             os.ghost()),
+            ~fill: if hypervisor | "Moccasin" | "plum",
+            ~line: if hypervisor | "brown" | "purple")
+
+slide(~title: "Containers and Isolation",
+      slide.align(
+        para(@{A container can be well isolated from its environment, but it still},
+             @{uses the same kernel as the host operating system}),
+        slide.right(
+          @para{A kernel bug could allow an exploit to escape a container}.colorize("blue")
+        ),
+        blank(32),
+        block:
+          let sc = 0.5
+          let orig_c1 = container()
+          let c1 = orig_c1.scale(sc)
+          let c2 = container("forestgreen").scale(sc)
+          fun another(p :~ Pict):
+            rectangle(~around: p.scale(1/sc), ~width: orig_c1.width, ~height: orig_c1.height,
+                      ~fill: "lightblue",
+                      ~line: "blue")
+              .scale(sc)
+          let c3 = another(c)
+          let c4 = another(javascript)                            
+          let os = rectangle(~around: linux.scale(0.75 * c1.height / linux.height),
+                             ~width: c1.width * 4.75,
+                             ~fill: "lightgreen",
+                             ~line: "forestgreen")
+          slide.center(
+            stack(~sep: 4,
+                  beside(~sep: c1.width * 0.75 / 3, c1, c2, c3, c4),
+                  os,
+                  hardware_layer(os))
+          )
+      ))
+
+def vm_proc:
+  container_like(overlay.bottom_right(program("darkblue"),
+                                      @bold{VM}.colorize("red").pad(~bottom: 5)))
+
+fun make_os(who :~ Pict, ~width = 400) :~ Pict:
+  rectangle(~around: who.pad(~vert: 8),
+            ~width: width,
+            ~fill: "lightgreen",
+            ~line: "forestgreen")
+          
+slide(~title: "Virtual Machines",
+      slide.align(
+        @para{A @defterm{virtual machine (VM)} abstracts hardware instead of abstracting an operating system},
+        block:
+          let os = make_os(linux)
+          let win_os = make_os(windows)
+          let sub_os: stack.left(~sep: 4,
+                                 beside(~sep: 16,
+                                        process(c.pad(16)),
+                                        process(c.pad(16)),
+                                        process(overlay(javascript, c.ghost()).pad(16))),
+                                 win_os,
+                                 hardware_layer(win_os))
+                        .scale(0.5)
+          let idea_color = "lightgray"
+          let virtual:
+            stack.left(overlay(radial.cloud(~width: sub_os.width * 1.6,
+                                            ~height: sub_os.height * 1.8,
+                                            ~fill: idea_color),
+                               sub_os)
+                         .pad(~bottom: -35),
+                       ellipse(~width: 50, ~height: 20, ~fill: idea_color).pad(~left: 5, ~bottom: 10),
+                       ellipse(~width: 20, ~height: 10, ~fill: idea_color))
+          fun make_p(n):
+            stack.right(~sep: 8,
+                        virtual,
+                        stack.left(~sep: 4,
+                                   vm_proc.scale(0.5),
+                                   os.scale(1, n),
+                                   hardware_layer(os).scale(1, n)))
+              .scale(1.2 - n*0.4)
+          slide.center(animate(make_p).sustain()),
+        slide.next,
+        blank(),
+        @para{Kernel in a VM can be unrelated to the host OS running the VM},
+        @para{Machine's interface is even simpler than kernel's interface}
+      ))
+
+fun example(l, ...):
+  slide.right(para(l, ...).colorize("blue").scale(0.8))
+
+slide(~title: "Virtual Machines",
+      slide.align(
+        block:
+          let p = what_label(@para{Two kinds of virtual machines}.pad(~left: -32), vm_proc)
+          switch(nonarchival(p),
+                 beside(~sep: 32,
+                        p,
+                        balloon.note(~fill: "lightgreen",
+                                     lines(@para{Docker on macOS uses a VM},
+                                           @para{to run Linux to run containers,},
+                                           @para{and it can use QEMU})))
+                   .refocus(p),
+                 p),
+        blank(32),
+        @para{@defterm{Emulation} uses an interpreter machine code}.pad(~right: 250),
+        slide.right(@para{The emulated processor can be unrelated to host processor}),
+        @example{example: QEMU},
+        blank(32),
+        @para{@defterm{Virtualization} uses hardware to interpret directly},
+        slide.right(
+          block:
+            let Mostly = @t{Mostly}
+            let vtx = @bold{VT-x}
+            let vtx:
+              switch(vtx,
+                     balloon.pin(~on: vtx,
+                                 ~at: Find.top(vtx),
+                                 ~spike: #'s,
+                                 ~dy: 164,
+                                 ~fill: "lightblue",
+                                 lines(@para{... but this is a hardware resource,},
+                                       @para{so it should be managed by the kernel})))                     
+            let p:
+              @para{@Mostly just intercept system calls, must be the same processor}
+            switch(p,
+                   p,
+                   balloon.pin(~on: p,
+                               ~at: Find.bottom(Mostly),
+                               ~spike: #'nw,
+                               ~dy: -64,
+                               lines(@para{Direct device access is an issue, so recent processors help},
+                                     @para{by offering specific virtualization support, such as @vtx})))
+        ),
+        @example{example: VirtualBox}
+      ))
+
+slide(~title: "Hypervisor",
+      slide.align(
+        @para{A kernel supervises programs; a @defterm{hypervisor} supervises kernels},
+        blank(),
+        @para{Can be between the hardware and OSes, like @bold{Xen}:},
+        slide.center(
+          block:
+            let c_proc = process(c.pad(16))
+            let js_proc = process(overlay(javascript, c.ghost()).pad(16))
+            let w = 200
+            let os = make_os(linux, ~width: w)
+            let win_os = make_os(windows, ~width: w)
+            def oses = beside(~sep: 8, os, os, win_os)
+            stack(~sep: 4,
+                  stack.left(~sep: 4,
+                             beside(~sep: w - c_proc.width + 8,
+                                    c_proc,
+                                    beside(~sep: 8, c_proc, js_proc).refocus(c_proc),
+                                    c_proc),
+                             oses),
+                  hardware_layer(oses, ~hypervisor: #true),
+                  hardware_layer(oses))
+              .scale(0.7)
+        ),
+        blank(),
+        block:
+          let p = @para{Can be capable OS, like Linux with @bold{KVM}:}
+          switch(nonarchival(p),
+                 beside(p,
+                        block:
+                          let p2:
+                            balloon.note(lines(@para{Either form of hypervisor may},
+                                               @para{take advantage of hardware},
+                                               @para{ support for virtualization}))
+                          let p2x:
+                             stack(~sep: 16,
+                                   p2,
+                                   balloon.note(~fill: "lightblue",
+                                                lines(@para{This is the main technology},
+                                                      @para{behind @defterm{cloud services}})))
+                          let p3:
+                            switch(nonarchival(p2),
+                                   nonarchival(p2x).refocus(p2),
+                                   stack(~sep: 16,
+                                         p2x,
+                                         balloon.note(~fill: "lightgreen",
+                                                      lines(@para{Mainframes have been},
+                                                            @para{doing this since the 1960s})))
+                                     .refocus(p2))
+                          p3.translate(120, -100))
+                   .refocus(p)),
+        slide.center(
+          block:
+            let os = make_os(kvm)
+            let c_proc = process(overlay(c.scale(2), vm_proc.ghost()))
+            stack.left(~sep: 4,
+                       beside(~sep: 8,
+                              vm_proc.scale(0.5),
+                              c_proc.scale(0.5)),
+                       os,
+                       hardware_layer(os))
+              .scale(0.7)
+        )
+      ))
+
+let options = task_slide(all_options ++ { #'tradeoffs })
+let options = task_slide(options ++ { #'thread_tradeoff })
+let options = task_slide(options ++ { #'process_tradeoff })
+let options = task_slide(options ++ { #'container_tradeoff }, ~archival: #true)
+
+slide(~title: "Summary",
+      slide.align(
+        @para{@defterm{Isolation} is good for software architecture, maintenance, and security},
+        blank(),
+        para(@{@defterm{Containers} and @defterm{virtual machines} provide useful degrees of isolation},
+             @{in between mere processes and completely separate machines}),
+        blank(),
+        para(@{Any layer of a system can be virtualized, and that creates many possibilities to trade},
+             @{isolation, convenience, and performance})
+      ))

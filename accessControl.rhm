@@ -1,0 +1,646 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  pict/radial
+  "common.rhm" open
+  "delays.rhm"!network as delays
+  "crypto.rhm"!key open
+  "cryptoPublicKey.rhm"!public_private open
+
+runtime_path.def database_png: "images/database.png"
+runtime_path.def file_png: "images/file.png"
+runtime_path.def capability_png: "images/capability.png"
+runtime_path.def phone_png: "images/mobile_phone.png"
+runtime_path.def id_png: "images/id.png"
+runtime_path.def email_png: "images/email.png"
+runtime_path.def sms_png: "images/sms.png"
+runtime_path.def fingerprint_png: "images/fingerprint.png"
+runtime_path.def eye_png: "images/eye.png"
+runtime_path.def signature_png: "images/signature.png"
+runtime_path.def voice_png: "images/voice.png"
+runtime_path.def macos_acl_png: "images/macos-acl.png"
+runtime_path.def windows_acl_png: "images/windows-acl.png"
+
+def database = bitmap(database_png).scale(0.3)
+def file = bitmap(file_png).scale(0.2)
+def network:
+  let p = beside(~sep: 32, delays.router, delays.server).scale(0.75)
+  connect(~on: p, Find.right(delays.router), Find.left(delays.server), ~line_width: 3)
+
+def capability = bitmap(capability_png).scale(0.25)
+
+def phone = bitmap(phone_png).scale(0.25)
+def id_card = bitmap(id_png).scale(0.1)
+def email = bitmap(email_png).scale(0.3)
+def sms = bitmap(sms_png).scale(0.15)
+def fingerprint = bitmap(fingerprint_png).scale(0.25)
+def eye = bitmap(eye_png).scale(0.25)
+def signature = bitmap(signature_png).scale(0.25).pad(~vert: 16)
+def voice = bitmap(voice_png).scale(0.15)
+def macos_acl = bitmap(macos_acl_png).scale(0.5)
+def windows_acl = bitmap(windows_acl_png)
+
+fun label(p, l) :~ Pict: stack(~sep: 8, p, l)
+
+fun access_slide(options :~ OptMap, ~skip = #false) :~ OptMap:
+  let capability1 = capability.launder()
+  let capability2 = capability.launder()
+  let capability3 = capability.launder()
+  let capability4 = capability.launder()
+  let access_control:
+    rectangle(~around: @defterm{access control}.rotate(1/2*math.pi).pad(~horiz: 8),
+              ~height: 500,
+              ~fill: "lightgray").ghost(!options[#'access])
+  let p:
+    beside(~sep: 100,
+           stack(~sep: 64,
+                 alice,
+                 bob,
+                 eve_unscaled).scale(0.75),
+           rectangle(~around: @defterm{authentication}.rotate(1/2*math.pi).pad(~horiz: 8),
+                     ~height: 500,
+                     ~fill: "lightgray").ghost(!options[#'auth]),
+           stack(~sep:64,
+                 label(@defterm{capability}, capability1).refocus(capability1),
+                 capability2,
+                 capability3).ghost(!options[#'capability]),
+           beside(~sep: 75,
+                  access_control,
+                  stack(~sep: 64,
+                        label(beside(~sep: 32,
+                                     capability4.ghost(!options[#'hybrid]),
+                                     file)
+                                .refocus(file),
+                              @t{files}),
+                        label(database, @t{database entries}),
+                        label(network, @t{network}))))
+  fun conn(p, from, capability, to, ~via: via = #false) :~ Pict:
+    fun link(p, from, to):
+      connect(~on: p,
+              Find.right(from, ~dx: 5),
+              Find.left(to),
+              ~line_width: 2,
+              ~line: "purple",
+              ~start_angle: 0,
+              ~end_angle: 0,
+              ~order: #'back)
+    fun xlink(p, from, to):
+      if via && options[#'hybrid]
+      | link(link(p, from, via), via, to)
+      | link(p, from, to)
+    if options[#'capability]:
+    | xlink(link(p, from, capability), capability, to)
+    | xlink(p, from, to)
+  let p = conn(p, alice, capability1, file, ~via: capability4)
+  let p = conn(p, bob, capability2, database)
+  let p = conn(p, eve_unscaled, capability3, network)
+  let p:
+    if options[#'access_explain]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(access_control),
+                  ~spike: #'n,
+                  ~sprout: 0.8,
+                  @para{@defterm{Access control} determines who/what can use a given resource})
+    | p
+  let p:
+    if options[#'capability_explain]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom_right(capability3),
+                  ~spike: #'n,
+                  ~dy: -64,
+                  @para{A @defterm{capability} says what resources can be used})
+    | p
+  let p:
+    if options[#'hybrid_explain]
+    | stack(~sep: 16,
+            p,
+            balloon.note(@para{A typical system uses a mixture of capabilities and access control}))
+        .refocus(p)
+    | p
+  unless skip
+  | slide(~title: "Users and Resources",
+          p)
+  options
+
+let options = access_slide({})
+let options = access_slide(options ++ { #'access }, ~skip: #true)
+let aside_options = access_slide(options ++ { #'access_explain })
+let options = access_slide(options ++ { #'auth })
+let options = access_slide(options.remove(#'access) ++ { #'capability }, ~skip: #true)
+let aside_options = access_slide(options ++ { #'capability_explain })
+let options = access_slide(options ++ { #'access }, ~skip: #true)
+let options = access_slide(options ++ { #'hybrid_explain })
+let options = access_slide(options ++ { #'hybrid })
+
+def perimeter = @tt{perimeter}
+def Shape = @tt{Shape}
+def Shape_post = @tt{ }
+
+def oo_prog:
+  @verbatim{
+    interface Shape {@Shape_post
+       int area();
+       int @(«perimeter»)();
+    }
+
+    class Circle implements Shape {
+       int area() { .... }
+       int perimeter() { .... }
+    }
+
+    class Square implements Shape {
+       int area() { .... }
+       int perimeter() { .... }
+    }
+ }
+
+def adt_prog:
+  @verbatim{
+    type @Shape
+    | Circle
+    | Square
+
+    fun area(s :: Shape):
+      match s
+      | Circle: ....
+      | Square: ....
+
+    fun perimeter(s :: Shape):
+      match s
+      | Circle: ....
+      | Square: ....
+ }
+
+fun prog(label, p :~ Pict) :~ Pict:
+  stack(~sep: 16,
+        bold(label),
+        rectangle(~around: p.scale(0.8).pad(16),
+                  ~fill: "beige"))
+
+fun oo_adt_slide(options :~ OptMap, ~archival = #false) :~ OptMap:
+  let plus: "lightgreen"
+  let minus: "pink"
+  let p:
+    beside.top(~sep: 100,
+               prog("object-oriented", oo_prog),
+               prog("datatype-oriented", adt_prog).ghost(!options[#'adt]))
+  let p:
+    balloon.pin(~on: p,
+                ~at: Find.bottom_left(oo_prog),
+                ~spike: #'n,
+                ~sprout: 0.2,
+                if options[#'oo_type]
+                | @para{Add new @Shape.launder() variant without changing old code}
+                | nothing,
+                ~fill: plus)    
+  let p:
+    balloon.pin(~on: p,
+                ~at: Find.bottom_left(adt_prog),
+                ~spike: #'nw,
+                if options[#'adt_fun]
+                | lines(@para{Add new @Shape.launder() operation},
+                        @para{without changing old code})
+                | nothing,
+                ~fill: plus)    
+  let p:
+    balloon.pin(~on: p,
+                ~at: Find.right(Shape),
+                ~spike: #'w,
+                ~sprout: 0.3,
+                ~dx: -64,
+                if options[#'adt_type]
+                | lines(@para{New @Shape.launder() variant},
+                        @para{needs change})
+                | nothing,
+                ~fill: minus)
+  let p:
+    balloon.pin(~on: p,
+                ~at: Find.right(Shape_post),
+                ~spike: #'w,
+                ~sprout: 0.3,
+                ~dx: -64,
+                if options[#'oo_fun]
+                | lines(@para{New @Shape.launder()},
+                        @para{operation},
+                        @para{needs change})
+                | nothing,
+                ~fill: minus)
+  let p:
+    if options[#'analogy]
+    | overlay(p,
+              balloon.note(lines(@para{Each style makes some things easier,},
+                                 @para{but both can get to the same place},
+                                 @tt{ },
+                                 @para{@bold{Capability} versus @bold{access control}},
+                                 @para{is a similar trade-off}).pad(16))
+                .translate(0, 64))
+    | p
+  slide(~title: "Aside: Objects versus Abstract Datatypes",
+        if archival
+        | p 
+        | nonarchival(p))
+  options
+
+let options = oo_adt_slide({})
+let options = oo_adt_slide(options ++ { #'adt })
+let options = oo_adt_slide(options ++ { #'oo_type })
+let options = oo_adt_slide(options ++ { #'adt_type })
+let options = oo_adt_slide(options ++ { #'adt_fun })
+let options = oo_adt_slide(options ++ { #'oo_fun }, ~archival: #true)
+let options = oo_adt_slide(options ++ { #'analogy }, ~archival: #true)
+
+fun auth_slide(options :~ OptMap, ~archival = #false) :~ OptMap:
+  def something = @para{Authentication relies on something the user...}.pad(~right: 300)
+  fun label(s, p):
+    stack(~sep: 8, t(s).scale(0.75).colorize("blue"), p)
+  fun way(c): overlay.left_top(bold(c).pad(~left: 32), something.ghost())
+  def next: if options[#'methods] | slide.next | nothing
+  fun plus_minus(p_in, plus_key, plus_desc, minus_key, minus_desc):
+    fun box(p :~ Pict) :~ Pict:
+      balloon.note(p).scale(0.75)
+    let p = beside(~sep:16,
+                   stack.right(~sep:8,
+                               box(@item(~bullet: @tt{+}, plus_desc).colorize("forestgreen")).ghost(!options[plus_key]),
+                               box(@item(~bullet: @tt{-}, minus_desc).colorize("firebrick")).ghost(!options[minus_key])),
+                   p_in)
+    p.refocus(p_in)
+  fun two_factor(p :~ Pict):
+    beside(~sep: 32,
+           ~vert: #'top,
+           p.pad(~top: 64),
+           balloon.note(~fill: "lightblue",
+                        lines(@defterm{Two-factor},
+                              @defterm{authentication},
+                              @defterm{(2FA)},
+                              @para{uses two of these})).ghost(!options[#'two_factor]))
+      .refocus(p)
+  slide(~title: "Authentication Approaches",
+        if archival
+        | something
+        | nonarchival(something),
+        next,
+        @way{knows},
+        plus_minus(beside(~sep: 32,
+                          label("password", @tt{"superSecret"}),
+                          label("personal info", italicly: @para{mother's maiden name is Smith})),
+                   #'know_plus, @para{Easy input},
+                   #'know_minus, @para{Hard to remember}),
+        next,
+        @way{has},
+        two_factor(
+          plus_minus(beside(~sep: 64,
+                            label("private key", private(key2, blank())),
+                            label("phone app", phone),
+                            label("RFID", id_card),
+                            label("email", email),
+                            label("SMS", sms)),
+                     #'has_plus, @para{Likely on hand},
+                     #'has_minus, @para{Can be stolen})
+          ),
+        next,
+        @way{is},
+        plus_minus(beside(~sep: 64,
+                          label("face", alice_face.scale(0.5)),
+                          label("fingerprint", fingerprint),
+                          label("retinal scan", eye),
+                          label("signature", signature),
+                          label("voice", voice)),
+                   #'is_plus, @para{Always on hand},
+                   #'is_minus, @para{Immutable and imitable}))
+  options
+
+let options :~ OptMap = {}
+let aside_options = auth_slide(options ++ { #'methods })
+let options = auth_slide(options ++ { #'know_plus })
+let options = auth_slide(options ++ { #'know_minus })
+let options = auth_slide(options ++ { #'has_plus })
+let options = auth_slide(options ++ { #'has_minus })
+let options = auth_slide(options ++ { #'is_plus })
+let options = auth_slide(options ++ { #'is_minus })
+let options = auth_slide(options ++ { #'two_factor }, ~archival: #true)
+
+block:
+  let simple_network = @t{simple network service}
+  let process_id = lines(@para{each started process has user ID},
+                         @para{supplied by parent process})
+  let system_color = "forestgreen"
+  slide(~title: "Authentication Result",
+        table([[overlay(@italic{system}, blank(~width: simple_network.width)),
+                overlay(@italic{capability @capability.scale(0.5)}, blank(~width: process_id.width)).translate(-48, 0)],
+               [@t{operating system login}.colorize(system_color),
+                process_id],
+               [simple_network.colorize(system_color),
+                @t{TCP connection implies user}],
+               [@t{web service}.colorize(system_color),
+                lines(@para{login supplies a @defterm{cookie}, which},
+                      @para{is sent back with each request})]],
+              ~vsep: 2 * slide.gap,
+              ~hsep: 64,
+              ~horiz: #'left,
+              ~vert: #'topline))
+
+def cookie = @tt{MSDAPP_Token=0d27775ad131}
+             
+def login_req:
+  @verbatim|{
+POST /?login=y HTTP/1.1
+Host: msdapp.cs.utah.edu
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 41
+
+user=alice&passwd=superSecret&post=Log+In
+}|
+
+def login_resp:
+  @verbatim|{
+HTTP/1.1 302 Found
+Location: /
+Set-Cookie: |@cookie; Secure
+....
+<html>Welcome, Alice!....</html>
+}|
+
+
+def continue_req:
+  @verbatim|{
+GET /menu HTTP/1.1
+Host: msdapp.cs.utah.edu
+Cookie: |@cookie
+....
+}|
+
+fun make_message(content :~ Pict, dir) :~ Pict:
+  let p = rectangle(~around: content.scale(0.75).pad(8),
+                    ~line: "blue",
+                    ~fill: "lightblue")
+  let q: if dir == #'left | p.pad(~left: 32) | p.pad(~right: 32)
+  let p:
+    connect(~on: q,
+            Find(~horiz: dir, p),
+            Find(~horiz: dir, q),
+            ~line: "blue",
+            ~style: #'arrow)
+  p
+
+fun cookie_slide(options :~ OptMap) :~ OptMap:
+  let laptop = delays.laptop
+  let server = delays.server
+  fun as_screen(p :~ Pict):
+    let p:
+      rectangle(
+        ~around: p.scale(0.75),
+        ~width: 350,
+        ~height: 250,
+        ~line: "black"
+      )
+    stack(p, cookie.scale(0.75).ghost(!options[#'cookie_keep]))
+  let screen:
+    cond
+    | options[#'welcome]:
+        as_screen(stack(~sep: 16,
+                        @t{Welcome, Alice!},
+                        rectangle(~around: @t{Menu}.pad(4),
+                                  ~line: "black",
+                                  ~fill: "beige")))
+    | ~else:
+        let textbox = rectangle(~around: @t{something}.ghost())
+        as_screen(
+            table([[@t{User:}, overlay.left(@t{ alice}, textbox)],
+                   [@t{Password}, overlay.left(@t{ ••••••••••}, textbox)]])
+              .pad(30)
+        )
+  let p:
+    beside(~sep: 850,
+           stack(~sep: 16,
+                 screen,
+                 laptop,
+                 alice_face)
+             .refocus(laptop),
+           server)
+  let msg :~ Pict:
+    cond
+    | options[#'login]:
+        make_message(login_req, #'right).translate(50, 0)
+    | options[#'menu]:
+        make_message(continue_req, #'right)
+    | ~else:
+        nothing
+  let msg:
+    if options[#'cookie]
+    | stack(~sep: 32,
+            msg,
+            make_message(login_resp, #'left))
+        .refocus(msg)
+    | msg
+  let p:
+    connect(~on: p,
+            Find.right(laptop, ~dx: 5),
+            Find.left(server),
+            ~label: msg.translate(0, -16),
+            ~line_width: 3)
+  slide(~title: "Authentication Tokens as Cookies",
+        p.translate(100, 0).pad(~top: 100))
+  options
+
+let options = cookie_slide({})
+let login_options = cookie_slide(options ++ { #'login })
+let login_options = cookie_slide(login_options ++ { #'cookie })
+let login_options = cookie_slide(login_options ++ { #'cookie_keep })
+let options = cookie_slide(options ++ { #'cookie_keep, #'welcome })
+let options = cookie_slide(options ++ { #'menu })
+
+slide(~title: "Access Control",
+      slide.align(
+        para(@{Given a current capabilty, such as the current user, @defterm{access control}},
+             @{determines whether to allow use of a specific resource}),
+        blank(32),
+        slide.next,
+        @para{Simple access control: Unix file permissions},
+        @para{More flexible: @defterm{access-control list (ACL)}}
+      ))
+
+def unix_access_title = "Unix Users and File Permissions"
+
+def user_color = "blue"
+def group_color = "purple"
+
+block:
+  fun group(h, v, label, ~dx = 0):
+    def c:
+      circle(~size: 400,
+             ~line: group_color,
+             ~fill: Color(group_color).scale(1.2) with (alpha = 0.5))
+    overlay(~horiz: h,
+            ~vert: v,
+            c.pad(-70),
+            @boldly{@tt(label)}.colorize(group_color).translate(dx, 0))
+      .refocus(c)
+  slide(~title: unix_access_title,
+        para(@{Every @(@italic{user}.colorize(user_color)) belongs to},
+             @{one or more @(@italic{groups}.colorize(group_color))}),
+        overlay(beside(~sep: -250,
+                       stack(~sep: -150,
+                             group(#'left, #'top, "staff"),
+                             group(#'left, #'bottom, "www-admin")),
+                       group(#'right, #'center, "db-user", ~dx: 40)),
+                @boldly{@tt{alice}}.colorize(user_color).translate(-32, 0))
+          .scale(0.75))
+
+block:
+  let check = @bold{✔}.colorize("forestgreen")
+  let ex = @bold{✘}.colorize("firebrick")
+  let bit = @tt{@check/@ex}
+  let exec = @tt{execute}
+  let user = @italic{user}.colorize(user_color)
+  let group = @italic{group}.colorize(group_color)
+  let others = @italic{others}
+  fun col(p): overlay(p, exec.ghost())
+  fun bits_table(on):
+    fun bits(n):
+      if on
+      | if n == 1
+        | @roman{@check=@tt{1}}
+        | @roman{@ex=@tt{0}}
+      | bit
+    fun show_bits(p):
+      if on
+      | beside(~sep: 64,
+               ~vert: #'bottom,
+               p,
+               stack(
+                 @tt{-rwxr-x---},
+                 @tt{ },
+                 @tt{ 111101000},
+                 @t{= @tt{0750} octal}))
+          .refocus(p)
+      | p
+    show_bits(
+      table([[blank(), col(@tt{read}), col(@tt{write}), col(exec)],
+             [user, bits(1), bits(1), bits(1)],
+             [group, bits(1), bits(0), bits(1)],
+             [others, bits(0), bits(0), bits(0)]],
+            ~hsep: 8,
+            ~horiz: [#'left, #'center])
+    )
+  slide(~title: unix_access_title,
+        slide.align(
+          @para{Every file has an owning @user plus @group and a table:},
+          slide.center(
+            slide.alts(bits_table(#false),
+                       bits_table(#true))
+          ),
+          slide.next,
+          slide.alts(
+            [blank(),
+             slide.left(
+               ~sep: 8,
+               @para{For a directory:},
+               @item{@tt{read} ⇒ @tt{ls}},
+               @item{@tt{write} ⇒ create file or subdirectory},
+               @item{@tt{execute} ⇒ @tt{cd}}
+             )],
+            [blank(32),
+             @para{Every process has a current @user, @group, and a table},
+             slide.alts(
+               [@item{login or @tt{su} changes current @user},
+                @item{login or @tt{newgrp} changes current @group}],
+               [blank(),
+                @para{On file access, check permissions relative to @user (and its @(group)s)},
+                @para{On file creation, assign current @user and @group as owners}]
+             )]
+          )
+        ))
+
+def perms = @tt{0666}
+
+def new_file_c:
+  @verbatim|{
+#include <unistd.h>
+#include <fcntl.h>
+
+int main() {
+  close(open("the_new_file",
+             O_RDWR | O_CREAT,
+             |@perms));
+  return 0;
+}
+}|
+
+slide(~title: unix_access_title,
+      balloon.pin(~on: new_file_c,
+                  ~at: Find.bottom(perms),
+                  ~spike: #'nw,
+                  lines(@para{Specifies permissions for new file},
+                        lines(@para{... removing bits set in @tt{umask},},
+                              @para{which is also a process property}).delay(1))
+                    .delay(1)))
+
+slide(~title: "Access Control Lists",
+      slide.align(
+        para(@{Unix traditional file permissions are specific to just one},
+             @{user and one group}),
+        para(@{A file can have a more general @defterm{access control list (ACL)}},
+             @{with specific permissions for multiple users and groups}),
+        para(@{Per-user permissions might be @tt{R}/@tt{W}/@tt{X}, or permissions might be more},
+             @{general, depending on the OS and filesystem})
+      ),
+      beside(~sep: 100,
+             macos_acl.scale(0.75),
+             stack(~sep: 16,
+                   @t{Windows},
+                   windows_acl)))
+
+slide(~title: "Role-Based Access Control (RBAC)",
+      slide.align(
+        para(@{In a setting with many kinds of actions (e.g., Amazon AWS),},
+             @{permissions can be grouped into @defterm{roles}}),
+        para(@{To allow a user/service to perform a set of actions, give them the relevant role}),
+        slide.next,
+        blank(32),
+        slide.left(
+          ~sep: 8,
+          @para{A role is a kind of capability @capability.scale(0.5)},
+          slide.right(@para{associated to a user, not a resource}.colorize("blue"))
+        )
+      ))
+
+slide(~title: "Capabilities Instead of Access Control",
+      slide.align(
+        para(@{In a pure capability-oriented view, all access control is through},
+             @{a capability}),
+        @item{There's no way to even talk about an action without having that capability},
+        @item{Capabilities include the possibility of generating and delegating capabilities},
+        blank(32),
+        slide.center(
+          para(@{For example, a JavaScript program can manipulate a web page, but only through},
+               @{DOM methods, and there's no way to perform an action that doesn't have a method})
+            .colorize("blue").scale(0.8)
+        )
+      ))
+
+slide(~title: "Recovocation",
+      slide.align(
+        @para{@defterm{Revocation} of a capability removes its access},
+        slide.right(
+          lines(@para{For example, a token/cookie for a network login is revoked},
+                @para{when it expires}).colorize("blue")
+        ),
+        blank(),
+        @para{When an capability is represented by object, actions on the object may revoke its capabilities},
+        slide.right(
+          @para{For example, closing a file object revokes its ability to read a file}.colorize("blue")
+        ),
+        blank(32),
+        @para{Support for revocation is a key issue in the design of a capability system}
+      ))
+
+slide(~title: "Summary",
+      slide.align(
+        @para{@defterm{Authentication} is only a first step:},
+        @item{authenticated identity can be considered a @defterm{capability} that represents allowed actions},
+        @item{this identity/capability might allow use of a resource pending @defterm{access control} checks},
+        blank(32),
+        para(@{Capabilities and access control represent two sides of the same coin, but},
+             @{differ in whether they're associated with an actor or a resource})
+      ))

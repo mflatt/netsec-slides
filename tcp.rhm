@@ -308,82 +308,129 @@ slide(
                   
 )
 
-fun api(s) :~ Pict:
-  let p = tt(s)
-  rectangle(~around: p.scale(0.75).pad(3), ~fill: socket.syscall_color, ~line: #'inherit).refocus(p)
+module ~early interaction_and_connect ~lang rhombus/static:
+  import:
+    "common.rhm" open
+    "udpAndDns.rhm"!socket
+    "layers.rhm"
+
+  export:
+    all_defined
+
+  fun api(s) :~ Pict:
+    let p = tt(s)
+    rectangle(~around: p.scale(0.75).pad(3), ~fill: socket.syscall_color, ~line: #'inherit).refocus(p)
+
+  def connection_granted:
+    lines(@t{connection},
+          @t{granted}).colorize("blue")
+  def connection_granted2:
+    connection_granted.launder()
   
-fun interaction_pict(host_a,
-                     host_b,
-                     msg1 :~ Pict,
-                     msg2 :~ Pict,
-                     msg3 :~ Pict,
-                     ~as_connect = #false,
-                     ~show_api = #false,
-                     ~secure = #false):
-  let c1 = blank()
-  let s1 = blank()
-  let c2 = blank()
-  let s2 = blank()
-  let accept_syscall = @api{s = accept(lnr)}
-  fun connection_request(p):
-    if as_connect
-    | let p:
-        if show_api
-        | beside(~vert: #'bottom, p, @api{s = connect(~on: srv_host, srv_port)}).refocus(p)
+  fun interaction_pict(host_a,
+                       host_b,
+                       msg1 :~ Pict,
+                       msg2 :~ Pict,
+                       msg3 :~ Pict,
+                       ~as_connect = #false,
+                       ~show_api = #false,
+                       ~secure = #false,
+                       ~sincere = #true):
+    let c1 = blank()
+    let s1 = blank()
+    let c2 = blank()
+    let s2 = blank()
+    let accept_syscall = @api{s = accept(lnr)}
+    fun add_connection_request(p):
+      if as_connect
+      | let p:
+          if show_api
+          | beside(~vert: #'bottom, p, @api{s = connect(~on: srv_host, srv_port)}).refocus(p)
+          | p
+        beside(~sep: 32, lines(~horiz: #'right,
+                               block:
+                                 let p = @t{connection}
+                                 if sincere
+                                 | p
+                                 | lines(~horiz: #'right, @t{fake}, p).refocus(p),
+                               @t{request}).colorize("blue"), p).refocus(p)
+      | p
+    fun add_connection_granted(p):
+      if as_connect
+      | let granted = connection_granted
+        let p = beside(~sep: 32, p, granted).refocus(p)
+        if show_api && !secure
+        | stack(~sep: 64, p, accept_syscall).refocus(p)
+        | p      
+      | p
+    fun ack_state(p):
+      if as_connect && sincere
+      | beside(~sep: 32, @t{ACK}.colorize("blue"), p).refocus(p)
+      | p
+    fun listen(p):
+      if show_api
+      | stack(~sep: 16, p, @api{lnr = listen(srv_port)}).refocus(p)
+      | p
+    fun accept(p):
+      if show_api && secure
+      | stack(~sep: 16, p, accept_syscall).refocus(p)
+      | if secure
+        | beside.bottom(~sep: 16, p, connection_granted2).refocus(p)
         | p
-      beside(~sep: 32, lines(~horiz: #'right,
-                             @t{connection},
-                             @t{request}).colorize("blue"), p).refocus(p)
-    | p
-  fun connection_granted(p):
-    if as_connect
-    | let granted = lines(@t{connection},
-                          @t{granted}).colorize("blue")
-      let p = beside(~sep: 32, p, granted).refocus(p)
-      if show_api && !secure
-      | stack(~sep: 64, p, accept_syscall).refocus(p)
-      | p      
-    | p
-  fun ack_state(p):
-    if as_connect
-    | beside(~sep: 32, @t{ACK}.colorize("blue"), p).refocus(p)
-    | p
-  fun listen(p):
-    if show_api
-    | stack(~sep: 16, p, @api{lnr = listen(srv_port)}).refocus(p)
-    | p
-  fun accept(p):
-    if show_api && secure
-    | stack(~sep: 16, p, accept_syscall).refocus(p)
-    | p
-  let p = beside(~sep: 600,
-                 ~vert: #'top,
-                 stack(~sep: 96,
-                       @bold(host_a).colorize(layers.color),
-                       stack(~sep: 300,
-                             connection_request(c1),
-                             ack_state(c2))),
-                 stack(~sep: 96,
-                       listen(@bold(host_b).colorize(layers.color)),
-                       stack(~sep: 300,
-                             connection_granted(s1),
-                             accept(s2)).pad(~top: 150)))
-  let fc1 = Find.center(c1)
-  let fs1 = Find.center(s1, ~dy: -5)
-  let fs1x = Find.center(s1, ~dy: 5)
-  let fc2 = Find.center(c2, ~dy: -5)
-  let fc2x = Find.center(c2, ~dy: 5)
-  let fs2 = Find.center(s2)
-  let p = connect(~on: p, fc1, fs1,
-                  ~style: #'arrow,
-                  ~label: rotate_for(msg1.scale(0.8).pad(~bottom: 5), fc1, fs1, p))
-  let p = connect(~on: p, fs1x, fc2,
-                  ~label: rotate_for(msg2.rotate(pi).scale(0.8), fs1x, fc2, p),
-                  ~style: #'arrow)
-  let p = connect(~on: p, fc2x, fs2,
-                  ~style: #'arrow,
-                  ~label: rotate_for(msg3.scale(0.8).pad(~bottom: 5), fc2x, fs2, p))
-  p
+    let p = beside(~sep: 600,
+                   ~vert: #'top,
+                   stack(~sep: 96,
+                         @bold(host_a).colorize(layers.color),
+                         stack(~sep: 300,
+                               add_connection_request(c1),
+                               ack_state(c2))),
+                   stack(~sep: 96,
+                         listen(@bold(host_b).colorize(layers.color)),
+                         stack(~sep: 300,
+                               add_connection_granted(s1),
+                               accept(s2)).pad(~top: 150)))
+    let fc1 = Find.center(c1)
+    let fs1 = Find.center(s1, ~dy: -5)
+    let fs1x = Find.center(s1, ~dy: 5)
+    let fc2 = Find.center(c2, ~dy: -5)
+    let fc2x = Find.center(c2, ~dy: 5)
+    let fs2 = Find.center(s2)
+    let p = connect(~on: p, fc1, fs1,
+                    ~style: #'arrow,
+                    ~label: rotate_for(msg1.scale(0.8).pad(~bottom: 5), fc1, fs1, p))
+    let p = connect(~on: p, fs1x, fc2,
+                    ~label: rotate_for(msg2.rotate(pi).scale(0.8), fs1x, fc2, p),
+                    ~style: #'arrow)
+    let p:
+      if msg3 == nothing
+      | p
+      | connect(~on: p, fc2x, fs2,
+                ~style: #'arrow,
+                ~label: rotate_for(msg3.scale(0.8).pad(~bottom: 5), fc2x, fs2, p))
+    p
+
+  def C_seed = @italic{C}
+  def S_seed = @italic{S}
+  def SYN_1 = @tt{1}
+  def SYN_0 = @tt{0}
+  def first_data = @tt{...}
+  fun make_connect(~on: show_api = #false,
+                   ~secure: secure = #false,
+                   ~client_complete: client_complete = #true):
+    interaction_pict("client host",
+                     "server host",
+                     @tt{SYN=@SYN_1, seq=@C_seed},
+                     @tt{SYN=1, seq=@S_seed, ACK=@italic{C}+1},                     
+                     if client_complete
+                     | @tt{SYN=@SYN_0, seq=@italic{C}+1, ACK=@italic{S}+1, data=@first_data}
+                     | nothing,
+                     ~as_connect: #true,
+                     ~show_api: show_api,
+                     ~secure: secure,
+                     ~sincere: client_complete)
+  def connected = make_connect(~on: #false, ~secure: #false)
+
+import self!interaction_and_connect open
 
 fun example_sequence_slide(reply :~ String):
   let reply_ack = to_string(79 + reply.length())
@@ -395,22 +442,6 @@ fun example_sequence_slide(reply :~ String):
                          @tt{seq=45, ACK=@reply_ack, data="!"}))
 example_sequence_slide("ok")
 example_sequence_slide("")
-
-let C_seed = @italic{C}
-let S_seed = @italic{S}
-let SYN_1 = @tt{1}
-let SYN_0 = @tt{0}
-let first_data = @tt{...}
-fun make_connect(~on: show_api, secure):
-  interaction_pict("client host",
-                   "server host",
-                   @tt{SYN=@SYN_1, seq=@C_seed},
-                   @tt{SYN=1, seq=@S_seed, ACK=@italic{C}+1},
-                   @tt{SYN=@SYN_0, seq=@italic{C}+1, ACK=@italic{S}+1, data=@first_data},
-                   ~as_connect: #true,
-                   ~show_api: show_api,
-                   ~secure: secure)
-let connected = make_connect(~on: #false, #false)
 
 slide(~title: "TCP Handshake: Initiating a Connection",
       slide.alts(
@@ -435,8 +466,8 @@ slide(~title: "TCP Handshake: Initiating a Connection",
                     ~at: Find.top(first_data),
                     ~spike: #'sw,
                     @para{application data starts here}),
-        make_connect(~on: #true, #false),
-        make_connect(~on: #true, #true)
+        make_connect(~on: #true, ~secure: #false),
+        make_connect(~on: #true, ~secure: #true)
       ))
 
 fun flow_control_slide(options :~ OptMap) :~ OptMap:

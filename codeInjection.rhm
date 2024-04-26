@@ -1,0 +1,285 @@
+#lang rhombus/static/and_meta
+
+import:
+  rhombus/runtime_path
+  pict/radial
+  "common.rhm" open
+
+runtime_path.def server_js_png: "images/server_js.png"
+runtime_path.def server_js_html_png: "images/server_js_html.png"
+runtime_path.def sql_injection_png: "images/sql_injection.png"
+runtime_path.def xkcd_bobby_tables_png: "images/xkcd_bobby_tables.png"
+
+slide(~title: "Using a Safe Language",
+      slide.align(
+        @italic{Enough with the buffer overflows!},
+        @para{Let's use a @defterm{safe} language, where overflows are not possible@(@superscript{*}.colorize("blue"))},
+        slide.next,
+        blank(),
+        slide.right(
+          @para{@superscript{* }as long as there are no bugs in the language@superscript{†} implementation}.scale(0.75).colorize("blue"),
+          slide.next,
+          @para{@superscript{†} or libraries that the language uses}.scale(0.75).colorize("blue"),
+        ),
+        slide.next,
+        blank(32),
+        lines(@para{@defterm{Safe} means no undefined behavior, so you can reason in terms of source},
+              @para{without considering generated machine code})
+      ))
+
+def info_var = @tt{info}
+
+def lookup_eval_js:
+  @verbatim|{
+function lookup(name, info) {
+    try {
+        // Use `eval` to get any field. How convenient!
+        return eval("directory['" + name + "']." + |@info_var);
+    } catch (error) {
+        console.log(error);
+        return "lookup failed";
+    }
+}
+}|
+
+
+def lookup_array_js:
+  @verbatim|{
+function lookup(name, info) {
+    try {
+        return directory[name][|@info_var];
+    } catch (error) {
+        console.log(error);
+        return "lookup failed";
+    }
+}
+}|
+
+def lookup_valid_js:
+  @verbatim|{
+function lookup(name, info) {
+    try {
+        if (is_valid_field_name(info))
+            return directory[name][|@info_var];
+        else
+            throw new Error("invalid field")
+    } catch (error) {
+        console.log(error);
+        return "lookup failed";
+    }
+}
+}|
+
+slide(~title: "A JavaScript-Based Server",
+      @para{See @tt{server.js}},
+      blank(),
+      rectangle(~around: bitmap(server_js_png).scale(0.5), ~order: #'back))
+
+slide(~title: "Lookup via Eval",
+      slide.alts(
+        lookup_eval_js,
+        balloon.pin(~on: lookup_eval_js,
+                    ~at: Find.bottom(info_var),
+                    ~spike: #'ne,
+                    lines(@para{No gurantee that input},
+                          @para{is just a field name}))
+      ),
+      slide.next,
+      blank(),
+      @para{This implementation is susceptible to a @defterm{code injection} attack},
+      @tt{curl "http://localhost:8085/?name=Alice&info=info%2Badmin_password&lookup=Lookup"}.scale(0.5),
+      slide.next,
+      blank(),
+      @para{The first rule of using @tt{eval}: @italicly{do not use @tt{eval}}})
+
+slide(~title: "Lookup via Dictionary Key",
+      slide.alts(
+        lookup_array_js,
+        balloon.pin(~on: lookup_array_js,
+                    ~at: Find.bottom(info_var),
+                    ~spike: #'n,
+                    ~sprout: 0.1,
+                    lines(@para{Still could be something like},
+                          @para{@tt{"__proto__"} to access},
+                          @para{object internals}))
+      ),
+      slide.next,
+      blank(),
+      @para{All inputs need to be @defterm{validated} and/or @defterm{sanitized} on the server side})
+
+slide(~title: "Lookup with Validated Key",
+      lookup_valid_js)
+
+def info_result_js:
+  @verbatim|{
+            res.end("<html>"
+                    + "<body>"
+                    + info
+                    + "</body>"
+                    + "</html>");
+  }|
+
+slide(~title: "HTML Injection",
+      beside(~sep: 96,
+             rectangle(~around: bitmap(server_js_html_png).scale(0.5), ~order: #'back),
+             radial.arrow(~fill: "forestgreen"),
+             @romanly{@italic{123456}},
+             info_result_js),
+      slide.next,
+      blank(),
+      slide.align(
+        @para{Unsanitized input as unescaped output creates the possibility of an @defterm{HTML injection} attack},
+        blank(),
+        parameterize { current_font: current_font() with (size = 0.75 * current_font().size) }:
+          para(@{The injected HTML could include JavaScript code},
+               @{that runs in the browser of anyone who looks for Carol's phone number})
+      ))
+
+slide(~title: "Code at Run Time",
+      slide.align(
+        para(@{Using @tt{eval} is usually just bad, but the case of HTML illustrates},
+             @{how run-time generation of @italic{some} code is often necessary}),
+        slide.next,
+        blank(),
+        @para{Another common code-generation case: accessing a database}
+      ))
+
+slide(~title: "Databases",
+      slide.align(
+        @para{A @defterm{relational database} keeps data in tables},
+        blank(),
+        slide.center(
+          table([[@italic{name}, @italic{email}, @italic{phone}, @italic{secret}],
+                 [@t{Alice}, @t|{alice@example.com}|, @t{801-555-1212}, @t{clock tower}],
+                 [@t{Bob}, @t|{bob@example.com}|, @t{385-555-1212}, @t{house}],
+                 [@t{...}, blank(), blank(), blank()]
+                 ],
+                ~line: "gray",
+                ~line_width: 2,
+                ~vsep: 4,
+                ~pad: [12, 2])
+        ),
+        blank(),
+        para(@{To handle large amounts of data, there are many special implementation},
+             @{techniques for representing and managing theses tables})
+        ))
+
+slide(~title: "Database Operations",
+      slide.align(
+        @para{The suite of operations on a database is known as @defterm{CRUD}:},
+        stack.left(
+          @para{@bold{C}reate: create a table or new rows in a table},
+          @para{@bold{R}ead: find data in tables},
+          @para{@bold{U}pdate: change data in tables}, 
+          @para{@bold{D}elete: remove a table or rows from a table}
+        ).pad(~left: 32),
+        slide.next,
+        blank(),
+        para(@{Combinations of operations can be complex, so to encode CRUD requests,},
+             @{there's a whole language: @defterm{Structured Query Language (SQL)}})        
+      ))
+
+slide(~title: "SQL Examples: Managing Tables",
+      slide.align(
+        @verbatim|{CREATE TABLE people (name TEXT,
+                                        email TEXT,
+                                        phone TEXT,
+                                        secret TEXT)}|,
+        @tt{DROP TABLE people}
+      ))
+
+slide(~title: "SQL Examples: Querying Tables",
+      slide.align(
+        @tt{SELECT phone FROM people WHERE name='Alice'},
+        @tt{SELECT * FROM people WHERE name='Alice' OR secret='house'}
+      ))
+
+slide(~title: "SQL Examples: Updating Tables",
+      slide.align(
+        @verbatim|{INSERT INTO people VALUES ('Alice',
+                                              'alice@example.com',
+                                              '801-555-1212',
+                                              'clock tower')}|,
+        @verbatim{DELETE FROM people WHERE name='Bob'}
+      ))
+
+slide(~title: "A JavaScript Server using a Database",
+      @para{See @tt{server_db.js}})
+
+slide(~title: "SQL Injection Attacks",
+      rectangle(~around: bitmap(sql_injection_png).scale(0.5), ~order: #'back),
+      slide.next,
+      blank(),
+      para(@{Part of the problem here is using a multi-statement @tt{exec}},
+           @{where a single-statement @tt{run} is better}))
+
+def insert_sql:
+  @verbatim|{
+    db.run("INSERT INTO people VALUES (?, ?, ?, ?)",
+           [name, email, phone, secret])
+  }|
+
+def select_sql:
+  @verbatim|{
+    if (is_valid_field_name(info)) {
+        db.get("SELECT " + info + " FROM people WHERE name=?", [ name ],
+               ....)
+    }
+ }|
+
+
+slide(~title: "Building SQL Commands",      
+      para(@{Instead of building a string with values, use substitutions},
+           @{as supported by a SQL binding}),
+      blank(32),
+      slide.align(
+        insert_sql.scale(0.75),
+        blank(32),      
+        select_sql.scale(0.75)
+      ))
+
+slide(~title: "JSON in JavaScript",
+      slide.align(
+        @para{JSON is a format for data exchange that is often used in JavaScript systems},
+        slide.center(
+          @verbatim{ { "name": "Alice", "number": "801-555-1212" } }
+          ),
+        slide.next,
+        blank(),
+        @para{Since JSON looks like JavaScript, it suggests},
+        slide.center(
+          @verbatim{function parse_json(str) {
+                       return eval("(" + str + ")");
+                    }}
+        ),        
+        slide.next,
+        blank(),
+        @para{Obviously, don't do that, and instead use @tt{JSON.parse}, which is roughly},
+        slide.center(
+          @verbatim{function parse(str) {
+                        validate_json(str);
+                        return eval("(" + str + ")");
+                    }}
+        ),        
+      ))
+
+slide(~title: "Summary",
+      slide.align(
+        @para{@defterm{Code-injection attacks} are not just for unsafe languages},
+        @item{@defterm{HTML injection} vulnerabilities remain common},
+        @item{@defterm{SQL injection} vulnerabilities remain common},
+        slide.right(@para{Try a web search for ``SQL injection news''}.scale(0.75).colorize("blue")),
+        slide.next,
+        blank(32),
+        @para{The general problem is that code is data, and data can become code},
+        @para{Be alert for contexts that use data as code:},
+        @item{When possible, switch to an API that doesn't do that},
+        @item{Take care parsing when @defterm{validating} and/or @defterm{sanitizing} input},
+        @item{Take care printing when @defterm{sanitizing} and/or @defterm{escaping} output},
+      ))
+
+slide(~title: "Little Bobby Tables",
+      bitmap(xkcd_bobby_tables_png).scale(0.75),
+      blank(),
+      @tt{https://xkcd.com/327/})
+
