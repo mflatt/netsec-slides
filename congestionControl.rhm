@@ -452,7 +452,7 @@ fun stream(p :~ Pict, color,
   let p = p.scale(1.5).colorize("white").pad(5)
   let p = p.pad(~right: p.width)
   let w = 32
-  let n = (p.width + (w-1)) div w
+  let n = math.exact(p.width + (w-1)) div w
   let box = rectangle(~width: w, ~height: p.height, ~line: "white", ~fill: color)
   overlay(~horiz: #'left,
           beside(& for List (i: 0..delay):

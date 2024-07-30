@@ -607,12 +607,14 @@ slide(~title: "Containers and Isolation",
           let c2 = container("forestgreen").scale(sc)
           fun another(p :~ Pict):
             rectangle(~around: p.scale(1/sc), ~width: orig_c1.width, ~height: orig_c1.height,
+                      ~refocus: #false,
                       ~fill: "lightblue",
                       ~line: "blue")
               .scale(sc)
           let c3 = another(c)
           let c4 = another(javascript)                            
           let os = rectangle(~around: linux.scale(0.75 * c1.height / linux.height),
+                             ~refocus: #false,
                              ~width: c1.width * 4.75,
                              ~fill: "lightgreen",
                              ~line: "forestgreen")
@@ -631,6 +633,7 @@ def vm_proc:
 fun make_os(who :~ Pict, ~width = 400) :~ Pict:
   rectangle(~around: who.pad(~vert: 8),
             ~width: width,
+            ~refocus: #false,
             ~fill: "lightgreen",
             ~line: "forestgreen")
           

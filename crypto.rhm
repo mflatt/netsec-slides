@@ -214,7 +214,7 @@ fun mat(s :~ String, n = 4):
          each:
            i: 0 .. n
          each:
-           j: 0 .. s.length()/n
+           j: 0 .. s.length() div n
          let idx = i + j*n
          if idx >= s.length()
          | ""
@@ -520,7 +520,7 @@ slide(~title: substitution_title,
       ))
 
 fun columns(s :~ String, n):
-  for List(j: 0 .. s.length() / n):
+  for List(j: 0 .. s.length() div n):
     for List(i: 0..n):
       let idx = i + j*n
       let p: tt(to_string(if idx >= s.length() | "□"[0] | s[idx])).pad(~horiz: 5)
