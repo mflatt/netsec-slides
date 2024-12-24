@@ -255,7 +255,7 @@ fun delay_slide(options :~ Map) :~ Map:
   options
 
 let base_options = delay_slide({ })
-let options = delay_slide(base_options ++ { #'interactive: #true })
+// let options = delay_slide(base_options ++ { #'interactive: #true })
 let options = delay_slide(base_options ++ { #'hilite_link: #true })
 let options = delay_slide(base_options ++ { #'hilite_out: #true })
 let options = delay_slide(base_options ++ { #'hilite_inspect: #true })
@@ -511,29 +511,29 @@ block:
   def sep = 5
   fun delays(a, b, c):
     def H = 16
-    def S = 1
+    def S = 10
     beside(rectangle(~width: a * S, ~height: H, ~fill: prop_color, ~line: #'inherit),
            rectangle(~width: b * S, ~height: H, ~fill: trans_color, ~line: #'inherit),
            rectangle(~width: c * S, ~height: H, ~fill: queue_color, ~line: #'inherit),
            t("  " +& (a + b + c) +& "ms").scale(0.5))
   slide(~title: title,
         slide.align(
-          @para{Supposed that we take 5 pings using a packet of size 100:},
+          @para{Suppose that we take 5 pings using a packet of size 100:},
           stack(~horiz: #'left,
                 ~sep: sep,
-                delays(100, 100, 10),
-                delays(100, 100, 0),
-                delays(100, 100, 13),
-                delays(100, 100, 7),
-                delays(100, 100, 17)),
+                delays(10, 2, 10),
+                delays(10, 2, 0),
+                delays(10, 2, 33),
+                delays(10, 2, 7),
+                delays(10, 2, 17)),
           @para{and for the same destination, 5 pings using a packet of size 200:},
           stack(~horiz: #'left,
                 ~sep: sep,
-                delays(100, 200, 5),
-                delays(100, 200, 32),
-                delays(100, 200, 0),
-                delays(100, 200, 17),
-                delays(100, 200, 1)),
+                delays(10, 4, 5),
+                delays(10, 4, 32),
+                delays(10, 4, 0),
+                delays(10, 4, 67),
+                delays(10, 4, 1)),
           slide.next,          
           @para{Each measurement is a @formula(delay_all)}
         ),
@@ -616,6 +616,21 @@ slide(~title: "Latency vs. Throughput",
       slide.next,
       @para{a rate, such as bytes per second},
       lines(
-        @para{mailing a box of flash drives can have very high throughput,},
+        @para{Mailing a box of flash drives can have very high throughput,},
         @para{but also high latency}
       ))
+
+slide(~title: "Summary",
+      slide.left(
+        lines(
+          @para{Network delays are largely beyond our control,},
+          @para{but we can reason about them}
+        ),
+        blank(),
+        slide.align(          
+          @para{Four kind of delay add up:},
+          @item{@defterm{propagation} --- constant},
+          @item{@defterm{transmission} --- depends on size and medium},
+          @item{@defterm{processing} --- practically 0},
+          @item{@defterm{queuing} --- random}
+        )))

@@ -59,7 +59,7 @@ fun make_rand_bm(bstr :: Bytes, from = #false, ~b: r_b = #false):
       | from :: Bytes: from[i]
       | ~else: r.random(256)
     bstr[i] := bstr[i] bits.xor v
-  def new_bm = draw.Bitmap(secret_bm.width, secret_bm.height)
+  def new_bm = draw.Bitmap([secret_bm.width, secret_bm.height])
   new_bm.set_argb_pixels(bstr)
   values (bstr, new_bm)
 
@@ -80,7 +80,7 @@ def (rand_mangled_secret_bytes, rand_mangled_secret_bm):
   for (i: 0 .. bstr.length()):
     when i mod 4 > 0
     | bstr[i] := 255 - bstr[i]
-  def new_bm = draw.Bitmap(secret_bm.width, secret_bm.height)
+  def new_bm = draw.Bitmap([secret_bm.width, secret_bm.height])
   new_bm.set_argb_pixels(bstr)
   values(bstr, new_bm)
 def (_, secret_mangled_bm) = make_rand_bm(rand_mangled_secret_bytes)

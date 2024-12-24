@@ -221,7 +221,7 @@ slide(
     let p:
       stack(~horiz: #'left,
             ~sep: 32,
-            beside(~sep: 250, out(l1, 0, color3), out(out(wifi, -pi, "purple"), pi *-3/5, color4)),
+            beside(~sep: 250, out(l1, 0, color3), out(out(wifi, -pi, "purple"), -3/5*pi, color4)),
             out(l2, pi * 1/5, color1).pad(~left: 100),
             out(l3, pi * 1/4, color2).pad(~left: 200).scale(0.9))
     switch(
@@ -439,7 +439,7 @@ slide(
                [nothing,    nothing,    nothing,    nothing,      send2("a"), send2("a"), nothing,    nothing,    nothing],
                [send3("a"), send3("b"), nothing,    nothing,      nothing,    nothing,    nothing,    nothing,    nothing],
                [nothing,    nothing,    nothing,    nothing,      send4("a"), nothing,    nothing,    send4("a"), send4("a")],
-               [success1,   success,    success,    success,      conflict1,  success,    empty1,  \    conflict,   success]],
+               [success1,   success,    success,    success,      conflict1,  success,    empty1,     conflict,   success]],
               ~vline: "lightgray",
               ~hsep: 0,
               ~vsep: 0)

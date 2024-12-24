@@ -304,33 +304,43 @@ fun make_tree(root :~ Pict, children :~ List, ~slice = #false) :~ Pict:
 
 def project_name = @tt{project}
 
-fun example_filesystem(options :~ OptMap = {}) :~ Pict:
+def example_filesystem :~ Pict:
   def faded_color = "white"
   def root_name = @tt{/}
   def root = rectangle(~around: root_name,
                        ~rounded: #'default,
                        ~fill: "yellow")
 
-  def project_tree = make_tree(overlay(project_name.colorize(if options[#'reroot] | faded_color | "black"),
-                                       root.ghost(!options[#'reroot])),
-                               [@tt{a.out}, @tt{data}],
-                               ~slice: #true).colorize("black")
+  def project_tree:
+    let p:
+      rebuildable(~config: { #'reroot: #false },
+                  fun (options :~ Map):
+                    overlay(project_name.colorize(if options[#'reroot] | faded_color | "black"),
+                            root.ghost(!options[#'reroot])))
+    make_tree(p,
+              [@tt{a.out}, @tt{data}],
+              ~slice: #true).colorize("black")
   def alice_tree = make_tree(@tt{alice},
                              [@tt{docs}, project_tree],
                              ~slice: #true)
   def home_tree = make_tree(@tt{home},
                             [alice_tree, @tt{bob}],
                             ~slice: #true)
-  filesystem(
-    make_tree(if options[#'reroot] | root_name | root,
-              [@tt{usr}, home_tree, @tt{tmp}, @tt{opt}])
-      .colorize(if options[#'reroot] | faded_color | "black")
-      .pad(~horiz: 32)
+  filesystem(    
+    rebuildable(~children: [home_tree],
+                ~config: { #'reroot: #false },
+                fun (home_tree, options :~ Map):
+                  let root:
+                    if options[#'reroot] | root_name | root
+                  make_tree(root,
+                            [@tt{usr}, home_tree, @tt{tmp}, @tt{opt}])
+                    .colorize(if options[#'reroot] | faded_color | "black")
+                    .pad(~horiz: 32))
   ).scale(0.8)
 
 fun chroot_slide(options :~ OptMap) :~ OptMap:
   def chroot = @boldly{@tt{chroot}}
-  def fs_tree = example_filesystem(options)
+  def fs_tree = example_filesystem.configure(#'reroot, options[#'reroot])
 
   slide(~title: @titlely{Toward Containers: @tt{chroot}},
         ~name: "chroot",
@@ -420,7 +430,7 @@ fun program(color) :~ Pict:
               ~arms: 6,
               ~fill: color)
 
-def image = overlay(file, example_filesystem().scale(0.6)).scale(0.3)
+def image = overlay(file, example_filesystem.scale(0.6)).scale(0.3)
 fun process(p) :~ Pict:
   rectangle(~around: p,
             ~fill: "lightblue",
@@ -668,6 +678,7 @@ slide(~title: "Virtual Machines",
                                    os.scale(1, n),
                                    hardware_layer(os).scale(1, n)))
               .scale(1.2 - n*0.4)
+              .snapshot()
           slide.center(animate(make_p).sustain()),
         slide.next,
         blank(),

@@ -1,15 +1,537 @@
-#lang rhombus/static
+#lang rhombus/static/and_meta
 import:
   slideshow open
+  "common.rhm" open
+  rhombus/runtime_path
+  "delays.rhm"!network open
+  "layers.rhm"
+  "tls.rhm"!auth_and_encrypt.auth_and_encrypt
+  "malware.rhm"!morris_worm.morris_worm_pict
+  "lans.rhm"!lace_comm.lace_comm_pict
 
-slide(~title: "Introduction",
-      ~horiz: #'left,
-      @para(@{These slides are for a course on Networking and Security,},
-            @{provided here as an example of using the Rhombus Slideshow library}),
-      @para{Especially in the first half of the course, the main reference is},
-      slide.center(
-        lines(@t{@italic{Computer Networking: A Top-Down Approach}, @t{8th edition}},
-              @t{Jim Kurose and Keith Ross},
-              @t{Pearson, 2020})
+runtime_path.def msd_logo_png: "images/cs-msd-logo-v4.png"
+runtime_path.def racket_logo_png: "images/racket-logo.png"
+runtime_path.def textbook_jpg: "images/textbook.jpg"
+runtime_path.def original_internet_png: "images/original-internet.png"
+runtime_path.def internet_map_png: "images/internet-map.png"
+
+runtime_path.def phone_png: "images/mobile_phone.png"
+def phone = bitmap(phone_png).scale(0.5)
+
+fun splice(p :: Pict) :~ Pict:
+  let seg = 1.0 / p.duration
+  animate(~extent:
+            for values(sum = 0) (i: 0..p.duration):
+              sum + p.epoch_extent(i),
+          ~bend: fun (i): i,
+          fun (j):
+            if j .= 1.0
+            | p.snapshot(p.duration - 1, 1)
+            | let i = math.exact(math.floor(j / seg))
+              let s = (j - (i * seg)) / seg
+              p.snapshot(i, s))
+
+slide(slide.center(
+        bitmap(msd_logo_png).scale(0.5),
+        blank(100),
+        @bold{CS 6014 — MSD Networking and Security}.scale(1.2),
+        blank(100),
+        @para{Instructor: Matthew Flatt},
+        tt("mflatt@cs.utah.edu").colorize("blue")
+      ))
+
+slide(~title: "About This Course",
+      beside(
+        ~sep: 80,
+        stack.left(
+          ~sep: slide.gap,
+          @para{@defterm{Networking}:},
+          @item{Top-down dive into how networks work},
+          @item{Lots of terminology},
+          @item{Some programming APIs},
+          blank(),
+          blank(),
+          @para{@defterm{Cryptography}:},
+          @item{Principles of secure communication},
+          @item{@italic{Why} and @italic{how} of the math},
+          @item{Some specific algorithms}
+        ),
+        stack.left(
+          ~sep: slide.gap,
+          @para{@defterm{Computer/Network Security}:},
+          @item{Putting the pieces together},        
+          @item{Consequences of failure},        
+        )))
+      
+slide(~title: "Goals",
+      slide.align(
+        lines(
+          @para{For future situations where you build software that communicates,},
+          @para{this course should help you}
+        ),
+        blank(),
+        slide.center(
+          slide.align(
+            @item{know what components you need to build on,},
+            @item{diagnose networking problems, and},
+            @item{build systems that are secure.}
+          )
+        )
+      ))
+
+slide(~title: "About the Instructor",
+      slide.alts(
+       [slide.align(
+          @para{My research is in @italic{programming languages}},
+          @para{I develop a language called @bold{Racket}}
+        ),
+        blank(),
+        bitmap(racket_logo_png).scale(0.75)],
+       [slide.align(
+          @para{Racket provides networking libraries},
+          blank(),
+          @para{I develop and manage several online services:},
+          @item{Racket nightly builds},
+          @item{Racket package system},
+          @item{CS 3520 handin server},
+          @item{Department graduate admissions server},
+          @item{Department course-tracking server},
+          slide.next,
+          blank(),
+          @lines(
+            @para{So, not a networking or security expert in the}
+            @para{academic sense, but a long-time practioner}
+          ))]       
+       ))
+
+fun grade(n):
+  @para{@(n +& "%") of grade}.scale(0.8).colorize("blue")
+  
+slide(~title: "Homework, Midterm, and Grading",
+      table(
+        ~vsep: 4 * slide.gap,
+        ~hsep: 4 * slide.gap,
+        ~vert: #'center,
+        [[stack.left(
+            ~sep: slide.gap,
+            @item{3 written assignments},
+            @item{3 programming assignments},
+            @item{1 team presentation}
+          ),
+          grade(70)],
+         [@para{Midterm exam: February 28},
+          grade(15)],
+         [@para{Class participation},
+          grade(15)]]
+      ))
+
+slide(~title: "Videos and Lecture",
+      slide.align(
+        @para{A set of videos accompanies each day's lecture},
+        lines(
+          @para{These videos are a kind of ``textbook'' for the course that you},
+          @para{can watch before/after class}
+        ),
+        blank(),
+        slide.next,
+        @para{Real textbook:},
+        stack.right(
+          beside.center(
+            ~sep: slide.gap,
+            blank(),
+            bitmap(textbook_jpg).scale(0.25),
+            stack.left(
+              @italic{Computer Networking: A Top-Down Approach}.colorize("darkblue"),
+              @para{8th edition},
+              @para{Jim Kurose, Keith Ross },
+              @para{2020}
+            )),
+          @para{Some slide diagrams are based on this book}.scale(0.8).colorize("darkgray")
+        )))
+
+slide(~title: "The Internet",
+      beside(bitmap(original_internet_png).scale(0.75),
+             block:
+               let p = stack(~sep: 20,
+                             block:
+                               let p = bitmap(internet_map_png).scale(0.35)
+                               beside(~vert: #'bottom,
+                                      ~sep: 40,
+                                      p,
+                                      lines(@t{image from},
+                                            @tt{wikipedia.org}).scale(0.5).colorize("blue"))
+                                 .refocus(p),
+                             @para{Today},
+                             @para{15,000,000,000 nodes})
+               animate(fun (i):
+                         p.pad(~left: i * 60,
+                               ~right: (1 - i) * -p.width)
+                           .alpha(i))
+                 .sustain()))
+
+def server1 = server.launder()
+def server2 = server.launder()
+def server3 = server.launder()
+def server4 = server.launder()
+def laptop1 = laptop.launder()
+def laptop2 = laptop.launder()
+def laptop3 = laptop.launder()
+def laptop4 = laptop.launder()
+def phone1 = phone.launder()
+def phone2 = phone.launder()
+def router1 = router.launder()
+def router2 = router.launder()
+def router3 = router.launder()
+def router4 = router.launder()
+def router5 = router.launder()
+
+def devs = [server1, server2, server3, server4,
+            laptop1, laptop2, laptop3, laptop4,
+            phone1, phone2]
+
+def links = [[laptop4, router1, #'route],
+             [laptop1, router2],
+             [laptop1, server3],
+             [server3, router2],
+             [laptop3, router2, #'route],
+             [phone1, router5],
+             [phone2, router5],
+             [laptop2, router4],
+             [server4, router4],
+             [server1, router3],
+             [server2, router3],
+             [server1, server2],
+             [router4, router5, #'many],
+             [router1, router4, #'many],
+             [router1, router3, #'route, #'many],
+             [router2, router4, #'many],
+             [router2, router3, #'route, #'many]]
+
+def pkt_path = [laptop3, router2, router3, router1, laptop4]
+
+def subnets = [[Find.top_left(laptop1, ~dx: -10, ~dy: -10),
+                Find.top_right(laptop1, ~dx: 10, ~dy: -10),
+                Find.top_right(router2, ~dx: 10, ~dy: -10),
+                Find.bottom_right(router2, ~dx: 10, ~dy: 10),
+                Find.bottom_right(laptop3, ~dx: 10, ~dy: 10),
+                Find.bottom_left(laptop3, ~dx: -10, ~dy: 10),
+                Find.left(server3, ~dx: -10)],
+               [Find.top_left(phone1, ~dx: -10, ~dy: -10),
+                Find.bottom_left(phone1, ~dx: -10, ~dy: 10),
+                Find.bottom_right(phone2, ~dx: 10, ~dy: 10),
+                Find.top_right(phone2, ~dx: 10, ~dy: -10),
+                Find.top_right(router5, ~dx: 10, ~dy: -10),
+                Find.top_left(router5, ~dx: -10, ~dy: -10)],
+               [Find.top_left(router4, ~dx: -10, ~dy: -10),
+                Find.bottom_left(router4, ~dx: 5, ~dy: -5),
+                Find.bottom_left(server4, ~dx: -10, ~dy: 10),                
+                Find.bottom_right(server4, ~dx: 10, ~dy: 10),                
+                Find.bottom_right(laptop2, ~dx: 10, ~dy: 10),
+                Find.top_right(laptop2, ~dx: 10, ~dy: -10),
+                Find.top_left(laptop2, ~dx: -10, ~dy: -10)],
+               [Find.bottom_left(router1),
+                Find.bottom_left(router3, ~dy: 10),
+                Find.bottom_left(server2, ~dy: 10),
+                Find.bottom_right(server2, ~dx: 10, ~dy: 10),
+                Find.top_right(server2, ~dx: 10, ~dy: -10),
+                Find.top_right(server1, ~dx: 10, ~dy: -10),
+                Find.top_right(laptop4, ~dx: 10, ~dy: -10),
+                Find.top_left(laptop4, ~dx: -10, ~dy: -10),
+                Find.bottom_left(laptop4, ~dx: -10, ~dy: 10),
+                ]]
+
+def internet_clients:
+  stack(~sep: -50,
+        laptop4,
+        beside(~vert: #'top,
+               ~sep: 80,
+               stack(~sep:50,
+                     laptop1.pad(~left: 40).translate(30, 0),
+                     server3,
+                     laptop3.pad(~left: 40)),
+               beside(~vert: #'bottom,
+                      ~sep: 130,
+                      phone1,
+                      phone2,
+                      stack(~sep:30,
+                            server1.pad(~right: 40).translate(-50, 0),
+                            server2,
+                            laptop2,
+                            server4.pad(~right: 40).translate(-30, 0),
+                            blank(50)))))
+
+def internet:
+  overlay(
+    internet_clients,
+    stack(~sep: 20,
+          router1,
+          beside(~sep: 150,
+                 router2,
+                 stack(~sep: 50,
+                       router3,
+                       router4)),
+          router5)
+  )
+
+def internet_clients_all:
+  for values(p :~ Pict = internet_clients):
+    each d1: devs
+    each d2: devs
+    skip_when d1 == d2
+    connect(~on: p,
+            Find.center(d1), Find.center(d2),
+            ~line_width: 2,
+            ~order: #'back)
+
+fun make_internet_link(~show_multi = #false,
+                       ~show_goal = show_multi):
+  for values(p :: Pict = internet):
+    each [d1, d2, flag, ...]: links
+    for values(p :: Pict = p):
+      each d: if show_multi && [flag, ...].has_element(#'many) | [-1, 0, 1, 2] | [0]
+      def on: show_goal && d == 0 && [flag, ...].has_element(#'route)
+      let (sx, sy) = Find.center(d1).in(p)
+      let (ex, ey) = Find.center(d2).in(p)
+      let a = math.atan(sy - ey, ex - sx)
+      let dx = d * 5 * math.sin(a)
+      let dy = d * 5 * math.cos(a)
+      connect(~on: p,
+              Find.center(d1, ~dx: dx, ~dy: dy),
+              Find.center(d2, ~dx: dx, ~dy: dy),
+              ~line_width: if on | 4 | 2,
+              ~line: if on
+                     | "red"
+                     | "black",
+              ~order: #'back)
+
+def internet_link = make_internet_link()
+def internet_link_goal = make_internet_link(~show_goal: #true)
+def internet_link_circuit = make_internet_link(~show_multi: #true)
+
+fun conclude(i, ex :: Pict, ~dx = 0):
+  balloon.pin(ex,
+              ~on: i,
+              ~at: Find.top_right(i, ~dx: -ex.width + dx),
+              ~dx: 0,
+              ~spike: #'w)
+
+fun deliver(p :: Pict, nodes :: List) :~ Pict:
+  def pkt = rectangle(~around: tt(" hi ").colorize("blue"), ~fill: "white", ~line: "blue")
+  def start:
+    pin(pkt,
+        ~on: p,
+        ~pinhole: Find.center(pkt),
+        ~at: Find.center(nodes[0]))
+  recur loop (seq :: Pict = nothing, nodes :: List = nodes):
+    if nodes.length() == 1
+    | seq
+    | loop(switch(seq,
+                  pin(pkt,
+                      ~on: animate(fun (i): p),
+                      ~pinhole: Find.center(pkt),
+                      ~at: Find.interpolate(Find.center(nodes[0]),
+                                            Find.center(nodes[1])))),
+           nodes.rest)
+
+fun add_subnets(p):
+  for values(p = p):
+    each [finder, ...]: subnets
+    fun get(finder :: Find):
+      let (x, y) = finder.in(p)
+      [x, y]
+    overlay.top_left(polygon([get(finder), ...], ~fill: "lightblue"),
+                     p)
+
+fun add_names(p, [n, ...]):
+  for values(p = p) ([node :: Pict, name, dir]: [n, ...]):
+    let name = tt(name).scale(0.5)
+    let g = node.ghost()
+    let n:
+      match dir
+      | #'left: beside(name, g)
+      | #'right: beside(g, name)
+      | #'top: stack(name, g)
+      | #'bottom: stack(g, name)
+    pin(n,
+        ~on: p,
+        ~at: Find.top_left(node),
+        ~pinhole: Find.top_left(node))
+
+def named_internet:
+  add_names(internet_link,
+            [[laptop1, "4.30.13.4", #'left],
+             [laptop2, "199.2.38.144", #'right],
+             [laptop3, "4.30.120.24", #'left],
+             [laptop4, "100.77.133.244", #'top],
+             [server1, "55.2.3.14", #'right],
+             [server2, "55.2.3.15", #'right],
+             [server3, "4.30.13.67", #'left],
+             [server4, "199.2.3.4", #'bottom],
+             [phone1, "17.25.3.14", #'left],
+             [phone2, "182.72.2.47", #'right]])
+
+slide(~title: "The Internet",
+      slide.alts(
+        internet_clients,
+        #//
+        internet_clients_all,
+        conclude(internet_clients_all,
+                 lines(@para{Direct connections},
+                       @para{obviously impractical})),
+        internet_link,
+        conclude(internet_link,
+                 ~dx: 50,
+                 @lines(@para{@router.scale(0.4) @defterm{Routers} enable a},
+                        @para{multi-step path between nodes})),
+        internet_link_goal,
+        internet_link_circuit,
+        conclude(internet_link_circuit,
+                 ~dx: 100,
+                 lines(@para{Reserving a path is},
+                       @para{@defterm{circuit switching},},
+                       @para{and it's how phones worked,},
+                       @para{but not the internet})),
+        block:
+          let p = deliver(internet_link_goal,
+                          pkt_path)
+          #//
+          let p = splice(p)
+          switch(p.sustain(),
+                 conclude(p.sustain().snapshot(p.duration, 0),
+                          ~dx: 100,
+                          lines(@para{Routing a single message is},
+                                @para{@defterm{packet switching},},
+                                @para{and it's how the internet works}))),
+        named_internet,
+        conclude(named_internet,
+                 ~dx: 120,
+                 lines(@para{Every @defterm{host} on the internet},
+                       @para{has a unique numerical address @(@t{...roughly}.scale(0.6))})),
+        conclude(named_internet,
+                 ~dx: 100,
+                 lines(@para{When you use a name like},
+                       @para{@tt{www.cs.utah.edu},},
+                       @para{it gets translated to a number})),
+        add_subnets(internet_link),
+        conclude(add_subnets(internet_link),
+                 lines(@para{The internet is a},
+                       @para{``network of networks''}))
+      ))
+
+slide(~title: "Hierarchy and Layers",
+      slide.align(
+        @para{Two main strategies for dealing with network complexity:}.pad(~left: -20),
+        blank(),
+        @para{@bold{Hierarchical structure}},
+        @item{addresses},
+        @item{organizations},
+        blank(),
+        @para{@bold{Layered implementation}},
+        @item{high-level protocols by applications},
+        @item{lower-level protocols in operating systems},
+        @item{hardware}
+      ))
+
+def protocol_pict:
+  let p1 = blank()
+  let p2 = blank()
+  let q1 = blank()
+  let q2 = blank()
+  let sep = 70
+  let dy = 5
+  let a = pi/48
+  let sc = 0.7
+  let tdy = 3
+  let pd = 90
+  let p = stack(~sep: sep,
+                italic("client").pad(~bottom: 0.75 * -sep),
+                p1,
+                p2)
+  let q = stack(~sep: sep,
+                italic("server").pad(~bottom: 0.25 * -sep),
+                q1,
+                q2)
+  let p = beside.top(~sep: 400, p, q)
+  let p = connect(~on: p,
+                  Find.center(p1),
+                  Find.center(q1, ~dy: -dy),
+                  ~style: #'arrow,
+                  ~label: @tt{May I?}.scale(sc).pad(~right: pd).rotate(-a).translate(0, tdy))
+  let p = connect(~on: p,
+                  Find.center(q1, ~dy: dy),
+                  Find.center(p2, ~dy: -dy),
+                  ~style: #'arrow,
+                  ~label: @tt{Ok.}.scale(sc).pad(~left: pd).rotate(a).translate(0, tdy))
+  let p = connect(~on: p,
+                  Find.center(p2, ~dy: dy),
+                  Find.center(q2),
+                  ~style: #'arrow,
+                  ~label: @tt{Thanks!}.scale(sc).pad(~right: pd).rotate(-a).translate(0, tdy))
+  p
+
+def third = "⅓"
+
+slide(~title: "Network Layers",
+      layers.pict(layers.make()),
+      slide.next,
+      blank(),
+      slide.alts(
+        [lace_comm_pict().scale(0.6).pad(~bottom: -300)],
+        [slide.align(
+           @para{Each layer has its own @defterm{protocols}:},
+           protocol_pict
+         )]
       ),
-      @para{Many diagrams and some images are from the book})
+      slide.next,
+      blank(30),
+      @para{First @third of the course explores these layers and protocols})
+
+slide(~title: "Security and Cryptography",
+      slide.align(
+        @lines(@para{The internet was not designed with security in mind, so},
+               @para{security requires extra layers}),
+        slide.next,
+        blank(),
+        @para{Secure communication ultimately relies on @defterm{cryptography}},
+        slide.center(auth_and_encrypt().scale(0.6).pad(~bottom: -50)),
+        slide.next,
+        @para{Middle @third of the course is all about Alice, Bob, Eve, and Mallory}
+      ))
+
+slide(~title: "Computer and Network Security",
+      slide.align(
+        @para{Networking tells you what is possible for attackers in principle},
+        @para{Cryptography tells you what is possible for defenders in principle},
+        slide.next,
+        @para{Getting it right in practice is @defterm{computer and network security}},
+        blank(),
+        slide.center(morris_worm_pict({ #'def_worm: #true, #'worms: #true }, 1, [0, 1, 2, 3])),
+        blank(),
+        slide.next,
+        @para{Last @third of the course is about mistakes, consequences, and defense}
+      ))
+      
+slide(~title: "Summary",
+      slide.align(
+        beside.topline(@para{The internet is},
+                       @t{ },
+                       lines(@para{a collections of @defterm{hosts},},
+                             @para{organized by a numeric @defterm{address} for each host,},
+                             @para{communicating by @defterm{packets},},
+                             @para{organized hierarchically in a @defterm{network of networks},},
+                             @para{built in @defterm{layers}})),
+        blank(40),
+        beside.topline(
+          @para{Part 1: @bold{network layers}:},
+          @tt{ },
+          stack.left(            
+            @para{application},
+            @para{transport},
+            @para{network},
+            @para{link},
+            @para{physical}
+          )
+        ),
+        @para{Part 2: @bold{cryptography}},
+        @para{Part 3: @bold{computer and network security}}
+      ))

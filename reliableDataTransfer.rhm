@@ -220,13 +220,13 @@ slide(
                        @tt{money = money + value},
                        ~dx: -0.8)
     let machine = edge(machine,
-                       vend, pi*-3/4, wait, pi*-1/4,
+                       vend, -3/4*pi, wait, -1/4*pi,
                        nothing,
                        @tt{keep_coins()},
                        ~dy: 2,
                        ~dx: 0.5)
     let machine = edge(machine,
-                       wait, pi*-3/8, wait, pi*-5/8,
+                       wait, -3/8*pi, wait, -5/8*pi,
                        ~start_pull: 1,
                        ~end_pull: 1,
                        @tt{coin_return_lever()},
@@ -279,7 +279,7 @@ slide(
             p)       
     fun self(machine, wait, condition, action):
       let machine = edge(machine,
-                         wait, 0, wait, pi*1/2,
+                         wait, 0, wait, 1/2*pi,
                          ~start_pull: 1,
                          ~end_pull: 1,
                          condition,
@@ -374,7 +374,7 @@ let recv_act = lines(@tt{msg = extract(pkt)},
 fun selfm(machine, wait, condition, action,
           ~dx: dx = 0.5):
   let machine = edge(machine,
-                     wait, 0, wait, pi*1/2,
+                     wait, 0, wait, 1/2*pi,
                      ~start_pull: 1,
                      ~end_pull: 1,
                      condition,
@@ -391,7 +391,7 @@ fun checksum_slide(options :~ OptMap) :~ OptMap:
   let send_machine:
     if options[#'ack]
     | edge(send_machine,
-           wait_send, pi*1/4, wait_ack, pi*3/4,
+           wait_send, 1/4*pi, wait_ack, 3/4*pi,
            send_cond,
            send_act,
            ~dy: -1)
@@ -402,7 +402,7 @@ fun checksum_slide(options :~ OptMap) :~ OptMap:
   let send_machine:
     if options[#'ack_recv]
     | edge(send_machine,
-           wait_ack, pi*-3/4, wait_send, pi*-1/4,
+           wait_ack, -3/4*pi, wait_send, -1/4*pi,
            @tt{udt_recv(@r_pkt) && is_ack(r_pkt)},
            nothing,
            ~dx: -0.4,
@@ -420,7 +420,7 @@ fun checksum_slide(options :~ OptMap) :~ OptMap:
   let recv_machine:
     if options[#'nack_send]
     | edge(recv_machine,
-           wait_recv, -pi*1/10, wait_recv, pi*-1/2,
+           wait_recv, -1/10*pi, wait_recv, -1/2*pi,
            ~start_pull: 1,
            ~end_pull: 1,
            @tt{udt_recv(pkt) && corrupt(pkt)},
@@ -431,7 +431,7 @@ fun checksum_slide(options :~ OptMap) :~ OptMap:
   let send_machine:
     if options[#'nack_recv]
     | edge(send_machine,
-           wait_ack, pi*-1/2, wait_ack, pi*-1/4,
+           wait_ack, -1/2*pi, wait_ack, -1/4*pi,
            @tt{udt_recv(r_pkt) && is_nack(r_pkt)},
            @tt{udt_send(pkt)},
            ~start_pull: 2,
@@ -509,14 +509,14 @@ fun nack_machine(options :~ OptMap) :~ Pict:
                       ~fill: "yellow")
           | nothing)
   let p = edge(p,
-               wait_recv_0, pi*1/4, wait_recv_1, pi*3/4,
+               wait_recv_0, 1/4*pi, wait_recv_1, 3/4*pi,
                ~start_pull: 0.5,
                ~end_pull: 0.5,
                recv_cond("0"),
                recv_act("0"),
                ~dy: -1)
   let p = edge(p,
-               wait_recv_1, pi*-3/4, wait_recv_0, pi*-1/4,
+               wait_recv_1, -3/4*pi, wait_recv_0, -1/4*pi,
                ~start_pull: 0.5,
                ~end_pull: 0.5,
                recv_cond("1"),
@@ -525,7 +525,7 @@ fun nack_machine(options :~ OptMap) :~ Pict:
   let p :~ Pict:
     if options[#'recv_nack] || options[#'recv_plain_nack]
     | let p = edge(p,
-                   wait_recv_0, pi*9/8, wait_recv_0, pi*7/8,
+                   wait_recv_0, 9/8*pi, wait_recv_0, 7/8*pi,
                    ~start_pull: 0.5,
                    ~end_pull: 0.5,
                    recv_cond("0", ~ok: ""),
@@ -533,7 +533,7 @@ fun nack_machine(options :~ OptMap) :~ Pict:
                    ~dy: 1.0,
                    ~dx: -0.4)
       let p = edge(p,
-                   wait_recv_1, pi*1/8, wait_recv_1, pi*-1/8,
+                   wait_recv_1, 1/8*pi, wait_recv_1, -1/8*pi,
                    ~start_pull: 0.5,
                    ~end_pull: 0.5,
                    recv_cond("1", ~ok: ""),
@@ -543,23 +543,23 @@ fun nack_machine(options :~ OptMap) :~ Pict:
       p
     | p
   let p = edge(p,
-               wait_send_0, pi*1/4, wait_ack_0, pi*3/4,
+               wait_send_0, 1/4*pi, wait_ack_0, 3/4*pi,
                send_cond,
                send_act("0"),
                ~dy: -1)
   let p = edge(p,
-               wait_send_1, pi*-3/4, wait_ack_1, pi*-1/4,
+               wait_send_1, -3/4*pi, wait_ack_1, -1/4*pi,
                send_cond,
                send_act("1"),
                ~dy: 1)
   let p = edge(p,
-               wait_ack_0, pi*-1/4, wait_send_1, pi*1/4,
+               wait_ack_0, -1/4*pi, wait_send_1, 1/4*pi,
                recv_ack("0"),
                nothing,
                ~dx: 0.65,
                ~dy: -2.4)
   let p = edge(p,
-               wait_ack_1, pi*3/4, wait_send_0, pi*5/4,
+               wait_ack_1, 3/4*pi, wait_send_0, 5/4*pi,
                recv_ack("1"),
                nothing,
                ~dx: -0.6,
@@ -567,7 +567,7 @@ fun nack_machine(options :~ OptMap) :~ Pict:
   let p :~ Pict:
     if options[#'send_nack]
     | let p = edge(p,
-                   wait_ack_0, pi*-5/8,  wait_ack_0, pi*-7/8,
+                   wait_ack_0, -5/8*pi,  wait_ack_0, -7/8*pi,
                    ~start_pull: 1, ~end_pull: 1,
                    recv_ack("0", ~ok: "!", ~timeout: options[#'timeout]),
                    ~reshape: fun (p):
@@ -579,7 +579,7 @@ fun nack_machine(options :~ OptMap) :~ Pict:
                    ~dx: -0.2,
                    ~dy: 1.4)
       let p = edge(p,
-                   wait_ack_1, pi*3/8,  wait_ack_1, pi*1/8, 
+                   wait_ack_1, 3/8*pi,  wait_ack_1, 1/8*pi, 
                    ~start_pull: 1, ~end_pull: 1,
                    recv_ack("1", ~ok: "!", ~timeout: options[#'timeout]),
                    ~reshape: fun (p):

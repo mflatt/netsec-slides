@@ -115,16 +115,31 @@ slide(~title: "Using OpenSSL for Certificates",
         )
       ))
 
+module auth_and_encrypt ~lang rhombus/static:
+  import:
+    "common.rhm" open
+    "crypto.rhm"!key open  
+    "cryptoPublicKey.rhm"!paint open
+    "authentication.rhm"!convo open
+    "authentication.rhm"!key_sums open
+    "layout.rhm" open
+  export: auth_and_encrypt
+
+  fun auth_and_encrypt() :: Pict:
+    convo(~width: 400,
+          ~stretch: 1.5,
+          Action(beside(~sep: 8, red_can0, B_key)),
+          @tt{I'm Alice using @orange_can0.scale(0.5). Bob?},
+          Action(stack(~sep: 16, beside(~sep: 8, blue_can0, b_key), b_A_sum).refocus(blue_can0)),
+          @romanly{@(«Enc»)(@b_key, ⟨@tt{"B"}, @green_can0.scale(0.5)⟩)}.translate(0, -8),
+          Action(a_B_sum),
+          @romanly{@(«Enc»)(@key, @italic{request})}.translate(0, -8),
+          @romanly{@(«Enc»)(@key, @italic{answer})}.translate(0, -8))
+
+import self!auth_and_encrypt open
+
 slide(~title: "Authentication and Encryption",
-      convo(~width: 400,
-            ~stretch: 1.5,
-            Action(beside(~sep: 8, red_can0, B_key)),
-            @tt{I'm Alice using @orange_can0.scale(0.5). Bob?},
-            Action(stack(~sep: 16, beside(~sep: 8, blue_can0, b_key), b_A_sum).refocus(blue_can0)),
-            @romanly{@(«Enc»)(@b_key, ⟨@tt{"B"}, @green_can0.scale(0.5)⟩)}.translate(0, -8),
-            Action(a_B_sum),
-            @romanly{@(«Enc»)(@key, @italic{request})}.translate(0, -8),
-            @romanly{@(«Enc»)(@key, @italic{answer})}.translate(0, -8)))
+      auth_and_encrypt())
 
 def R_client = @romanly{R@subscript{client}}
 def R_server = @romanly{R@subscript{server}}

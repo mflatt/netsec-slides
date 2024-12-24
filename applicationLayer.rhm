@@ -840,5 +840,24 @@ block:
   let options = query_slide(orig_options ++ { #'extra_client: #true })
   let options = query_slide(options ++ { #'dig: #true })
   #void
-    
-  
+
+slide(~title: "Summary",
+      slide.left(
+        slide.align(
+          lines(
+            @para{The @defterm{application layer} refers to a protocol implemented},
+            @para{outside the operating system}
+          ),
+          @item{by a library},
+          @item{by a program}
+        ),
+        blank(),
+        blank(),
+        slide.align(          
+          @para{Main building blocks provided by the next layer down:},
+          @item{@defterm{TCP} --- connection-oriented},
+          @item{@defterm{UDP} --- individual packets}
+        ),
+        blank(),
+        blank(),
+        @para{Application-layer examples: HTTP, SMTP, @bold{DNS}}))

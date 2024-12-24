@@ -525,52 +525,69 @@ let options = router_vs_switch_slide(options ++ { #'config })
 let options = router_vs_switch_slide(options ++ { #'route })
 let options = router_vs_switch_slide(options ++ { #'topology })
 
-let dpad = 10
+module lace_comm ~lang rhombus/static/and_meta:
+  import:
+    draw
+    "common.rhm" open
+    "layers.rhm"
+    "delays.rhm"!network as delays:
+      expose:
+        switchbox
 
-fun comm_step(name, icon, ls):
-  let ls = layers.pict(ls, ~show_examples: #false, ~dpad: dpad)
-  stack(~sep: 20,
-        lines.center(name, icon),
-        ls).refocus(ls)
+  export:
+    lace_comm_pict
+  
+  let dpad = 10
 
-fun lace(ps :: List.of(Pict)):
-  let sep = 64
-  let all = beside.bottom(~sep: sep, &ps)
-  let h = all.height / 5
-  let w = ps[0].width
-  let path = draw.Path()
-  path.move_to([w - h/2, all.height - ps[0].height + h/2])
-  path.arc([w - h/2, all.height - h - h/2, h, h], pi, pi * 3/2, ~clockwise: #false)
-  recur loop(ps :~ List.of(Pict) = ps.rest, dx = w + sep):
-    match ps
-    | [p :~ Pict]:
-        path.arc([dx - h/2, all.height - h/2 - h, h, h], pi * -1/2, 0, ~clockwise: #false)
-        path.line_to([dx + h/2, all.height - p.height + h/2])
-    | [p :~ Pict, & ps]:
-        let w = p.width
-        path.arc([dx - h/2, all.height - h/2 - h, h, h], pi * -1/2, 0, ~clockwise: #false)
-        path.arc([dx + h/2, all.height - p.height + dpad/2, h, h], pi, pi * 1/2, ~clockwise: #true)
-        path.arc([dx + w - h - h/2, all.height - p.height + dpad/2, h, h], pi * 1/2, 0, ~clockwise: #true)
-        path.arc([dx + w - h/2, all.height - h - h/2, h, h], pi, pi * 3/2, ~clockwise: #false)
-        loop(ps, dx + w + sep)
-  let line:
-    dc(fun (dc :~ draw.DC, dx, dy):
-         dc.save()
-         dc.pen := draw.Pen(~color: "blue", ~width: 5)
-         dc.path(path, ~dx: dx, ~dy: dy)
-         dc.restore(),
-       ~width: all.width,
-       ~height: all.height)
-  overlay(all, line).pad(~top: 2 * delays.laptop.height)
+  fun comm_step(name, icon, ls):
+    let ls = layers.pict(ls, ~show_examples: #false, ~dpad: dpad)
+    stack(~sep: 20,
+          lines.center(name, icon),
+          ls).refocus(ls)
+
+  fun lace(ps :: List.of(Pict)):
+    let sep = 64
+    let all = beside.bottom(~sep: sep, &ps)
+    let h = all.height / 5
+    let w = ps[0].width
+    let path = draw.Path()
+    path.move_to([w - h/2, all.height - ps[0].height + h/2])
+    path.arc([w - h/2, all.height - h - h/2, h, h], pi, pi * 3/2, ~clockwise: #false)
+    recur loop(ps :~ List.of(Pict) = ps.rest, dx = w + sep):
+      match ps
+      | [p :~ Pict]:
+          path.arc([dx - h/2, all.height - h/2 - h, h, h], pi * -1/2, 0, ~clockwise: #false)
+          path.line_to([dx + h/2, all.height - p.height + h/2])
+      | [p :~ Pict, & ps]:
+          let w = p.width
+          path.arc([dx - h/2, all.height - h/2 - h, h, h], pi * -1/2, 0, ~clockwise: #false)
+          path.arc([dx + h/2, all.height - p.height + dpad/2, h, h], pi, pi * 1/2, ~clockwise: #true)
+          path.arc([dx + w - h - h/2, all.height - p.height + dpad/2, h, h], pi * 1/2, 0, ~clockwise: #true)
+          path.arc([dx + w - h/2, all.height - h - h/2, h, h], pi, pi * 3/2, ~clockwise: #false)
+          loop(ps, dx + w + sep)
+    let line:
+      dc(fun (dc :~ draw.DC, dx, dy):
+           dc.save()
+           dc.pen := draw.Pen(~color: "blue", ~width: 5)
+           dc.path(path, ~dx: dx, ~dy: dy)
+           dc.restore(),
+         ~width: all.width,
+         ~height: all.height)
+    overlay(all, line).pad(~top: 2 * delays.laptop.height)
+
+  fun lace_comm_pict() :~ Pict:    
+    lace(
+      [comm_step(@t{host}, delays.laptop, layers.make()),
+       comm_step(@t{switch}, switchbox, layers.make().drop(3)),
+       comm_step(@t{router}, delays.router, layers.make().drop(2)),
+       comm_step(@t{host}, delays.laptop, layers.make())]
+    )
+
+import self!lace_comm open
 
 slide(
   ~title: router_vs_switch_title,
-  lace(
-    [comm_step(@t{host}, delays.laptop, layers.make()),
-     comm_step(@t{switch}, switchbox, layers.make().drop(3)),
-     comm_step(@t{router}, delays.router, layers.make().drop(2)),
-     comm_step(@t{host}, delays.laptop, layers.make())]
-  )
+  lace_comm_pict()
 )
 
 fun stack_on(~sep: sep, a :~ Pict, b :~ Pict) :~ Pict:
