@@ -628,7 +628,7 @@ slide(~title: "Summary",
         ),
         blank(),
         slide.align(          
-          @para{Four kind of delay add up:},
+          @para{Four kinds of delay add up:},
           @item{@defterm{propagation} --- constant},
           @item{@defterm{transmission} --- depends on size and medium},
           @item{@defterm{processing} --- practically 0},

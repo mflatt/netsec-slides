@@ -346,7 +346,7 @@ let plot:
                           ~line_width: 3,
                           ~line: color)
           loop(p, [x, y, next_color], pts)
-  let exline = line(~dx: 32, ~line_width: 3).lift(10)
+  let exline = line(~dx: 32, ~line_width: 3).drop_topline(10)
   let key:
     table([[exline.colorize(slow_start), @t{slow start}.colorize(slow_start)],
            [exline.colorize(cong_avoid), @t{convengestion avoidance}.colorize(cong_avoid)],

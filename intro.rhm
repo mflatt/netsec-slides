@@ -14,6 +14,8 @@ runtime_path.def racket_logo_png: "images/racket-logo.png"
 runtime_path.def textbook_jpg: "images/textbook.jpg"
 runtime_path.def original_internet_png: "images/original-internet.png"
 runtime_path.def internet_map_png: "images/internet-map.png"
+runtime_path.def route_png: "images/route-map.png"
+runtime_path.def route_forward_png: "images/route-forward.png"
 
 runtime_path.def phone_png: "images/mobile_phone.png"
 def phone = bitmap(phone_png).scale(0.5)
@@ -32,12 +34,14 @@ fun splice(p :: Pict) :~ Pict:
               p.snapshot(i, s))
 
 slide(slide.center(
-        bitmap(msd_logo_png).scale(0.5),
+        @bold{CS 6014 — Networking and Security}.scale(1.4),
+        blank(10),
+        bitmap(msd_logo_png).scale(0.4),
         blank(100),
-        @bold{CS 6014 — MSD Networking and Security}.scale(1.2),
-        blank(100),
-        @para{Instructor: Matthew Flatt},
-        tt("mflatt@cs.utah.edu").colorize("blue")
+        lines(
+          @para{Instructor: Matthew Flatt},
+          boldly(tt("mflatt@cs.utah.edu").colorize("blue"))
+        )
       ))
 
 slide(~title: "About This Course",
@@ -159,7 +163,7 @@ slide(~title: "The Internet",
                                       ~sep: 40,
                                       p,
                                       lines(@t{image from},
-                                            @tt{wikipedia.org}).scale(0.5).colorize("blue"))
+                                            boldly(@tt{wikipedia.org})).scale(0.5).colorize("blue"))
                                  .refocus(p),
                              @para{Today},
                              @para{15,000,000,000 nodes})
@@ -418,6 +422,17 @@ slide(~title: "The Internet",
                        @para{``network of networks''}))
       ))
 
+slide(~title: "Routing",
+      stack.right(
+        overlay(
+          & sequential(
+            bitmap(route_png).pad(~left: 6, ~top: -1).scale(0.33),
+            bitmap(route_forward_png).pad(~right: 4).scale(0.33)
+          )
+        ),
+        @para{image from textbook slides}.scale(0.5).colorize("blue")
+      ))
+      
 slide(~title: "Hierarchy and Layers",
       slide.align(
         @para{Two main strategies for dealing with network complexity:}.pad(~left: -20),
