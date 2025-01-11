@@ -326,16 +326,26 @@ fun deliver(p :: Pict, nodes :: List) :~ Pict:
         ~on: p,
         ~pinhole: Find.center(pkt),
         ~at: Find.center(nodes[0]))
-  recur loop (seq :: Pict = nothing, nodes :: List = nodes):
-    if nodes.length() == 1
-    | seq
-    | loop(switch(seq,
-                  pin(pkt,
-                      ~on: animate(fun (i): p),
-                      ~pinhole: Find.center(pkt),
-                      ~at: Find.interpolate(Find.center(nodes[0]),
-                                            Find.center(nodes[1])))),
-           nodes.rest)
+  def seq:
+    recur loop (seq :: Pict = nothing, nodes :: List = nodes):
+      if nodes.length() == 1
+      | seq
+      | loop(switch(seq,
+                    pin(pkt,
+                        ~on: animate(fun (i): p),
+                        ~pinhole: Find.center(pkt),
+                        ~at: Find.interpolate(Find.center(nodes[0]),
+                                              Find.center(nodes[1])))),
+             nodes.rest)
+  switch(switch(
+           ~join: #'splice,
+           ~splice: #'before,
+           balloon.pin(@defterm{packet},
+                       ~on: start,
+                       ~at: Find.left(pkt),
+                       ~spike: #'e),
+           seq
+         ))
 
 fun add_subnets(p):
   for values(p = p):
@@ -377,16 +387,21 @@ def named_internet:
 slide(~title: "The Internet",
       slide.alts(
         internet_clients,
+        conclude(internet_clients,
+                 ~dx: 70,
+                 lines(@para{Each @defterm{node} with applications},
+                       @para{is a @defterm{host}})),
         #//
         internet_clients_all,
         conclude(internet_clients_all,
-                 lines(@para{Direct connections},
-                       @para{obviously impractical})),
+                 ~dx: 140,
+                 lines(@para{Direct connection between every},
+                       @para{pair of hosts --- obviously impractical})),
         internet_link,
         conclude(internet_link,
-                 ~dx: 50,
+                 ~dx: 70,
                  @lines(@para{@router.scale(0.4) @defterm{Routers} enable a},
-                        @para{multi-step path between nodes})),
+                        @para{multi-step path between hosts})),
         internet_link_goal,
         internet_link_circuit,
         conclude(internet_link_circuit,
@@ -408,7 +423,7 @@ slide(~title: "The Internet",
                                 @para{and it's how the internet works}))),
         named_internet,
         conclude(named_internet,
-                 ~dx: 120,
+                 ~dx: 140,
                  lines(@para{Every @defterm{host} on the internet},
                        @para{has a unique numerical address @(@t{...roughly}.scale(0.6))})),
         conclude(named_internet,
@@ -530,22 +545,17 @@ slide(~title: "Summary",
       slide.align(
         beside.topline(@para{The internet is},
                        @t{ },
-                       lines(@para{a collections of @defterm{hosts},},
+                       lines(@para{a collection of connected @defterm{nodes},},
+                             @para{including applications at @defterm{host} nodes,},
                              @para{organized by a numeric @defterm{address} for each host,},
                              @para{communicating by @defterm{packets},},
                              @para{organized hierarchically in a @defterm{network of networks},},
                              @para{built in @defterm{layers}})),
-        blank(40),
+        blank(),
         beside.topline(
           @para{Part 1: @bold{network layers}:},
           @tt{ },
-          stack.left(            
-            @para{application},
-            @para{transport},
-            @para{network},
-            @para{link},
-            @para{physical}
-          )
+          layers.pict(layers.make(), ~show_examples: #false)
         ),
         @para{Part 2: @bold{cryptography}},
         @para{Part 3: @bold{computer and network security}}

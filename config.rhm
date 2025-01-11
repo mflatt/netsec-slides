@@ -5,3 +5,9 @@ import:
   pict/balloon
 
 balloon.current_color("gold")
+
+block:
+  import:
+    rhombus/draw
+    lib("slideshow/main.rkt").#{set-spotlight-style!}
+  #{set-spotlight-style!}(~color: (draw.Color("purple") with (alpha = 0.3)).handle)

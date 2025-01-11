@@ -4,6 +4,36 @@ import:
   "note.rkt"
   "common.rhm" open
 
+fun action(s): t(s).colorize("blue")
+fun ns(s): t(s, " ns")
+fun us(s): t(s, " μs")
+fun ms(s): t(s, " ms")
+
+slide(
+ ~title: "Latency Numbers Every Programmer Should Know (Dean 2009)",
+ table(
+   ~horiz: #'right,
+   [
+     [action("L1 cache reference"),                          ns("½"),      blank(),     blank()],
+     [action("Branch mispredict"),                           ns("5"),       blank(),    blank()],
+     [action("L2 cache reference"),                          ns("7"),       blank(),    blank()], //  14x L1 cache
+     [action("Mutex lock/unlock"),                          ns("25"),       blank(),    blank()],
+     [action("Main memory reference"),                     ns("100"),       blank(),    blank()], // 20x L2 cache, 200x L1 cache
+     [action("Compress 1 K bytes with Zippy"),           ns("3,000"),        us("3"),   blank()],
+     [action("Send 1 K bytes over 1 Gbps network"),     ns("10,000"),       us("10"),   blank()],
+     [action("Read 4 K randomly from SSD"),            ns("150,000"),      us("150"),   blank()], // ~1GB/sec SSD
+     [action("Read 1 MB sequentially from memory"),    ns("250,000"),      us("250"),   blank()],
+     [action("Round trip within same datacenter"),     ns("500,000"),      us("500"),   blank()],
+     [action("Read 1 MB sequentially from SSD"),     ns("1,000,000"),    us("1,000"),   ms("1")], //  ~1GB/sec SSD, 4X memory
+     [action("Disk seek"),                          ns("10,000,000"),   us("10,000"),  ms("10")], //  20x datacenter roundtrip
+     [action("Read 1 MB sequentially from disk"),   ns("20,000,000"),   us("20,000"),  ms("20")], //  80x memory, 20X SSD
+     [action("Send packet CA→Netherlands→CA"),     ns("150,000,000"),  us("150,000"), ms("150")]
+   ]
+ ).scale(0.95)
+)
+
+
+
 module ~early network ~lang rhombus/static/and_meta:
   import:
     rhombus/runtime_path
@@ -296,9 +326,9 @@ slide(~title: "Propagation Delay",
       slide.next,
       slide.align(@two_step{Time to travel along medium}{, depends on physics},
                   slide.next,
-                  @item{distance travelled},
+                  @item{distance travelled}.pad(~left: 30),
                   slide.next,
-                  @item{speed of link --- some fraction of the speed of light}),
+                  @item{speed of link --- some fraction of the speed of light}.pad(~left: 30)),
       slide.next,
       blank(),
       delay_propagation)
@@ -321,10 +351,10 @@ slide(~title: "Transmission Delay",
                   slide.next,
                   lines(@item{device rate @italic{R}},
                         lines(@subitem{fiber, ethernet: 1-400 Gbps},
-                              @subitem{WiFi: 54 Gbps},
-                              @subitem{dial-up: 56.6 Kbps}).scale(0.8)),
+                              @subitem{WiFi: ~10 Mbps},
+                              @subitem{dial-up: 56.6 Kbps}).scale(0.8)).pad(~left: 60),
                   slide.next,
-                  @item{packet size}),
+                  @item{packet size}.pad(~left: 60)),
       slide.next,
       block:
         let p = delay_transmission
@@ -629,7 +659,7 @@ slide(~title: "Summary",
         blank(),
         slide.align(          
           @para{Four kinds of delay add up:},
-          @item{@defterm{propagation} --- constant},
+          @item{@defterm{propagation} --- depends on distance},
           @item{@defterm{transmission} --- depends on size and medium},
           @item{@defterm{processing} --- practically 0},
           @item{@defterm{queuing} --- random}

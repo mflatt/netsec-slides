@@ -162,6 +162,25 @@ socket_slides.socket_slides({})
 
 // ------------------------------------------------------------
 
+runtime_path.def man_socket: "images/man_socket.txt"
+runtime_path.def man_connect: "images/man_connect.txt"
+
+fun man_page(path):
+  boldly:
+    verbatim(block:
+               let [line, ...] = filesystem.read_lines(path)
+               [[line, "\n"], ...])
+      .scale(0.4)
+
+slide(
+  slide.alts(
+    man_page(man_socket),
+    man_page(man_connect)
+  )
+)
+
+// ------------------------------------------------------------
+
 def transport_title = "Transport Layer Options"
 
 def TCP = @bold{TCP}
@@ -303,7 +322,7 @@ fun client_server_network(options :~ Map):
                   show(@bold(options[#'protocol]).colorize("blue"), #'tcp)).refocus(p)
   let p:
     stack(~sep: 32,
-          show(@t{client–server}, #'client_server),
+          show(@defterm{client–server}, #'client_server),
           p).refocus(p)
   let p:
     if options.get(#'single_packet, #false)
@@ -534,7 +553,7 @@ block:
                                                                           ~spike: #'s,
                                                                           ~fill: "lightblue",
                                                                           @lines(
-                                                                            @tt{netcat smtps.cs.utah.edu 587}
+                                                                            @tt{netcat smtp.cs.utah.edu 25}
                                                                           ))
                                                           })
   #void
@@ -592,7 +611,7 @@ fun bittorrent_network(options :~ Map):
     | overlay(~vert: #'top,
               ~horiz: #'right,
               p,
-              @t{peer-to-peer}.pad(~right: -32))
+              @defterm{peer-to-peer}.pad(~right: -32))
     | p
   let p:
     if options.get(#'tcp_or_udp, #false)
@@ -796,9 +815,13 @@ block:
               to,
               ~label: spin(ask, angle),
               ~line_width: 3)
+    fun kind(p, k) :~ Pict:
+      if (options.get(#'kind, #false))
+      | stack(t(p), @t{recursion desired}.colorize("forestgreen"))
+      | p
     let name = options.get(#'req_name, "www.utah.edu")
     let ip = tt(options.get(#'resp_addr, "155.98.186.21"))
-    let p = conn(p, laptop, local_server, name, ip, #'orig_req, #'orig_resp)
+    let p = conn(p, laptop, local_server, kind(name, #true), ip, #'orig_req, #'orig_resp)
     let p = conn(p, local_server, root_server, "edu", tt(addr3), #'root_req, #'root_resp)
     let p = conn(p, local_server, server3, "utah.edu", tt(addr3_1), #'utah_req, #'utah_resp)
     let p = conn(p, local_server, server3_1, name, ip, #'www_req, #'www_resp)
@@ -814,7 +837,9 @@ block:
       | overlay(~vert: #'bottom,
                 ~horiz: #'left,
                 p,
-                rectangle(~around: @tt{dig www.cs.utah.edu}.pad(5),
+                rectangle(~around: tt(if options.get(#'mx, #false)
+                                      | "dig cs.utah.edu MX"
+                                      | "dig www.cs.utah.edu").pad(5),
                           ~line: #false,
                           ~fill: "lightblue"))
       | p
@@ -830,15 +855,17 @@ block:
   let options = query_slide(options ++ { #'www_req: #true })
   let options = query_slide(options ++ { #'www_resp: #true })
   let options = query_slide(options ++ { #'orig_resp: #true })
+  let options = query_slide(options ++ { #'kind: #true })
   let options = query_slide(options ++ { #'cache: #true })
-  let options = query_slide(orig_options ++ { #'orig_req: #true })
+  let options = query_slide(orig_options ++ { #'orig_req: #true, #'kind: #true })
   let options = query_slide(options ++ { #'orig_resp: #true })
-  let options = query_slide(orig_options ++ { #'orig_req: #true, #'req_name: "umail.utah.edu" })
+  let options = query_slide(orig_options ++ { #'orig_req: #true, #'req_name: "umail.utah.edu", #'kind: #true })
   let options = query_slide(options ++ { #'www_req: #true })
   let options = query_slide(options ++ { #'www_resp: #true, #'resp_addr: "155.98.187.125" })
   let options = query_slide(options ++ { #'orig_resp: #true })  
   let options = query_slide(orig_options ++ { #'extra_client: #true })
   let options = query_slide(options ++ { #'dig: #true })
+  let options = query_slide(options ++ { #'mx: #true })
   #void
 
 slide(~title: "Summary",

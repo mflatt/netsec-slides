@@ -1,0 +1,40 @@
+SOCKET(2)                                   System Calls Manual                                  SOCKET(2)
+
+NAME
+     socket – create an endpoint for communication
+
+SYNOPSIS
+     #include <sys/socket.h>
+
+     int
+     socket(int domain, int type, int protocol);
+
+DESCRIPTION
+     socket() creates an endpoint for communication and returns a descriptor.
+
+     The domain parameter specifies a communications domain within which communication will take place;
+     this selects the protocol family which should be used.  These families are defined in the include
+     file ⟨sys/socket.h⟩.  The currently understood formats are
+
+           PF_LOCAL        Host-internal protocols, formerly called PF_UNIX,
+           PF_UNIX         Host-internal protocols, deprecated, use PF_LOCAL,
+           PF_INET         Internet version 4 protocols,
+           PF_ROUTE        Internal Routing protocol,
+           PF_KEY          Internal key-management function,
+           PF_INET6        Internet version 6 protocols,
+           PF_SYSTEM       System domain,
+           PF_NDRV         Raw access to network device,
+           PF_VSOCK        VM Sockets protocols
+
+     The socket has the indicated type, which specifies the semantics of communication.  Currently defined
+     types are:
+
+           SOCK_STREAM
+           SOCK_DGRAM
+           SOCK_RAW
+
+     A SOCK_STREAM type provides sequenced, reliable, two-way connection based byte streams.  An out-of-
+     band data transmission mechanism may be supported.  A SOCK_DGRAM socket supports datagrams
+     (connectionless, unreliable messages of a fixed (typically small) maximum length).  SOCK_RAW sockets
+     provide access to internal network protocols and interfaces.  The type SOCK_RAW, which is available
+     only to the super-user.

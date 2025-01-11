@@ -1,5 +1,4 @@
 #lang rhombus/static/and_meta
-
 import:
   rhombus/runtime_path
   "common.rhm" open
@@ -41,6 +40,7 @@ fun networks_slide(options :~ OptMap) :~ OptMap:
                      ~label: show(#'address,
                                   name("en1", @tt{155.98.69.112}).scale(ts).pad(~left: 16, ~bottom: 16)))
            | p)
+  let lo0 = tt("lo0")
   let p = (if options[#'loopback]
            | connect(~on: p,
                      Find.bottom(laptop, ~dy: 5),
@@ -51,7 +51,13 @@ fun networks_slide(options :~ OptMap) :~ OptMap:
                      ~end_pull: 2,
                      ~line_width: w,
                      ~style: #'arrow,
-                     ~label: @name("lo0", @tt{127.0.0.1}, ~below: #true).scale(ts).translate(0, 150))
+                     ~label: @name(lo0, @tt{127.0.0.1}, ~below: #true).scale(ts).translate(0, 150))
+           | p)
+  let p = (if options[#'device]
+           | balloon.pin(~on: p,
+                         ~at: Find.left(lo0),
+                         ~spike: #'ne,
+                         @defterm{interface})
            | p)
   let p = overlay(~vert: #'bottom,
                   ~horiz: #'right,
@@ -161,8 +167,8 @@ module ~early socket ~lang rhombus/static:
     let out_port = (if options[#'dns_msg]
                     | portno("53")
                     | tcp_out_port)
-    let dns_core_msg_data = tt("find cs.utah.edu MX")
-    let dns_core_reply_data = tt("smtps.cs.utah.edu")
+    let dns_core_msg_data = tt("cs.utah.edu MX")
+    let dns_core_reply_data = tt("mail-svr1.cs.utah.edu")
     let dns_msg_data = @lines(dns_core_msg_data,
                               @bold{to @remote port @out_port})
     let dns_reply_data = @lines(dns_core_reply_data,
@@ -191,12 +197,12 @@ module ~early socket ~lang rhombus/static:
                            if !options[#'reply] || options[#'host]
                            | @para{dest: @dest_ip}
                            | nothing,
-                           @para{TTL: @tt{64}}).pad(~left: 10)).scale(0.75)
+                           @para{TTL: @tt(if !options[#'reply] | "64" | "59")}).pad(~left: 10)).scale(0.75)
       let tcp_port = if options[#'dns_msg] | udp_port | tcp_port
       let tcp_dest_port = if options[#'reply] | tcp_port | out_port
       let tcp_src_port = if options[#'reply] | out_port | tcp_port
       let tcp = lines(~horiz: #'center,
-                      t("TCP header"),
+                      if options[#'pkt_udp] | t("UDP header") | t("TCP header"),
                       lines(if options[#'src]
                             | @para{src: @tcp_src_port}
                             | nothing,
@@ -224,7 +230,7 @@ module ~early socket ~lang rhombus/static:
       let tcp = rectangle(~around: tcp.pad(~horiz: 5), ~line: msg_color, ~fill: msg_bg_color)
       let wifi = rectangle(~around: wifi.pad(~horiz: 5), ~line: msg_color, ~fill: msg_bg_color)
       let ip = rectangle(~around: ip.pad(~horiz: 5), ~line: msg_color, ~fill: msg_bg_color)
-      let pkt = beside(if options[#'pkt_tcp] | tcp | nothing,
+      let pkt = beside(if options[#'pkt_tcp] || options[#'pkt_udp] | tcp | nothing,
                        data)
       let pkt: if options[#'tcp_segment]
                | let p = rectangle(~around: pkt.pad(5), ~line: #false, ~fill: "yellow")
@@ -391,19 +397,22 @@ let options = sockets_slide(tcp_options ++ { #'pkt, #'reply, #'file_content })
 let options = sockets_slide(options ++ { #'pkt_tcp, #'src })
 let options = sockets_slide(options ++ { #'pkt_ip })
 let options = sockets_slide(options ++ { #'another_tcp })
-let options = sockets_slide(options ++ { #'ports })
+let in_options = sockets_slide(options ++ { #'ports })
+let options = sockets_slide(out_options ++ { #'ports, #'host, #'src, #'another_tcp })
 let aside_options = sockets_slide(options ++ { #'well_known })
 let aside_options = sockets_slide(aside_options ++ { #'reserved })
 let aside_options = sockets_slide(aside_options ++ { #'ephemeral })
+#//
 let options = sockets_slide(options ++ { #'host })
+#//
 let options = sockets_slide(options ++ { #'hello })
 
-let options = sockets_slide(out_options ++ { #'ports, #'host, #'src })
+let options = sockets_slide(in_options ++ { #'ports, #'host, #'src })
 
 let options = sockets_slide(tcp_options ++ { #'host, #'ports, #'udp })
 let aside_options = sockets_slide(options ++ { #'connectionless })
 let options = sockets_slide(options ++ { #'dns_msg })
-let options = sockets_slide(options ++ { #'pkt, #'pkt_tcp, #'pkt_ip, #'src })
+let options = sockets_slide(options ++ { #'pkt, #'pkt_udp, #'pkt_ip, #'src })
 let options = sockets_slide(options ++ { #'reply })
 let options = sockets_slide(options ++ { #'dns_reply })
 let options = sockets_slide(options ++ { #'udp_multiple })
@@ -457,8 +466,60 @@ public class Main {
 }
 }
 
-slide(~title: "UDP Client", client.scale(0.65))
 slide(~title: "UDP Server", server.scale(0.65))
+slide(~title: "UDP Client", client.scale(0.65))
+
+slide(~title: "Demo",
+      slide.align(
+        slide.align(
+          ~sep: current_line_sep(),
+          @para{Show server code and run, but initially with},
+          slide.center(
+            @tt{System.out.printf(" %d", buffer[i]);}
+          )
+        ),
+        @para{Show client code and run},
+        @para{Confirm that outputs make sense},
+        @para{Run client again, and see a fresh ephemeral address},
+      ))
+
+slide(~title: "Demo",
+      slide.align(
+        @para{Client on remote machine is a variant that iterates @tt{1} time},
+        blank(),
+        @para{Run client on remote machine},
+        @item{Show address obtained from @tt{ifconfig} on server},
+        @item{Confirm that client address matches expected},
+        blank(),
+        @para{Adjust client on remote machine to iterate more:},
+        @item{Send @tt{1000} messages, probably all received},
+        @item{Send @tt{10000} messages, probably some dropped}
+      ))
+
+slide(~title: "Demo",
+      slide.align(
+        slide.align(
+          ~sep: current_line_sep(),
+          @para{Point @tt{dig} at server:},
+          @tt|{dig @localhost -p 5678 www.cs.utah.edu}|
+        ),
+        @para{Note multiple requests, including from IPv6},
+        @para{Can we make sense of these bytes?}
+      ))
+
+slide(~title: "RFCs",
+      slide.align(
+        lines(
+          @para{Many internet protocols are defined by standards called},
+          @para{@defterm{Requests for Comments} or @defterm{RFCs}}
+        ),
+        slide.next,
+        blank(),
+        @para{Sometimes, an initial RFC is refined or superceded by later RFCs},
+        slide.next,
+        blank(),
+        @para{DNS is defined by RFCs 1035, 2929, and more}
+      ))
 
 let dns_overall = @verbatim{
     +---------------------+
@@ -474,8 +535,20 @@ let dns_overall = @verbatim{
     +---------------------+
 }
 
-slide(~title: "DNS Messages (RFC 1035)",
-      dns_overall)
+fun dns_overall_slide(hilite, ...):
+  slide(~title: "DNS Messages (RFC 1035)",
+        block:
+          let bx = tt(" ")
+          overlay.top_left(
+            rectangle(~width: 21 * bx.width,
+                      ~height: 1 * bx.height,
+                      ~fill: "lightgreen").pad(~left: bx.width, ~top: (bx.height + current_line_sep()) * (2*hilite + 1)),
+            ...,
+            dns_overall
+          ))
+
+dns_overall_slide()
+dns_overall_slide(0)
 
 let dns_header = @verbatim{
                                     1  1  1  1  1  1
@@ -525,6 +598,23 @@ slide(~title: "DNS Header (RFC 1035)",
       slide.alts(dns_header,
                  remap(dns_header, 2, [16, 8, 16, 16, 16, 16])))
 
+
+slide(~title: "Demo",
+      slide.align(
+        slide.align(
+          ~sep: current_line_sep(),
+          @para{Maybe change server back to hex mode:},
+          slide.center(
+            @tt{System.out.printf(" %x", (int)buffer[i] & 0xFF);}
+          )
+        ),
+        @para{First two bytes from @tt{dig} are meant to change every time},
+        lines(
+          @para{Next few bytes are always the same},
+          @item{flags indicate @tt{RD}, for example},
+          @item{next is question count of @tt{1}}
+        )))
+
 let dns_question = @verbatim{
                                     1  1  1  1  1  1
       0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
@@ -548,8 +638,41 @@ QNAME           a domain name represented as a sequence of labels, where
                 padding is used.
 }
 
+dns_overall_slide(1)
 slide(~title: "DNS Question (RFC 1035)",
       dns_question.scale(0.75))
+
+slide(~title: "Demo",
+      slide.align(
+        @para{At @tt{QNAME}, our server's output has a notable 3-2-4-3 pattern},
+        @para{@tt{www}  @tt{cs}  @tt{utah}  @tt{edu}},
+        @para{See the @tt{QNAME} description again},
+        @para{Wireshark can help us more...} 
+      ))
+
+def onscreen = bold
+
+slide(~title: "Demo",
+      slide.align(
+        slide.align(
+          ~sep: current_line_sep(),
+          @para{Start Wireshark},
+          @item{select interface @tt{Loopback: lo0}},
+          @item{set filter to @tt{udp && udp.port == 5678}}
+        ),
+        @para{Run local client},
+        slide.align(
+          ~sep: current_line_sep(),
+          @lines(
+            @para{Wireshark shows sent packet, but describes as ``malformed,''}
+            @para{because port 5678 not standard}
+          ),
+          @item{Right-click (or control-click) line in top panel},
+          @item{Pick @onscreen{Decode As...}},
+          @item{Put @tt{DNS} in @onscreen{Current} column},
+          @item{Bottom-right panel now says ``DNS''}
+        )
+      ))
 
 let dns_resource_record = @verbatim{
 
@@ -574,6 +697,8 @@ let dns_resource_record = @verbatim{
     /                                               /
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 }
+
+dns_overall_slide(2, 3, 4)
 
 slide(~title: "DNS Resource Record (RFC 1035)",
       slide.align(~horiz: #'left,
@@ -614,3 +739,30 @@ slide(~title: "DNS Names (RFC 1035)",
                   @para{Relevant to names, whenever they appear:},
                   dns_compression.scale(0.75).pad(~left: 32)))
 
+
+slide(~title: "Resources",
+      block:
+        let s = 0.75
+        slide.align(
+          @tt{https://datatracker.ietf.org/doc/html/rfc1035}.scale(s),
+          @tt{https://datatracker.ietf.org/doc/html/rfc2929}.scale(s),
+          @tt{https://docs.oracle.com/javase/8/docs/api/java/net/DatagramPacket.html}.scale(s),
+          @tt{https://docs.oracle.com/javase/8/docs/api/java/net/DatagramSocket.html}.scale(s),
+          @tt{https://docs.oracle.com/javase/8/docs/api/java/nio/ByteBuffer.html}.scale(s)
+        ))
+
+slide(~title: "Summary",
+      slide.align(
+        @para{Message exchange via UDP involves},
+        @item{receiver @italic{address} and @italic{port}}.pad(~left: 20),
+        @item{sender @italic{address} and @italic{port}}.pad(~left: 20),
+        @para{Each packet has all four},
+        blank(),
+        @para{Server needs a known address and port},
+        @para{A client tends to use an @defterm{ephemeral port}},
+        blank(),
+        lines(
+          @para{Adopt a byte-level view of protocols when},
+          @para{reading @defterm{RFCs} and using Wireshark}
+        )
+      ))

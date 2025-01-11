@@ -1,0 +1,40 @@
+CONNECT(2)                                  System Calls Manual                                 CONNECT(2)
+
+NAME
+     connect – initiate a connection on a socket
+
+SYNOPSIS
+     #include <sys/types.h>
+     #include <sys/socket.h>
+
+     int
+     connect(int socket, const struct sockaddr *address, socklen_t address_len);
+
+DESCRIPTION
+     The parameter socket is a socket.  If it is of type SOCK_DGRAM, this call specifies the peer with
+     which the socket is to be associated; this address is that to which datagrams are to be sent, and the
+     only address from which datagrams are to be received.  If the socket is of type SOCK_STREAM, this
+     call attempts to make a connection to another socket.  The other socket is specified by address,
+     which is an address in the communications space of the socket.
+
+     Each communications space interprets the address parameter in its own way.  Generally, stream sockets
+     may successfully connect() only once; datagram sockets may use connect() multiple times to change
+     their association.  Datagram sockets may dissolve the association by calling disconnectx(2), or by
+     connecting to an invalid address, such as a null address or an address with the address family set to
+     AF_UNSPEC (the error EAFNOSUPPORT will be harmlessly returned).
+
+RETURN VALUES
+     Upon successful completion, a value of 0 is returned.  Otherwise, a value of -1 is returned and the
+     global integer variable errno is set to indicate the error.
+
+ERRORS
+     The connect() system call will fail if:
+
+     [EACCES]           The destination address is a broadcast address and the socket option SO_BROADCAST
+                        is not set.
+
+     [EADDRINUSE]       The address is already in use.
+
+     [EADDRNOTAVAIL]    The specified address is not available on this machine.
+
+     [EAFNOSUPPORT]     Addresses in the specified address family cannot be used with this socket.
