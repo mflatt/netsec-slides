@@ -4,9 +4,71 @@ import:
   "common.rhm" open
   "layers.rhm"
   "state_machine.rhm" open
+  "delays.rhm"!network open
+
+let reliable_title = "Reliable Data Transfer"
+
+fun communicate_slide(options :~ OptMap) :~ OptMap:
+  let r1 = router.launder()
+  let r2 = router.launder()
+  let p:
+    beside(~sep: 80,
+           laptop,
+           r1,
+           r2.ghost(options[#'no_router]),
+           server.ghost(options[#'no_server]))
+  fun link(p :: Pict, from :: Pict, to :: Pict) :~ Pict:
+    connect(~on: p,
+            Find.right(from),
+            Find.left(to),
+            ~line_width: 2)
+  let p = link(p, laptop, r1)
+  let p = link(p, r1, r2)
+  let p = link(p, r2, server)
+  let pkt = rectangle(~around: tt(" hi ").colorize("blue"), ~fill: "white", ~line: "blue")
+  let p:
+    cond
+    | options[#'send_more]:
+        pin(~on: p,
+            animate(fun (n): pkt.alpha(1-n)),
+            ~at: Find.interpolate(Find.center(r1),
+                                  Find.center(r2)),
+            ~pinhole: Find.center(pkt))
+    | options[#'sent]:
+        pin(~on: p,
+            pkt,
+            ~at: Find.center(r1),
+            ~pinhole: Find.center(pkt))
+    | options[#'pkt]:
+        pin(~on: p.epoch_set_extent(0, 0.5),
+            pkt,
+            ~at: Find.interpolate(Find.center(laptop),
+                                  Find.center(r1)),
+            ~pinhole: Find.center(pkt))
+    | ~else: p
+  let p:
+    if options[#'focus]
+    | stack(~sep: 50,
+            p,
+            @para{Focus only on packet-delivery problems})
+        .refocus(p)
+    | p
+  slide(~title: reliable_title,
+        p)
+  options
+
+let options = communicate_slide({ #'pkt: #true })
+let sent_options = communicate_slide(options ++ { #'sent })
+let options = communicate_slide(sent_options ++ { #'no_server } )
+let options = communicate_slide(sent_options ++ { #'no_router } )
+let options = communicate_slide(sent_options ++ { #'send_more } )
+let options = communicate_slide({})
+let options = communicate_slide(options ++ { #'focus })
+let options = communicate_slide(options ++ { #'pkt })
+let options = communicate_slide(options ++ { #'sent })
 
 block:
-  let title = "Reliable Data Transfer"
+  let title = reliable_title
   let unreliable = @italic{potentially unreliable}
   let [[layer, examples, interface], ...] = layers.make()
   let dstack :~ List.of(List) = [[layer, "", nothing], ...]
@@ -25,11 +87,13 @@ block:
         animate(mk).sustain())
   let reasons:
     let reasons = slide_pict(slide.align(~horiz: #'left,
-                                         @para{corrupted packets},
+                                         @para{lost packets},
                                          slide.next,
-                                         @para{lost/duplicated packets},
+                                         @para{reordered packets},
                                          slide.next,
-                                         @para{reordered packets})).pad(10)
+                                         @para{duplicated packets},
+                                         slide.next,
+                                         @para{corrupted packets})).pad(10)
     balloon.pin(~on: mk(1),
                 ~at: Find.right(unreliable),
                 ~spike: #'w,
@@ -53,14 +117,16 @@ block:
                         ~start_angle: math.pi * -1/4,
                         ~end_angle: math.pi * -3/4,
                         ~style: #'arrow,
-                        ~line: "blue")
+                        ~line: "blue",
+                        ~line_width: 2)
         let p = connect(~on: p,
                         Find.left_top(b),
                         Find.left_bottom(a),
                         ~start_angle: math.pi * 3/4,
                         ~end_angle: math.pi * 1/4,
                         ~style: #'arrow,
-                        ~line: "blue")
+                        ~line: "blue",
+                        ~line_width: 2)
         p
       | a
     let p = stack(~sep: 64,
@@ -131,7 +197,7 @@ block:
     let sender = Pict.launder(save)
     let receiver = Pict.launder(save)
     let together = overlay(Pict.ghost(save),
-                           beside(~sep: 100 - (1-n)*(100 + sender.width),
+                           beside(~sep: 105 - (1-n)*(105 + sender.width),
                                   sender,
                                   receiver))
     pin(~on: made.ghost(),
@@ -156,7 +222,7 @@ slide(
     let state1 = state(@para{State 1})
     let state2 = state(@para{State 2})
     let state3 = state(@para{State 3})
-    let machine = stack(~sep: 100,
+    let machine = stack(~sep: 150,
                         beside(~sep: 150, state1, state2),
                         state3)
     let condition = @italic{condition}
@@ -180,7 +246,7 @@ slide(
                        condition,
                        action,
                        ~scale: 1,
-                       ~dx: -1.1,
+                       ~dx: -1.2,
                        ~dy: 0.3)
     let machine = edge(machine,
                        state1, pi*1/2, state1, pi,
@@ -210,7 +276,8 @@ slide(
                        lines(@tt{button_pushed(selection)},
                              @tt{  && money >= costof(selection)},
                              @tt{  && is_available(selection)}),
-                       @tt{money = 0},
+                       lines(@tt{money = 0},
+                             @tt{start_vend(selection)}),
                        ~dy: -0.9)
     let machine = edge(machine,
                        wait, pi*3/4, wait, pi*5/4,
@@ -235,8 +302,8 @@ slide(
                        ~dy: 1.2)
     overlay(~horiz: #'left,
             ~vert: #'top,
-            @para(~full: #true){Vending machine example:},
-            machine.pad(~top: 32))
+            @para(~full: #true){Vending machine example},
+            machine.pad(~top: 80))
 )
 
 fun add_suffix(p, s):
@@ -312,8 +379,16 @@ slide(
     let machine = beside(~sep: 350,
                          send_machine,
                          recv_machine).pad(~right: 100)
-    machine
+    switch(machine,
+           block:
+             let p = machine.snapshot(machine.duration - 1, 0)
+             stack.right(~sep: 100,
+                         p,
+                         @para{Send twice and check as the same?}.colorize("blue"))
+               .refocus(p))                
 )
+
+start_at_recent()
 
 fun checksum_slide_content(options :~ OptMap):
   import: lib("pict/face.rkt")
@@ -484,7 +559,7 @@ let wait_recv_1 = make_wait_recv(@t{1})
 
 fun nack_machine(options :~ OptMap) :~ Pict:
   let p = beside(~sep: 350,
-                 stack(~sep: 300,
+                 stack(~sep: 350,
                        beside(~sep: 100, wait_send_0, wait_ack_0),
                        beside(~sep: 100, wait_ack_1, wait_send_1)),
                  beside(~sep: 100,
@@ -597,10 +672,10 @@ fun nack_machine(options :~ OptMap) :~ Pict:
     if options[#'duplicates]
     | overlay(~horiz: #'right,
               ~vert: #'top,
-              p.pad(~top: 70, ~right: 50),
+              p.pad(~top: 80, ~right: 100),
               balloon.note(
                 lines(@para{To handle duplicated and reordered packets,},
-                      @para{use a sequence number that always counts up},
+                      @para{use a @defterm{sequence number} that always counts up},
                       @para{instead of just 0 and 1}))
               ).refocus(p)
     | p
@@ -608,7 +683,7 @@ fun nack_machine(options :~ OptMap) :~ Pict:
     if options[#'ack_as_nack]
     | overlay(~horiz: #'right,
               ~vert: #'top,
-              p.pad(~top: 70, ~right: 50),
+              p.pad(~top: 80, ~right: 100),
               balloon.note(
                 lines(@para{We can use @send_ack_pkt("1") as},
                       @para{a NACK for @send_ack_pkt("0")},
@@ -958,9 +1033,21 @@ let options = send_buffer_slide(options ++ { #'window })
 let aside_options = send_buffer_slide(options ++ { #'window_size })
 let options = send_buffer_slide(options ++ { #'mix_recv })
 let options = send_buffer_slide(options ++ { #'mix_send })
+let sr_options = send_buffer_slide(options ++ { #'sr })
+let sr_options = send_buffer_slide(sr_options ++ { #'each_ack })
 let gbn_options = send_buffer_slide(options ++ { #'gbn })
 let gbn_options = send_buffer_slide(gbn_options.remove(#'mix_send) ++ { #'cumulative })
 let gbn_options = send_buffer_slide(gbn_options ++ { #'cumulative_more })
 let gbn_options = send_buffer_slide(gbn_options ++ { #'mix_more })
-let sr_options = send_buffer_slide(options ++ { #'sr })
-let sr_options = send_buffer_slide(sr_options ++ { #'each_ack })
+
+slide(~title: "Summary",
+      slide.align(        
+        @para{Reliable data transfer can be implemented on top of an unreliable layer},
+        blank(40),
+        @para(@List{@defterm{State machines} abstract over program details},
+              @List{to explain just the program's states and transitions}),
+        blank(40),        
+        @item{@defterm{ACKs} and @defterm{NACKs}}.pad(~left: 20),
+        @item{@defterm{sequence numbers} for both ACKs and implicit NACKs}.pad(~left: 20),
+        @item{@defterm{cumulative} ACKs versus @defterm{selective repeat}}.pad(~left: 20),
+      ))
