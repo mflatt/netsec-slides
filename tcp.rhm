@@ -19,8 +19,8 @@ slide(
       @para{Reliable delivery},
       italicly(@para{all the good things from last time}).pad(~left: 100),
     ),
-    @para{Connection-oriented},
-    @para{Full duplex (= bidirectional)}
+    @para{@defterm{Connection-oriented}},
+    @para{@defterm{Full duplex} (= bidirectional)}
   )
 )
 
@@ -487,17 +487,17 @@ fun flow_control_slide(options :~ OptMap) :~ OptMap:
   let p:
     stack(~sep: 64,
           ~horiz: #'left,
-          host_a[#'main].scale(host_scale),
-          host_b[#'main].scale(host_scale).pad(~left: 100))
+          host_a[#'main]!!.scale(host_scale),
+          host_b[#'main]!!.scale(host_scale).pad(~left: 100))
   def done_color = "blue"
   def done_w = 2
   let p:
     if options[#'a_sent]
     | connect(~on: p,
-              Find.right_top(host_b[#'recvd], ~dx: -5),
               Find.right_bottom(host_a[#'sent], ~dx: -5),
-              ~start_angle: pi/2,
-              ~end_angle: pi/2,
+              Find.right_top(host_b[#'recvd], ~dx: -5),
+              ~start_angle: -pi/2,
+              ~end_angle: -pi/2,
               ~line: done_color,
               ~line_width: done_w,
               ~style: #'arrow)
@@ -505,10 +505,10 @@ fun flow_control_slide(options :~ OptMap) :~ OptMap:
   let p:
     if options[#'b_sent]
     | connect(~on: p,
-              Find.right_bottom(host_a[#'recvd], ~dx: -5),
               Find.right_top(host_b[#'sent], ~dx: -5),
-              ~start_angle: -pi/2,
-              ~end_angle: -pi/2,
+              Find.right_bottom(host_a[#'recvd], ~dx: -5),
+              ~start_angle: pi/2,
+              ~end_angle: pi/2,
               ~line: done_color,
               ~line_width: done_w,
               ~style: #'arrow)
@@ -671,3 +671,17 @@ fun close_slides(options :~ OptMap) :~ OptMap:
 let options = close_slides({})
 let options = close_slides(options ++ { #'show_closed })
 let options = close_slides(options ++ { #'reuse })
+
+slide(~title: "Summary",
+      slide.align(
+        @para{TCP: @defterm{connection-oriented} and @defterm{full duplex}},
+        @item{server @defterm{listens} at a port number},
+        @item{client @defterm{connects} a socket to that a port number},
+        @item{server @defterm{accepts} a socket from the listener},
+        blank(),
+        @para{In a TCP packet:},
+        @item{@defterm{Sequence numbers} and @defterm{acknowledgment numbers} implement cumulative acknowledgments},
+        @item{@defterm{Window} sizes enable flow control},
+        blank(),
+        @para{Setup with @tt{SYN} @tt{ACK}, teardown with @tt{FIN} @tt{ACK}}
+        ))

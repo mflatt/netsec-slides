@@ -388,8 +388,6 @@ slide(
                .refocus(p))                
 )
 
-start_at_recent()
-
 fun checksum_slide_content(options :~ OptMap):
   import: lib("pict/face.rkt")
   let face1 = Pict.from_handle(face.face(if options[#'unhappy] | #'unhappy | #'happy)).scale(0.75)
