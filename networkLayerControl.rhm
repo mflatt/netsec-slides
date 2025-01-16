@@ -105,7 +105,7 @@ fun graph_pict(nodes:~ Map.of(String, Node), options :~ OptMap) :~ Pict:
   let p:
     for values(p = p) (n: [n, ...]):
       for values(p = p) ((oname, dist): n.neighbors):
-        let on = nodes[oname]
+        let on = nodes[oname]!!
         let onp = node_picts[on]
         skip_when string_gt(on.name, n.name)
         let lbl = t(to_string(dist)).scale(0.75)
@@ -124,7 +124,7 @@ fun graph_pict(nodes:~ Map.of(String, Node), options :~ OptMap) :~ Pict:
                   ~order: #'back)
   let p:
     for values(p = p) ((name, note): (options[#'notes] || {}) :~ Map):
-      let n = nodes[name]
+      let n = nodes[name]!!
       let np = node_picts[n]
       if n.dx < 2.5
       | balloon.pin(~on: p,
@@ -143,7 +143,7 @@ fun graph_pict(nodes:~ Map.of(String, Node), options :~ OptMap) :~ Pict:
                   p,
                   ip)
   fun is_top_right(name):
-    let n = nodes[name]
+    let n = nodes[name]!!
     (n.dy < 1) || (n.dx > 3)
   fun tab_pict([tab_p, _]) :~ Pict:
     tab_p
@@ -239,7 +239,7 @@ fun dijkstra_slides(nodes:~ Map.of(String, Node),
       let new_done = done ++ { next_name: gray[next_name] }
       let new_gray = gray.remove(next_name)
       let new_gray:
-        for values(new_gray :~ Map = new_gray) ((name, add_dist): nodes[next_name].neighbors):
+        for values(new_gray :~ Map = new_gray) ((name, add_dist): nodes[next_name]!!.neighbors):
           skip_when done.has_key(name)        
           skip_when (gray.get(name, [#inf, #false]) :~List)[0] <= min_dist + add_dist
           when show_select && gray.has_key(name)
@@ -302,7 +302,7 @@ fun bellman_ford_slides(nodes:~ Map.of(String, Node),
                         ~show_comm = #true):
   let { name: Node(_, _, _, { next_node: next_dist, ... }), ... } = nodes
   let init :~ Map.of(String, Map) = { name: { name: Route(#inf, #false), ... }, ...}
-  let init = init ++ { name: init[name] ++ { name: Route(0, #false), next_node: Route(next_dist, next_node), ... }, ... }
+  let init = init ++ { name: init[name]!! ++ { name: Route(0, #false), next_node: Route(next_dist, next_node), ... }, ... }
   let [in_order_name, ...] = [name, ...].sort(string_lt)      
   recur bellman_ford(tables :~ Map.of(String, Map) = init, iteration = 0):
     fun bf_graph_pict(options :~ Map):
@@ -345,9 +345,9 @@ fun bellman_ford_slides(nodes:~ Map.of(String, Node),
       for values(new_tables = tables) (at_name: [in_order_name, ...]):
         for values(new_tables :~ Map.of(String, Map) = new_tables) (via_name: [in_order_name, ...]):
           let new_at_table = new_tables[at_name]
-          let dist = nodes[at_name].neighbors.get(via_name, #false)
+          let dist = nodes[at_name]!!.neighbors.get(via_name, #false)
           skip_when !dist
-          let via_table = tables[via_name]
+          let via_table = tables[via_name]!!
           fun make_options(new_at_table, ~is_relevant = #true) :~ Map:
             (tables_to_options(new_tables ++ { at_name: new_at_table })
                ++ { #'table_prop: [via_name, at_name, make_table(via_table,
