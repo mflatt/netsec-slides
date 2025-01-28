@@ -14,9 +14,18 @@ let spc = @tt{ }
 
 let var_est = romanly(@t{var@subscript{@italic{est}}})
 
+slide(~title: "TCP Congestion Control",
+      slide.align(
+        @para{@defterm{Congestion control} in TCP avoids overwhelming a network},
+        slide.next,
+        @item{how @italic{often} to send ⇒ @tt{timeout}}.pad(~left: 40),
+        slide.next,
+        @item{how @italic{much} to send ⇒ @tt{window}}.pad(~left: 40),
+      ))
+
 slide(~title: "TCP Timeout",
       @para(~full: #true){TCP timeout uses an estimate of @roman{RTT} and its variance:},
-      @romanly(@t{timeout @spc = @spc @rtt_est @spc + @spc 4 × @var_est}),
+      @romanly(@t{@tt{timeout} @spc = @spc @rtt_est @spc + @spc 4 × @var_est}),
       slide.next,
       blank(32),
       @item(~full: #true){@rtt_est is an exponentially weighted moving average:},
@@ -35,7 +44,7 @@ slide(~title: "TCP Congestion Control",
         block:
           let rwnd = @tt{rwnd}
           let p:
-            @para{@bold{Flow control} relies on @spc @rwnd @spc and @spc @roman{@tt{window} ≤ @tt{rwnd}}}
+            @para{@defterm{Flow control} relies on @spc @rwnd @spc and @spc @roman{@tt{window} ≤ @tt{rwnd}}}
           slide.alts(p,
                      balloon.pin(~on: p,
                                  ~at: Find.top(rwnd),
@@ -43,7 +52,7 @@ slide(~title: "TCP Congestion Control",
                                  @para{from TCP header}),
                      [p,
                       blank(),
-                      @para{@bold{Congestion control} uses @spc @tt{cwnd} @spc and @spc @roman{@tt{window} ≤ @tt{cwnd}}}]),
+                      @para{@defterm{Congestion control} uses @spc @tt{cwnd} @spc and @spc @roman{@tt{window} ≤ @tt{cwnd}}}]),
         slide.next,
         block:
           let MSS = @tt{MSS}
@@ -159,7 +168,8 @@ fun tcp_state_machine(options :~ OptMap) :~ OptMap:
                nothing,
                lines(cwnd_only(lines(@tt{cwnd = MSS},
                                      @tt{ssthresh = 64kb})),
-                     detail_only(lines(@tt{dupACKs = 0}))),
+                     detail_only(lines(@tt{dupACKs = 0},
+                                       @tt{send_new()}))),
                ~scale: act_scale,
                ~dx: -1,
                ~dy: -0.2,
@@ -289,7 +299,7 @@ fun tcp_state_machine(options :~ OptMap) :~ OptMap:
                ~dy: 0.1,
                ~enable: cwnd)
 
-  let p = p.pad(~top: 64)
+  let p = p.pad(~top: 120)
   p
 
 fun tcp_state_machine_slide(options):  
@@ -372,6 +382,13 @@ slide(~title: @titlet{@tt{cwnd } Adjustment over Time},
 
 let issues_title = "Issues with TCP"
 
+slide(~title: issues_title,
+      slide.align(
+        @para{TCP is great for most purposes, but it's not perfect...},
+        slide.next,
+        @para{... for example, in the case of web services}
+      ))
+
 runtime_path.def laptop_png: "images/laptop.png"
 runtime_path.def wifi_png: "images/wifi-ap.png"
 runtime_path.def router_png: "images/router.png"
@@ -393,7 +410,7 @@ def router = bitmap(router_png).scale(0.5).pad(~horiz: 10)
 def server = bitmap(server_png).scale(0.15).pad(~horiz: 10)
 def magnifying_glass = bitmap(magnifying_glass_png).scale(0.2)
 
-fun problem(s): para(s).colorize("firebrick")
+fun problem(s): defterm(s)
 
 let mp1 = mobile_phone.ghost()
 let mp2 = mobile_phone.ghost()
@@ -562,13 +579,13 @@ fun handshake(options :~ OptMap) :~ Pict:
   let p = connects(p, s1, c2, 5, ((options[#'init_ack] || @tt{SYN}) :~ Pict).rotate(pi))
   let p:
     if options[#'ssl]
-    | let p = connects(p, c2, s2, 10, options[#'ssl_next] || @t{SSL begin})
-      let p = connects(p, s2, c3, 15, options[#'ssl_next] || @t{SSL setup}.rotate(pi))
+    | let p = connects(p, c2, s2, 10, options[#'ssl_next] || @t{TLS begin})
+      let p = connects(p, s2, c3, 15, options[#'ssl_next] || @t{TLS setup}.rotate(pi))
       p
     | let p = connects(p, c2, s2, 10, options[#'data] || @t{data})
       p
   if options[#'ssl_more]
-  | let p = connects(p, c3, s3, 20, options[#'ssl_next] || @t{SSL setup})
+  | let p = connects(p, c3, s3, 20, options[#'ssl_next] || @t{TLS setup})
     let p = connects(p, s3, c4, 25, options[#'ssl_next] || @t{...}.rotate(pi))
     p
   | p
@@ -620,13 +637,13 @@ slide(~title: quic_title,
 block:
   let sep = 500
   let conn_id = @tt{connID=@romanly(@italic{C})}.pad(~right: 16)
-  let ssl_begin = @t{SSL begin}
+  let ssl_begin = @t{TLS begin}
   let orig:
     handshake({ #'sep: sep,
                 #'client: wifi_addr,
                 #'init: @t{@conn_id @ssl_begin},
-                #'init_ack: @t{@conn_id SSL setup},
-                #'data: @t{@conn_id SSL begin},
+                #'init_ack: @t{@conn_id TLS setup},
+                #'data: @t{@conn_id TLS begin},
                 #'ssl: #true,
                 #'ssl_next: @t{...}})
   let cont:
@@ -678,3 +695,25 @@ slide(~title: quic_title,
                                ~dy: -p.height,
                                @para{Dropped packet does not stall other streams})))
 
+slide(~title: "Summary",
+      slide.align(
+        ~sep: 2 * slide.gap,
+        @para{@defterm{Flow control} avoids overwhelming the other end of a connection},
+        @para{@defterm{Congestion control} avoids overwhelming the network as a whole},
+        lines(
+          @para{TCP states for congestion control:},
+          lines(
+            @item{@defterm{slow start}},
+            @item{@defterm{congestion avoidance}},
+            @item{@defterm{fast recovery}}
+          ).pad(~left: 20)
+        ),
+        lines(
+          @para{TCP isn't always the best solution, it and can suffer from},
+          lines(
+            @para{@defterm{handshake hell},},
+            @para{the @defterm{parking-lot problem}, and},
+            @para{the @defterm{head-of-line problem}.}
+          ).pad(~left: 20)
+        )
+      ))

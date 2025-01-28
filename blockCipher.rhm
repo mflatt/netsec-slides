@@ -34,14 +34,16 @@ module ~early des_key_sched ~lang rhombus/static:
     let k = make_k(n)
     let rot = rectangle(~around: @t{@tt{<<<}@romanly{@subscript(to_string(n))}}.pad(~horiz: 5),
                         ~fill: "white",
-                        ~line: #'inherit)
+                        ~line: #'inherit,
+                        ~refocus: #false)
     let rot_l = rot.launder()
     let rot_r = rot.launder()
     fun make_pc(n) :~ Pict:
       rectangle(~around: @romanly{PC@n}.pad(~top: 3),
                 ~width: halfword_width,
                 ~fill: permute_color,
-                ~line: #'inherit)
+                ~line: #'inherit,
+                ~refocus: #false)
     let pc2 = make_pc("2")
     let p = stack(~sep: 16,
                   beside(~sep: halfword_width, rot_l, rot_r),
@@ -262,7 +264,7 @@ module ~early feistel ~lang rhombus/static:
 
   fun halfword_box(name, n, ~width: width = halfword_width) :~ Pict:
     let l = @romanly{@name@subscript(to_string(n))}.pad(~vert: t_pad)
-    rectangle(~around: l, ~width: width, ~fill: "lightgray", ~line: #'inherit)
+    rectangle(~around: l, ~width: width, ~fill: "lightgray", ~line: #'inherit, ~refocus: #false)
 
   fun feistel(n, ~k: k_n = n, ~head_only = #false, ~skip_head = #false,
               ~options: options :: OptMap = {}):
@@ -272,7 +274,7 @@ module ~early feistel ~lang rhombus/static:
     let f = @romanly(if aes | (if options[#'mix_prime] | "R′" | "R") | "F").pad(~bottom: -3)
     let f = (if options[#'mix_xor]
              | xor.launder()
-             | square(~around: f, ~size: l.height, ~fill: alg_box_color, ~line: #'inherit))
+             | square(~around: f, ~size: l.height, ~fill: alg_box_color, ~line: #'inherit, ~refocus: #false))
     let f = (if options[#'f_dot] | beside(options[#'f_dot], f) | f)
     let head = beside(l, r)
     if head_only

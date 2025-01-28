@@ -59,8 +59,7 @@ fun string_gt(a :: String, b :: String):
   base.#{string>?}(a, b)
 
 fun string_lt(a :: String, b :: String):
-  import lib("racket/base.rkt")
-  base.#{string<?}(a, b)
+  a < b
 
 fun scooter(p, from :~ Find, to :~ Find, q,
             ~order: order = #'front) :~ Pict:

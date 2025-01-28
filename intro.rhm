@@ -292,8 +292,8 @@ fun make_internet_link(~show_multi = #false,
   for values(p :: Pict = internet):
     each [d1, d2, flag, ...]: links
     for values(p :: Pict = p):
-      each d: if show_multi && [flag, ...].has_element(#'many) | [-1, 0, 1, 2] | [0]
-      def on: show_goal && d == 0 && [flag, ...].has_element(#'route)
+      each d: if show_multi && #'many in [flag, ...] | [-1, 0, 1, 2] | [0]
+      def on: show_goal && d == 0 && #'route in [flag, ...]
       let (sx, sy) = Find.center(d1).in(p)
       let (ex, ey) = Find.center(d2).in(p)
       let a = math.atan(sy - ey, ex - sx)

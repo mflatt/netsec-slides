@@ -6,6 +6,12 @@ import:
   "delays.rhm"!network as delays
   "layout.rhm"
 
+slide(~title: "Network Layer",
+      slide.align(
+        @para{@defterm{Data plane}: what packets look like},
+        @para{@defterm{Control plane}: how packets are routed}
+      ))
+
 fun highlight(p, field :~ Pict) :~ Pict:
   let r = rectangle(~around: field.ghost(),                    
                     ~fill: "yellow",
@@ -24,32 +30,34 @@ let ttl_field = layout.field(8, @t{time-to-live})
 let v4_protocol_field = layout.field(8, lines(@t{upper-layer}, @t{protocol}))
 let ipv4_checksum_field = layout.field(16, @t{header checksum})
 let options_field = layout.field(32, @t{options}, ~varies: #true)
+let v4_source_address = layout.field(32, @t{source address})
+let v4_dest_address = layout.field(32, @t{destination address})
 
 let ipv4_header:
   layout.record(
-        layout.row(version_field,
-                   v4_header_length_field,
-                   tos_field,
-                   datagram_length_field),
-        frag_row,
-        layout.row(ttl_field,
-                   v4_protocol_field,
-                   ipv4_checksum_field),
-        layout.row(layout.field(32, @t{source address})),
-        layout.row(layout.field(32, @t{destination address})),
-        layout.row(options_field)
+    layout.row(version_field,
+               v4_header_length_field,
+               tos_field,
+               datagram_length_field),
+    frag_row,
+    layout.row(ttl_field,
+               v4_protocol_field,
+               ipv4_checksum_field),
+    layout.row(v4_source_address),
+    layout.row(v4_dest_address),
+    layout.row(options_field)
   )
 
 let ipv4_no_bits:
   layout.record(
-        ipv4_header,
-        layout.row(layout.field(32, @t{data}, ~height: 3, ~varies: #true)),        
+    ipv4_header,
+    layout.row(layout.field(32, @t{data}, ~height: 3, ~varies: #true)),        
   )
 
 let ipv4:
   layout.record(
-        ~bits: 32,
-        ipv4_no_bits,
+    ~bits: 32,
+    ipv4_no_bits,
   )
 
 slide(~title: "IPv4 Packet Format",
@@ -58,13 +66,14 @@ slide(~title: "IPv4 Packet Format",
         balloon.pin(~on: ipv4,
                     ~at: Find.left(version_field, ~dx: 5),
                     ~spike: #'e,
-                    @para{4}),
+                    @para{@tt{4}}),
         balloon.pin(~on: highlight(ipv4, ipv4_header),
                     ~at: Find.left(v4_header_length_field, ~dx: 5),
                     ~spike: #'e,
                     ~dx: 96,
                     ~dy: 16,
-                    @para{Usually 20 bytes}),
+                    lines(@para{In 32-bit words, so},
+                          @para{@tt{5} means 20 bytes})),
         balloon.pin(~on: ipv4,
                     ~at: Find.left(tos_field, ~dx: 5),
                     ~spike: #'e,
@@ -96,10 +105,23 @@ slide(~title: "IPv4 Packet Format",
                     ~spike: #'w,
                     lines(@para{Like TCP, but only header})),
         balloon.pin(~on: ipv4,
+                    ~at: Find.right(v4_source_address, ~dx: -5),
+                    ~spike: #'w,
+                    lines(@para{32-bit address})),
+        balloon.pin(~on: ipv4,
+                    ~at: Find.right(v4_dest_address, ~dx: -5),
+                    ~spike: #'w,
+                    lines(@para{32-bit address})),
+        balloon.pin(~on: ipv4,
+                    ~at: Find.right(v4_dest_address, ~dx: 40),
+                    ~spike: #'w,
+                    ~dx: 0,
+                    lines(@italic{Note: no port numbers})),
+        balloon.pin(~on: ipv4,
                     ~at: Find.right(options_field, ~dx: -5),
                     ~spike: #'w,
                     lines(@para{Optional options field},
-                          @para{complicates processing})),
+                          @para{(complicates processing)})),
         
       ))
 
@@ -121,7 +143,7 @@ let addr_exterior = @romanly{@italicly{addr}@subscript{outside}}
 let port_interior = @romanly{@italicly{port}@subscript{inside}}
 let port_exterior = @romanly{@italicly{port}@subscript{outside}}
 
-let nat_desc = @para{A @defterm{NAT} router translates TCP and UDP packets to convert}
+let nat_desc = @para{A @defterm{NAT router} translates TCP and UDP packets to convert}
 let not_well_known_ports = @para{Does not work for well-known ports}
 let assumes_inside = @para{Assumes communication starts from inside}
 
@@ -135,33 +157,66 @@ let port_interior_steps:
 
 let nat_title = "Network Address Translation (NAT)"
 
+fun port_desc(port_interior):
+  slide.align(
+    nat_desc,
+    slide.center(@romanly{⟨@addr_interior, @port_interior⟩}.pad(~right: 96)),
+    overlay(~horiz: #'left, @para{to}, nat_desc.ghost()),
+    slide.center(@romanly{⟨@addr_exterior, @port_exterior⟩}.pad(~right: 96)),
+    @para{where @addr_exterior is NAT router's own address}
+  )
+
 slide(~title: nat_title,
+      @para(~width: 2000){@defterm{Network Address Translation (NAT)} works around address-size limitations},
       slide.align(
+        blank(),
         @para{IPv4 level: endpoint is a 32-bit address},
-        @para{TCP/UDP level: endpoint is a ⟨32-bit address, 16-bit port number⟩},
+        block:
+          let addr = @para{32-bit address}
+          let portno = @para{16-bit port number}
+          let xp = @para{TCP/UDP level: endpoint is a ⟨@addr, @portno⟩}
+          let p = xp.ghost()
+          let not_enough:
+            balloon.pin(~on: p,
+                        ~spike: #'n,
+                        ~at: Find.bottom(addr),
+                        @para{Not enough of these})
+          let s:
+            switch(p,
+                   not_enough,
+                   balloon.pin(~on: not_enough,
+                               ~spike: #'n,
+                               ~dy: -90,
+                               ~at: Find.bottom(portno),
+                               @para{More than enough of these}))
+          overlay(xp, s.nonsustaining()),
         slide.next,
         blank(32),
-        nat_desc,
-        slide.center(@romanly{⟨@addr_interior, @port_interior_steps⟩}.pad(~right: 96)),
-        overlay(~horiz: #'left, @para{to}, nat_desc.ghost()),
-        slide.center(@romanly{⟨@addr_exterior, @port_exterior⟩}.pad(~right: 96)),
-        @para{where @addr_exterior is always the same}
-        )
-        
-      )
+        port_desc(port_interior)
+      ))
 
+let inside1_addr = @tt{10.0.1.5}
+let inside2_addr = @tt{10.0.1.6}
 let inside3_addr = @tt{10.0.1.7}
 let www_addr = @tt{141.193.213.10}
 let int_addr = @tt{10.0.0.1}
 let ext_addr = @tt{193.2.3.4}
 
+let laptop1 = delays.laptop.launder()
+let laptop2 = delays.laptop.launder()
 let laptop3 = delays.laptop.launder()
 
+let server1 = delays.server.launder()
+
+fun to_pict(n) :~ Pict: if n is_a Pict | n | tt(to_string(n))
+fun as_orig(n) :~ Pict: to_pict(n).colorize("blue")
+fun as_new(n) :~ Pict: to_pict(n).colorize("red")
+  
 let home_net:
-  let p = subnet(delays.laptop, delays.laptop, laptop3,
-                 @tt{10.0.1.5},
-                 @tt{10.0.1.6},
-                 inside3_addr,
+  let p = subnet(laptop1, laptop2, laptop3,
+                 as_orig(inside1_addr),
+                 as_orig(inside2_addr),
+                 as_orig(inside3_addr),
                  int_addr,
                  @tt{10.0.0.0/8},
                  "lightgreen",
@@ -169,7 +224,7 @@ let home_net:
                  {})
   let out:
     let out = line(~dx: 200, ~line_width: 3)
-    stack(~horiz: #'left, ext_addr.scale(0.75), out).refocus(out)
+    stack(~horiz: #'left, as_new(ext_addr).scale(0.75), out).refocus(out)
   pin(~on: p, ~at: Find.right(delays.router), out)
 
 module ~early packet ~lang rhombus/static:
@@ -186,11 +241,15 @@ module ~early packet ~lang rhombus/static:
              ~dir: dir = #'right,
              ~color: color = "lightblue",
              ~pad: pad_pkt = fun (p): p) :~ Pict:
+    fun portno(n):
+      if n is_a Pict
+      | n
+      | tt(to_string(n))
     let p = rectangle(~around: pad_pkt(lines(if src_port
-                                             | @para{src: @src @spc @tt(to_string(src_port))}
+                                             | @para{src: @src @spc @portno(src_port)}
                                              | @para{src: @src},
                                              if dest_port
-                                             | @para{dest: @dest @spc @tt(to_string(dest_port))}
+                                             | @para{dest: @dest @spc @portno(dest_port)}
                                              | @para{dest: @dest}).pad(10).scale(0.6)),
                       ~line: "blue",
                       ~fill: color)
@@ -204,32 +263,61 @@ module ~early packet ~lang rhombus/static:
 
 import self!packet open
 
-block:
-  let orig_port = 7743
-  let new_port = 11115
-  let orig_out = packet(inside3_addr, orig_port, www_addr, 80)
-  let new_out = packet(ext_addr, new_port, www_addr, 80)
-  let orig_in = packet(www_addr, 80, ext_addr, new_port, ~dir: #'left)
-  let new_in = packet(www_addr, 80, inside3_addr, orig_port, ~dir: #'left)
+fun nat_network(options :~ OptMap) :~ Pict:
+  let orig_port2 = 3214
+  let new_port2 = 4123
+  let orig_port3 = 7743
+  let new_port3 = 13477
+  let orig_port: as_orig(match options[#'orig]
+                         | 2: orig_port2
+                         | ~else: orig_port3)
+  let new_port: as_new(match options[#'orig]
+                       | 2: new_port2
+                       | ~else: new_port3)
+  let inside_addr: as_orig(match options[#'orig]
+                           | 2: inside2_addr
+                           | ~else: inside3_addr)
+  let orig_out = packet(inside_addr, orig_port, www_addr, 80)
+  let new_out = packet(as_new(ext_addr), new_port, www_addr, 80)
+  let ssh_port = @tt{22}
+  let orig_in = packet(www_addr,
+                       if options[#'ssh_server] | 6363 | 80,
+                       as_new(ext_addr),
+                       if options[#'ssh_server] | ssh_port | new_port,
+                       ~dir: #'left)
+  let new_in = packet(www_addr,
+                      if options[#'ssh_server] | 6363 | 80,
+                      if options[#'ssh_server] | as_orig(inside1_addr) | inside_addr,
+                      if options[#'ssh_server] | ssh_port | orig_port,
+                      ~dir: #'left)
   let orig_out_start = orig_out.ghost().launder()
   let orig_out_end = orig_out.ghost().launder()
   let home_net = pin(~on: home_net,
-                     ~at: Find.left_top(laptop3, ~dx: orig_out.width * -1/2, ~dy: orig_out.height * -2/3),
+                     ~at: Find.left_top(match options[#'orig]
+                                        | 2: laptop2
+                                        | ~else: laptop3,
+                                        ~dx: orig_out.width * -1/2,
+                                        ~dy: orig_out.height * -2/3),
                      orig_out_start)
   let home_net = pin(~on: home_net,
                      ~at: Find.left_bottom(int_addr, ~dx: orig_out.width * -1/3),
                      orig_out_end)
-  let orig_scooter = scooter(home_net,
-                             Find.left_top(orig_out_start),
-                             Find.left_top(orig_out_end),
-                             orig_out)
-  let new_out_done:
-    pin(~on: orig_scooter(1),
-        ~at: Find.right_top(orig_out, ~dx: 40),
-        new_out)
-  let new_out_table:
+  fun nat_line(inside_addr, orig_port, new_port) :~ List:
+    fun portno(n): if n is_a Pict | n | tt(to_string(n))
+    [@para{@as_orig(inside_addr) @spc @as_orig(portno(orig_port))}, as_new(portno(new_port))]
+  let laptop2_nat_line = [nat_line(inside2_addr, orig_port2, new_port2)]
+  let inside1_addr_in_table = tt(inside1_addr)
+  let ssh_nat_line = [nat_line(as_orig(inside1_addr_in_table), ssh_port, ssh_port).map(
+                        fun (p :~ Pict): rectangle(~around: p.pad(~horiz: 3), ~fill: "lightgray").refocus(p)
+                      )]
+  fun add_out_table(new_out_done :~ Pict,
+                    ~pre: pre_more = [],
+                    more = [],
+                    ~connect: do_conn = more == []) :~ Pict:
     let tbl = table([[@t{inside}, @t{outside}],
-                     [@para{@inside3_addr @spc @tt(to_string(orig_port))}, tt(to_string(new_port))]],
+                     & pre_more,
+                     nat_line(inside3_addr, orig_port3, new_port3),
+                     & more],
                     ~pad: 5,
                     ~line: #'inherit)
     let t = stack(@t{translation table},
@@ -239,35 +327,236 @@ block:
               ~vert: #'top,
               new_out_done.pad(~top: 32, ~right: t.width),
               t).refocus(new_out_done)
-    connect(~on: p, Find.left_bottom(t), Find.top(delays.router))
+    if do_conn
+    | connect(~on: p, Find.left_bottom(t), Find.top(delays.router))
+    | p
+  let init_home_net:
+    if options[#'ssh_server]
+    | add_out_table(home_net, laptop2_nat_line, ~connect: #true)
+    | match options[#'orig]
+      | 2: add_out_table(home_net, [])
+      | ~else: home_net
+  let init_config_home_net:
+    add_out_table(home_net, ~pre: ssh_nat_line, laptop2_nat_line, ~connect: #true)
+  let orig_scooter = scooter(init_home_net,
+                             Find.left_top(orig_out_start),
+                             Find.left_top(orig_out_end),
+                             orig_out)
+  let new_out_done:
+    pin(~on: orig_scooter(1),
+        ~at: Find.interpolate(Find.top_left(orig_out),
+                              Find.right_top(orig_out, ~dx: 80)),
+        animate(fun (n): new_out.alpha(n)))
+  let new_out_table:
+    add_out_table(new_out_done.snapshot(0, 1), if options[#'orig] == 2 | laptop2_nat_line | [])
+  let idle_state:
+    add_out_table(init_home_net, laptop2_nat_line)
+  let idle_config_state:
+    init_config_home_net
   let orig_in_arrive:
     pin(~on: new_out_table,
         ~at: Find.left_top(new_out, ~dy: new_out.height * -2.5),
         orig_in)
-  let new_in_g = new_in.ghost()
-  let new_in_arrive:
-    pin(~on: orig_in_arrive,
-        ~at: Find.left_top(orig_out, ~dy: orig_out.height * -2.5),
-        new_in_g)
-  let new_scooter = scooter(new_in_arrive,
-                            Find.left_top(new_in_g),
-                            Find.left_top(orig_out_start),
-                            new_in)  
+  fun make_new_scoot(in_arrive,
+                     orig_in,
+                     new_in :~ Pict,
+                     orig_out :~ maybe(Pict),
+                     orig_out_start) :~ Pict:
+    let new_in_g = new_in.ghost()
+    let new_in_arrive:
+      pin(~on: in_arrive,
+          ~at: if orig_out
+               | Find.left_top(orig_out, ~dy: orig_out!!.height * -2.5)
+               | Find.top(delays.router, ~dx: new_in.width * -0.5, ~dy: -new_in.height),
+          new_in_g)
+    let new_scooter = scooter(new_in_arrive,
+                              Find.left_top(new_in_g),
+                              Find.left_top(orig_out_start),
+                              new_in)
+    switch(block:
+             let new_in_g2 = new_in.ghost()
+             let s = animate(scooter(new_in_arrive,
+                                     Find.left_top(orig_in),
+                                     Find.left_top(new_in_g),
+                                     new_in_g2))
+             pin(~on: s,
+                 ~at: Find.left_top(new_in_g2),
+                 animate(fun (n): new_in.alpha(n))),
+           animate(new_scooter))
+  let new_scoot = make_new_scoot(orig_in_arrive, orig_in, new_in, orig_out, orig_out_start)
+  let ssh_server = overlay.right(balloon.pin(~on: server1,
+                                             ~at: Find.left(server1),
+                                             ~spike: #'e,
+                                             lines(@para{SSH server at},
+                                                   @para{port 22}),
+                                             ~fill: "lightgray"),
+                                 laptop1.ghost()).refocus(laptop1)
+  let home_ssh_server:
+    idle_state.replace(laptop1, ssh_server)
+  let home_config_ssh_server:
+    idle_config_state.replace(laptop1, ssh_server)
+  let ssh_in_arrive:
+    pin(~on: home_ssh_server,
+        ~at: Find.right_top(delays.router,
+                            ~dx: orig_in.height * 3,
+                            ~dy: orig_in.height * -0.75),
+        orig_in)
+  cond
+  | options[#'ssh_server]:
+      let in_arrive = ssh_in_arrive.replace(home_ssh_server, home_config_ssh_server)
+      switch(home_ssh_server,
+             ssh_in_arrive,
+             balloon.pin(~on: ssh_in_arrive,
+                         ~at: Find.bottom(ssh_port),
+                         ~spike: #'n,
+                         lines(@para{not in translation table,},
+                               @para{so server is unreachable})),
+             switch(
+               ~join: #'splice,
+               ~splice: #'before,
+               balloon.pin(~on: in_arrive,
+                           ~at: Find.left(inside1_addr_in_table),
+                           ~spike: #'se,
+                           @para{configured manually}),
+               make_new_scoot(in_arrive, orig_in, new_in, #false, laptop1).sustain()
+             ))
+  | ~else:
+      switch(switch(
+               ~join: #'splice,
+               animate(orig_scooter).sustain(),
+               new_out_done.sustain()
+             ),
+             new_out_table,
+             switch(
+               ~join: #'splice,
+               orig_in_arrive,
+               new_scoot.sustain()
+             ))
+
+fun nat_slides(options):
   slide(~title: nat_title,
         blank(),
-        switch(animate(orig_scooter).sustain(),
-               new_out_done,
-               new_out_table,
-               orig_in_arrive,
-               animate(new_scooter).sustain()))
+        nat_network(options).pad(~right: 150))
+
+nat_slides({})
+nat_slides({ #'orig: 2 })
+nat_slides({ #'ssh_server: #true })
+
+fun terminal(color) :~ Pict:
+  def p = t("$").scale(0.6)
+  def W = p.width * 8
+  def H = p.height * 2
+  stack(rectangle(~width: W, ~height: p.height/2),
+        overlay.top_left(rectangle(~width: W, ~height: H, ~fill: color, ~line: "black"),
+                         p.pad(4)))
+        
+slide(~title: "Demo",
+      block:
+        let t1 = terminal("white")
+        let t2 = t1.launder()
+        let lt = terminal("yellow")
+        let ts = terminal("purple")
+        let tv = terminal("lightblue")
+        let laptop1 = laptop1.scale(.75)
+        let laptop2 = laptop2.scale(.75)
+        let router = delays.router.scale(0.75)
+        let server = delays.server.scale(0.75)
+        let vm = delays.server.scale(0.4)
+        fun addr(a, p) :~ Pict:
+          stack(~sep: 5, p, tt(a).scale(0.8).colorize("blue"))
+        let m1:
+          (stack(~sep: 30,
+                 beside(t("this machine"),
+                        laptop1)
+                   .refocus(laptop1),
+                 beside(~sep: 30, t1, t2))
+             |> addr("10.0.0.43", _))
+            .refocus(laptop1)
+            .pad(40)
+        let m2:
+          (stack(~sep: 30,
+                 beside(~vert: #'bottom,
+                        t("nearby machine"),
+                        laptop2)
+                   .refocus(laptop2),
+                 lt)
+             |> addr("10.0.0.136", _))
+            .refocus(laptop2)
+            .pad(40)
+        let p:
+          subnet(m1, nothing, m2,
+                 blank(),
+                 blank(),
+                 blank(),
+                 blank(),
+                 @tt{10.0.0.0/8},
+                 "lightgreen",
+                 router,
+                 {})
+        let p:
+          beside(~sep: 150, p,
+                 (stack(~sep: 30,
+                        beside(server, t("remote server"))
+                          .refocus(server),
+                        ts)
+                    |> addr("165.124.184.132", _))
+                   .refocus(server)
+                   .scale(0.75))
+        fun t_conn(p, lx, tx, ~dx: dx = 0):
+          connect(~on: p,
+                  Find.bottom(lx, ~dx: dx),
+                  Find.top(tx),
+                  ~line_width: 2)
+        fun n_conn(p, lx, tx, ~end: end = #false):
+          connect(~on: p,
+                  Find.right(lx),
+                  cond
+                  | !end:
+                      Find.left(tx)
+                  | end < 0:
+                      Find.top(tx)
+                  | ~else:
+                      Find.bottom(tx),
+                  ~start_angle: 0,
+                  ~end_angle: end,
+                  ~line_width: 2)
+        let p = t_conn(p, laptop1, t1, ~dx: -5)
+        let p = t_conn(p, laptop1, t2, ~dx: 5)
+        let p = t_conn(p, laptop2, lt)
+        let p = t_conn(p, server, ts)
+        #//
+        let p = n_conn(p, laptop1, router, ~end: -1/2 * math.pi)
+        #//
+        let p = n_conn(p, laptop2, router, ~end: 1/2 * math.pi)
+        let p = n_conn(p, router, server)
+        let pre_p = p
+        let p = pin(~on: p,
+                    ~at: Find.bottom_left(m1, ~dx: -80),
+                    block:
+                      let p:
+                        (stack(~sep: 30,
+                               beside(lines(t("Docker"),
+                                            t("instance")),
+                                      vm)
+                                 .refocus(vm),
+                               tv)
+                           |> addr("172.17.0.2", _))
+                          .refocus(vm)
+                          .scale(0.75)
+                      t_conn(p, vm, tv))
+        let p = connect(~on: p,
+                        Find.bottom_left(laptop1),
+                        Find.top(vm),
+                        ~line_width: 2)
+        switch(pre_p, p))
 
 slide(~title: "NAT Issues",
       slide.align(
-        not_well_known_ports,
-        assumes_inside,
+        port_desc(port_interior_steps),
         slide.next,
         blank(),
-        @para{Mixes transport and network layers}))
+        slide.center(balloon.note(@para{Mixes transport and network layers}))
+      ))
 
 slide(~title: "IPv6",
       @para{128-bit addresses instead of 32-bit addresses},
@@ -354,7 +643,7 @@ slide(~title: "IPv6 Packet Format",
         balloon.pin(~on: ipv6,
                     ~at: Find.left(version_field, ~dx: 5),
                     ~spike: #'e,
-                    @para{6}),
+                    @para{@tt{6}}),
         balloon.pin(~on: ipv6,
                     ~at: Find.left(traffic_class_field, ~dx: 5),
                     ~spike: #'e,
@@ -443,6 +732,14 @@ module ~early ipv6_tunnel ~lang rhombus/static:
     let p = link(p, router2, Find.top(router5), 4)
     let p = link(p, Find.bottom(router5), router3, 4)
     let p = link(p, router3, router4, 6)
+    let pkt = packet(r1_addr, #false, r4_addr, #false, ~color: "lightgreen")
+    let pkt_g1 = pkt.launder().ghost()
+    let p = pin(~on: p,
+                ~at: Find.left_top(router1, ~dy: -pkt.height),
+                pkt_g1)
+    let init_network = pin(~on: p,
+                           ~at: Find.top_left(pkt_g1),
+                           pkt)
     let p = balloon.pin(~on: p,
                         ~at: Find.right_top(router2),
                         ~spike: #'sw,
@@ -451,17 +748,12 @@ module ~early ipv6_tunnel ~lang rhombus/static:
                         ~at: Find.left_bottom(router3),
                         ~spike: #'ne,
                         @para{... this node to implement a @defterm{tunnel}})
-    let pkt = packet(r1_addr, #false, r4_addr, #false, ~color: "lightgreen")
     let wrapper_pkt = packet(r2_addr, #false, r3_addr, #false,
                              ~dir: #'none,
                              ~pad: fun (p :~ Pict): p.pad(5, ~right: pkt.width + 5))
-    let pkt_g1 = pkt.launder().ghost()
     let pkt_g2 = pkt.launder().ghost()
     let pkt_g3 = pkt.launder().ghost()
     let pkt_g4 = pkt.launder().ghost()
-    let p = pin(~on: p,
-                ~at: Find.left_top(router1, ~dy: -pkt.height),
-                pkt_g1)
     let p = pin(~on: p,
                 ~at: Find.bottom(router2, ~dx: -pkt.width/2),
                 pkt_g2)
@@ -482,7 +774,8 @@ module ~early ipv6_tunnel ~lang rhombus/static:
       scooter(p, Find.left_top(pkt_g2), Find.left_top(pkt_g3), pkt)  
     fun r4_scooter(pkt):
       scooter(p, Find.left_top(pkt_g3), Find.left_top(pkt_g4), pkt)  
-    switch(animate(pkt_scooter),
+    switch(init_network,
+           animate(pkt_scooter),
            animate(fun (n):
                      r2_scooter(wrapped_pkt(n))(1)),
            animate(fun (n):
@@ -493,8 +786,20 @@ module ~early ipv6_tunnel ~lang rhombus/static:
 
 import self!ipv6_tunnel open
 
-slide(~title: "Tunnelling",
+slide(~title: "Tunneling",
       lines(@para{What if you have hosts that are happy to talk IPv6,},
             @para{but all routes involve IPv4?}),
       blank(64),
       mixed_network({}))
+
+slide(~title: "Summary",
+      slide.align(
+        @para{The network layer @defterm{data plane} is IPv4 or IPv6 packets},
+        blank(),
+        @para{@defterm{IPv4} uses 32-bit addresses},
+        @para{@defterm{IPv6} is 128-bit addresses ...and a simpler packet header},
+        blank(),
+        @para{@defterm{Network Address Translation (NAT)} delays need for IPv6},
+        blank(),
+        @para{@defterm{Tunneling} IPv6 through IPv4 helps the transition}
+      ))

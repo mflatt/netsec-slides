@@ -15,23 +15,44 @@ def laptop = delays.laptop
 def server = delays.server
 def router = delays.router
 
-let routing = delays.make_network({ #'hilite_inspect: #true }).pad(~top: -64)
+slide(~title: "Network Layer",
+      animate(fun (n):
+                layers.pict(layers.make(),
+                            ~adjust: fun (p :~ Pict, i):
+                                       if i == 2 
+                                       | p.pad(~vert: 10 * n)
+                                       | p.alpha(1-0.5*n))).sustain())
 
-let ip_header:
-  rectangle(~around: lines(t("IP header"),
-                           @para{dest: @tt{155.98.70.1}},
-                           @t{...}).pad(5),
-            ~fill: "lightblue",
-            ~line: #'inherit)
+module ~early routing ~lang rhombus:
+  import:
+    "common.rhm" open
+    "delays.rhm"!network as delays
+  export:
+    routing
+    ip_header
+    routing_ip_header
+  def routing = delays.make_network({ #'hilite_inspect: #true }).pad(~top: -64)
+
+  def ip_header:
+    rectangle(~around: lines(t("IP header"),
+                             @para{dest: @tt{155.98.70.1}},
+                             @t{...}).pad(5),
+              ~fill: "lightblue",
+              ~line: #'inherit)
+
+  def routing_ip_header:
+    balloon.pin(~on: routing,
+                ~at: Find.bottom(delays.last_magnifying_glass),
+                ~spike: #'n,
+                ~fill: "lightgray",
+                ip_header.pad(10))
+
+import self!routing open
 
 slide(~title: "Routing",
       slide.alts(
         routing,
-        balloon.pin(~on: routing,
-                    ~at: Find.bottom(delays.last_magnifying_glass),
-                    ~spike: #'n,
-                    ~fill: "lightgray",
-                    ip_header.pad(10)),
+        routing_ip_header,
         balloon.pin(~on: routing,
                     ~at: Find.left_bottom(delays.last_router, ~dx: 32),
                     ~spike: #'n,
@@ -48,17 +69,36 @@ slide(~title: "Routing",
       ))
 
 let office = @t{my office}
-let dept = @t{SoC}
+let dept = @t{KSoC}
 let spc = @tt{ }
 
 let thistle_addr = @tt{155.98.69.112}
 let shanghai_addr = @tt{155.98.69.200}
 let rains_addr = @tt{155.98.68.106}
-let soc_untrusted_addr = @tt{155.98.68.1}
-let soc_untrusted_prefix = @tt{155.98.68.0/23}
 
-let not_soc_prefix = @tt{155.0.0.0/8}
-let other_prefix = @tt{117.12.0.0/16}
+module ~early prefix ~lang rhombus:
+  import:
+    "common.rhm" open
+  export:
+    routing_table
+    soc_untrusted_addr
+    soc_untrusted_prefix
+    not_soc_prefix
+    other_prefix
+
+  def soc_untrusted_addr = @tt{155.98.68.1}
+  def soc_untrusted_prefix = @tt{155.98.68.0/23}
+  def not_soc_prefix = @tt{155.0.0.0/8}
+  def other_prefix = @tt{117.12.0.0/16}
+
+  def to = @t{→}
+
+  def routing_table = table([[soc_untrusted_prefix, to, @tt{4}],
+                             [other_prefix, to, @tt{0}],
+                             [not_soc_prefix, to, @tt{1}],
+                             [@t{...}, blank(), blank()]])
+
+import self!prefix open
 
 slide(~title: "IP Name Structure",
       slide.alts(
@@ -113,9 +153,23 @@ slide(~title: "IP Name Structure",
                                    ~spike: #'w,
                                    @para{number of bits for prefix})
               slide.alts(p, p2, p3)],
-           [@para{@tt{155.98.68.X} or @tt{155.98.69.X} @tt{ } ⇒ @tt{ } SoC untrusted network},
-            @tt{155.98.68.0/23}]
+           [@para{@tt{155.98.68.X} or @tt{155.98.69.X} @tt{ } ⇒ @tt{ } KSoC untrusted network},
+            @tt{155.98.68.0/23}],
+           stack(
+             ~sep: slide.gap / 2,
+             @para{The modern hierarchical organization of addresses is called},
+             @defterm{Classless Inter-Domain Routing (CIDR)}
+           )
          )]
+      ))
+
+slide(~title: "Addresses",
+      slide.align(
+        @para{Some address lookups to try:},
+        @tt{$ dig lab1-1.eng.utah.edu},
+        @tt{$ dig lab1-10.eng.utah.edu},        
+        @tt{$ dig www.apple.com},
+        @tt{$ dig apple.com MX}
       ))
 
 slide(~title: "XKCD Map of the Internet 2006",
@@ -135,9 +189,14 @@ slide(~title: "Map of the Internet 2023",
         let p = stack(~sep: 32, p, @tt{https://www.redbubble.com/})
         beside(~sep: 64,
                p,
-               lines(~horiz: #'center,
-                     @para{One IP address},
-                     @para{~ $50}).time_pad(~before: 1)).refocus(p))
+               switch(
+                 stack.left(@para{See also},
+                            @tt{https://www.iana.org/numbers}).scale(0.5),
+                 lines(~horiz: #'center,
+                       @para{One IP address},
+                       @para{~ $50}))
+                 .time_pad(~before: 1))
+          .refocus(p))
 
 fun commas(s :~ String) :~ String:
   if s.length() <= 3
@@ -245,7 +304,7 @@ module ~early subnet ~lang rhombus/static:
                          ~line: #false,
                          ~fill: subnet_color)
     let thistle = address(laptop1, thistle_addr, nothing)
-    let shanghai = address(laptop2, shanghai_addr, nothing)
+    let shanghai = if laptop2 == nothing | nothing | address(laptop2, shanghai_addr, nothing)
     let rains = (if rains_addr == nothing
                  | nothing
                  | address(laptop3, rains_addr, nothing))
@@ -314,7 +373,7 @@ import:
             broadcast
 
 slide(~title: "Subnets",
-      @para{A @defterm{subnet} is a network small enough that every host sees every other},
+      @para{A @defterm{subnet} can be small enough that every host sees every other},
       block:
         let router1 = router.launder()
         let router2 = router.launder()
@@ -533,11 +592,6 @@ slide(~title: "Routing",
                          let s = beside(~sep: 10, links, s, links)
                          let s = beside(~vert: #'top, pkt, s).refocus(s)
                          let base = s.pad(~top: 64)
-                         let to = @t{→}
-                         let routing_table = table([[soc_untrusted_prefix, to, @tt{4}],
-                                                    [other_prefix, to, @tt{0}],
-                                                    [not_soc_prefix, to, @tt{1}],
-                                                    [@t{...}, blank(), blank()]])
                          let routed = stack(~sep: 32, base, routing_table).refocus(base)
                          let switching = beside(~vert: #'top,
                                                 line(~dx: 50, ~line_width: 3),
@@ -559,10 +613,11 @@ slide(~title: "Routing",
                                 balloon.pin(~on: routed, ~at: Find.center(base), ~spike: #'sw,
                                             ~dx: -150,
                                             ~dy: 64,
-                                            @slide_pict(@para{May queue packets},
+                                            @slide_pict(~sep: slide.gap/2,
+                                                        @para{May queue packets},
                                                         @para{May use priority queue}
                                                         slide.next,
-                                                        @para{Or even more...})),
+                                                        @para{May inspect more deeply...})),
                                 block:
                                   let flow = @defterm{flow table}
                                   let p:
@@ -586,3 +641,14 @@ slide(~title: "Routing",
                                                        @defterm{software-defined networking (SDN)})
                                   switch(p, p2, p3)
                                 ))))
+
+slide(~title: "Summary",
+      slide.align(
+        stack.right(
+          @para{The network layer routes packets based on destination address},
+          @para{...mostly}.scale(0.7).pad(~right: -15)
+        ),
+        @para{@defterm{CIDR} directs packets based on an address @defterm{prefix}},        
+        @item{a prefix identifies a @defterm{subnet}},
+        @item{a router typically uses a prefix-based @defterm{forwarding table}}
+      ))

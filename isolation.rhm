@@ -314,7 +314,7 @@ def example_filesystem :~ Pict:
   def project_tree:
     let p:
       rebuildable(~config: { #'reroot: #false },
-                  fun (options :~ Map):
+                  fun (~config: options :~ Map):
                     overlay(project_name.colorize(if options[#'reroot] | faded_color | "black"),
                             root.ghost(!options[#'reroot])))
     make_tree(p,
@@ -327,9 +327,9 @@ def example_filesystem :~ Pict:
                             [alice_tree, @tt{bob}],
                             ~slice: #true)
   filesystem(    
-    rebuildable(~children: [home_tree],
+    rebuildable(~deps: [home_tree],
                 ~config: { #'reroot: #false },
-                fun (home_tree, options :~ Map):
+                fun (~deps: [home_tree], ~config: options :~ Map):
                   let root:
                     if options[#'reroot] | root_name | root
                   make_tree(root,
