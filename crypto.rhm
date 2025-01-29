@@ -203,10 +203,8 @@ fun rot(s :~ String, n = 13):
              to_string(c))
   )
 
-fun pad_string(s :~ String, n) :~ String:
-  if s.length() mod n == 0
-  | s
-  | pad_string(s ++ " ", n)  
+def pad_str = ""
+def pad_char = "□"[0]
 
 fun mat(s :~ String, n = 4):
   String.append(
@@ -214,10 +212,10 @@ fun mat(s :~ String, n = 4):
          each:
            i: 0 .. n
          each:
-           j: 0 .. s.length() div n
+           j: 0 .. (s.length() + n-1) div n
          let idx = i + j*n
          if idx >= s.length()
-         | ""
+         | pad_str
          | to_string(s[idx]))
   )
 
@@ -520,10 +518,10 @@ slide(~title: substitution_title,
       ))
 
 fun columns(s :~ String, n):
-  for List(j: 0 .. s.length() div n):
+  for List(j: 0 .. (s.length() + n-1) div n):
     for List(i: 0..n):
       let idx = i + j*n
-      let p: tt(to_string(if idx >= s.length() | "□"[0] | s[idx])).pad(~horiz: 5)
+      let p: tt(to_string(if idx >= s.length() | pad_char | s[idx])).pad(~horiz: 5)
       if i == 0
       | rectangle(~around: p, ~fill: "lightblue", ~line: #false).refocus(p)
       | p
