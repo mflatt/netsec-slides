@@ -14,10 +14,10 @@ def skip_bellman_ford = #false
 slide(~title: "Network Layer",
       slide.align(
         @para{So far:},
-        @para{@defterm{Data plane}: per-router forwarding/flow rules}.pad(~left: 32),
+        @para{@defterm{Data plane}: packet content and per-router forwarding/flow rules}.pad(~left: 32),
         blank(),
         @para{Today:},
-        @para{@defterm{Control plane}: how rules rules get installed}.pad(~left: 32)
+        @para{@defterm{Control plane}: how forwarding/flow rules get installed}.pad(~left: 32)
       ))
 
 slide(~title: "Routing",
