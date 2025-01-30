@@ -3,19 +3,35 @@ import:
   rhombus/runtime_path
   "common.rhm" open
   "layers.rhm"
+  "layout.rhm"  
 
-runtime_path.def router_png: "images/router.png"
-runtime_path.def switch_png: "images/switch.png"
-runtime_path.def laptop_png: "images/laptop.png"
-runtime_path.def server_png: "images/server.png"
-runtime_path.def wifi_png: "images/wifi-ap.png"
-runtime_path.def house_png: "images/house.png"
-def router = bitmap(router_png).scale(0.5).pad(~horiz: 5)
-def switchbox = bitmap(switch_png).pad(~horiz: 5)
-def laptop = bitmap(laptop_png).scale(0.15)
-def server = bitmap(server_png).scale(0.1)
-def wifi = bitmap(wifi_png).scale(0.2)
-def house = bitmap(house_png).scale(0.2)
+module ~early icon ~lang rhombus/static/and_meta:
+  import:
+    rhombus/runtime_path
+    "common.rhm" open
+
+  export:
+    router
+    switchbox
+    laptop
+    server
+    wifi
+    house
+
+  runtime_path.def router_png: "images/router.png"
+  runtime_path.def switch_png: "images/switch.png"
+  runtime_path.def laptop_png: "images/laptop.png"
+  runtime_path.def server_png: "images/server.png"
+  runtime_path.def wifi_png: "images/wifi-ap.png"
+  runtime_path.def house_png: "images/house.png"
+  def router = bitmap(router_png).scale(0.5).pad(~horiz: 5)
+  def switchbox = bitmap(switch_png).pad(~horiz: 5)
+  def laptop = bitmap(laptop_png).scale(0.15)
+  def server = bitmap(server_png).scale(0.1)
+  def wifi = bitmap(wifi_png).scale(0.2)
+  def house = bitmap(house_png).scale(0.2)
+
+import self!icon open
 
 module ~early pkt ~lang rhombus/static:
   import:
@@ -62,86 +78,108 @@ module ~early pkt ~lang rhombus/static:
 import:
   self!pkt
 
-block:
-  let [[name, examples, interface], ...] = layers.make()
-  fun adj_intf(name, interface):
-    match name
-    | "transport": @italic{messages}
-    | "network": @italic{segments}
-    | "link": @italic{packets}
-    | "physical": @italic{frames}
-    | ~else: nothing
+module ~early layers ~lang rhombus/static:
+  import:
+    parent!icon open
+    parent!pkt
+    "common.rhm" open
+    "layers.rhm"
 
-  let made = [[name, examples, adj_intf(name, interface)], ...]
-  fun add_number(p, i) :~ Pict:
-    let n :~ Pict:
-      if i == 0
-      | t("5–7")
-      | t(to_string(5 - i))
-    beside(~sep: 16,
-           n.colorize("blue"),
-           p)
-      .refocus(p)
-  fun add_number_and_router(p, i):
-    let p = add_number(p, i)
-    let (str, bm):
-      cond
-      | i == 2: values("routers", router.scale(0.5))
-      | i == 3: values("switches", switchbox.scale(0.5))
-      | ~else: values(#false, #false)
-    if str
-    | beside(~sep: 64,
-             beside(~sep: 16, t(str).colorize("forestgreen"), bm),
+  export:
+    all_layers_slides
+
+  fun all_layers_slides(~title: title = "Layers",
+                        ~crc = #false,
+                        ~steps = !crc,
+                        ~highlight = #true):
+    let [[name, examples, interface], ...] = layers.make()
+    fun adj_intf(name, interface):
+      match name
+      | "transport": @italic{messages}
+      | "network": @italic{segments}
+      | "link": @italic{packets}
+      | "physical": @italic{frames}
+      | ~else: nothing
+
+    let made = [[name, examples, adj_intf(name, interface)], ...]
+    fun add_number(p, i) :~ Pict:
+      let n :~ Pict:
+        if i == 0
+        | t("5–7")
+        | t(to_string(5 - i))
+      beside(~sep: 16,
+             n.colorize("blue"),
              p)
         .refocus(p)
-    | p
-  fun add_pkt(p, i, ~do_refocus = #true):
-    if p == nothing
-    | p
-    | let pp = beside(~sep: 32, p, pkt.pkt_up_to_layers(i))
-      if do_refocus
-      | pp.refocus(p)
-      | pp
-  fun add_pkt_with_checksum(p, i):
-    let pkt :~ Pict = add_pkt(p, i, ~do_refocus: #false)
-    let pkt :~ Pict:
-      if pkt == nothing
-      | pkt
-      | pkt.refocus(p)
-    let pkt :~ Pict:
-      match i
-      | 2 || 3 || 4: balloon.pin(~on: pkt,
-                                 ~at: Find.right_top(pkt, ~dx: 64, ~dy: 16),
-                                 ~spike: #'sw,
-                                 if i == 4
-                                 | @para{CRC}
-                                 | @para{checksum})
-      | ~else: pkt
-    pkt
+    fun add_number_and_router(p, i):
+      let p = add_number(p, i)
+      let (str, bm):
+        cond
+        | !highlight: values(#false, #false)
+        | i == 2: values("routers", router.scale(0.5))
+        | i == 3: values("switches", switchbox.scale(0.5))
+        | ~else: values(#false, #false)
+      if str
+      | beside(~sep: 64,
+               beside(~sep: 16, t(str).colorize("forestgreen"), bm),
+               p)
+          .refocus(p)
+      | p
+    fun add_pkt(p, i, ~do_refocus = #true):
+      if p == nothing
+      | p
+      | let pp = beside(~sep: 32, p, pkt.pkt_up_to_layers(i))
+        if do_refocus
+        | pp.refocus(p)
+        | pp
+    fun add_pkt_with_checksum(p, i):
+      let pkt :~ Pict = add_pkt(p, i, ~do_refocus: #false)
+      let pkt :~ Pict:
+        if pkt == nothing
+        | pkt
+        | pkt.refocus(p)
+      let pkt :~ Pict:
+        match i
+        | 2 || 3 || 4: balloon.pin(~on: pkt,
+                                   ~at: Find.right_top(pkt, ~dx: 64, ~dy: 16),
+                                   ~spike: #'sw,
+                                   if i == 4
+                                   | @para{CRC}
+                                   | @para{checksum})
+        | ~else: pkt
+      pkt
 
-  slide(~title: "Layers",
-        switch(
-          layers.pict(made),
-          layers.pict(made, ~highlight: "link"),
-          animate(fun (n):
-                    layers.pict(made, ~interfaces: n,
-                                ~highlight: "link",
-                                ~adjust: add_number),
-                  ~sustain_edge: #'after).sustain(),
-          layers.pict(made, ~interfaces: #true,
-                      ~highlight: "link",
-                      ~adjust: add_number,
-                      ~adjust_interface: add_pkt),
-          layers.pict(made, ~interfaces: #true,
-                      ~highlight: "link",
-                      ~adjust: add_number_and_router,
-                      ~adjust_interface: add_pkt),
-          layers.pict(made, ~interfaces: #true,
-                      ~highlight: "link",
-                      ~adjust: add_number_and_router,
-                      ~adjust_interface: add_pkt_with_checksum),
-          
-        ))
+    slide(~title: title,
+          switch(
+            if steps
+            | switch(
+                layers.pict(made),
+                layers.pict(made, ~highlight: "link"),
+                animate(fun (n):
+                          layers.pict(made, ~interfaces: n,
+                                      ~highlight: "link",
+                                      ~adjust: add_number),
+                        ~sustain_edge: #'after).sustain(),
+                layers.pict(made, ~interfaces: #true,
+                            ~highlight: "link",
+                            ~adjust: add_number,
+                            ~adjust_interface: add_pkt)
+                )
+            | nothing,
+            layers.pict(made, ~interfaces: #true,
+                        ~highlight: highlight && "link",
+                        ~adjust: add_number_and_router,
+                        ~adjust_interface: add_pkt),
+            if crc
+            | layers.pict(made, ~interfaces: #true,
+                          ~highlight: "link",
+                          ~adjust: add_number_and_router,
+                          ~adjust_interface: add_pkt_with_checksum)
+            | nothing
+          ))
+
+import self!layers open
+all_layers_slides(~crc: #true)
 
 slide(~title: "Weak Checksum: Parity",
       lines(~horiz: #'right,
@@ -189,6 +227,110 @@ block:
                                  ~spike: #'nw,
                                  @para{Detects any @(r)-bit error burst}))
       )
+
+
+let payload:
+  layout.row(layout.field(16, @t{payload}, ~varies: #true, ~height: 5, ~inset: 1))
+
+let dest_field = layout.field(6, @t{dest})
+let source_field = layout.field(6, @t{source})
+let CRC_field = layout.field(4, @t{CRC})
+let type_field = layout.field(2, @t{type})
+
+let bitless_ethernet_frame:
+  layout.record(layout.row(dest_field,
+                           source_field,
+                           type_field,
+                           layout.field(2, nothing)),
+                payload,
+                layout.row(layout.field(12, nothing),
+                           CRC_field))
+
+let ethernet_frame:
+  layout.record(~bytes: 16,
+                bitless_ethernet_frame)
+
+slide(
+  ~title: "Ethernet Frame Layout",
+  slide.alts(
+    ethernet_frame,
+    balloon.pin(~on: ethernet_frame,
+                ~at: Find.left(dest_field, ~dx: 5),
+                ~spike: #'e,
+                @para{destination MAC}),
+    balloon.pin(~on: ethernet_frame,
+                ~at: Find.left(source_field, ~dx: 5),
+                ~spike: #'e,
+                ~dx: 64,
+                @para{source MAC}),
+    balloon.pin(~on: ethernet_frame,
+                ~at: Find.right(type_field, ~dx: -5),
+                ~spike: #'w,
+                ~dx: -64,
+                @para{IP}),
+    balloon.pin(~on: ethernet_frame,
+                ~at: Find.right(payload, ~dx: -5),
+                ~spike: #'w,
+                @para{between 46 and 1500 bytes}),
+    balloon.pin(~on: layout.record(~bytes: 16,
+                                   rectangle(~around: bitless_ethernet_frame,
+                                             ~line: #false,
+                                             ~fill: "yellow")),
+                ~at: Find.right(CRC_field, ~dx: -5),
+                ~spike: #'w,
+                @para{CRC for the whole frame})
+  )
+)
+
+let preamble_field = layout.field(7, @t{preamble})
+let sfd_field = layout.field(1, @t{SFD})
+
+let ethernet_physical_frame:
+  layout.record(~bytes: 16,
+                layout.row(layout.field(8, nothing),
+                           preamble_field,
+                           sfd_field), 
+                bitless_ethernet_frame,
+                layout.row(layout.field(12, @t{inter-packet gap}),
+                           layout.field(4, nothing)))
+
+slide(
+  ~title: "Ethernet Physical Layer Layout",
+  slide.alts(
+    ethernet_physical_frame,
+    block:
+      let p:
+        balloon.pin(~on: ethernet_physical_frame,
+                    ~at: Find.top(preamble_field, ~dy: 5),
+                    ~dy: 64,
+                    ~spike: #'s,
+                    @para{Seven @tt{10101010}s to sync})
+      slide.alts(
+        p,
+        balloon.pin(~on: p,
+                    ~at: Find.right(sfd_field, ~dx: -5),
+                    ~spike: #'w,
+                    @para{One @beside.baseline(@tt{1010101}, @tt{1}.colorize("red"))})
+      )
+  )
+)
+
+slide(
+  ~title: "Ethernet Physical Layer",
+  slide.align(
+    @para{Originally, machines on an ethernet LAN shared a wire},
+    blank(),
+    @para(@List{Modern ethernet is always @t{@defterm{switched}:} there's a dedicated wire},
+          @List{from each machine to the switch}),
+    slide.right(
+      @para{This makes MAC addresses somewhat redundant!}.colorize("blue").scale(0.75)
+    ),
+    slide.next,
+    blank(),
+    @para(@List{Many ethernet frames are not physically ethernet at all, because},
+          @List{the easiest way to create a new physical layer is to emulate an ethernet device})
+  )
+)
 
 let color1 = "red"
 let color2 = "forestgreen"
@@ -574,8 +716,8 @@ let (csma_setup, csma_maker):
                  let p = cones1(p, ~send1ga: send1ga_2)
                  let p = cones3(p, ~send3ga: send3ga_2, ~send3gb: send3gb_2)
                  let efficiency:
-                   let d_prop = @romanly{d@subscript{prop}}
-                   let d_trans = @romanly{d@subscript{trans}}
+                   let d_prop = @romanly(@italicly{d@subscript{prop}})
+                   let d_trans = @romanly(@italicly{d@subscript{trans}})
                    let eql = @romanly{=}
                    beside(~sep: 128,
                           stack(~sep: 32,
@@ -613,67 +755,224 @@ slide(
   csma_maker
 )
 
+def CMTS = @t{CMTS}
+def collide_pip = blank()
+
 fun cable(options :~ OptMap):
   let w = 5
+  let all_c = !options[#'colors] && "black"
+  let c1 = all_c || "red"
+  let c2 = all_c || "blue"
+  let c3 = all_c || "forestgreen"
+  let c4 = all_c || "orange"
   let lined_house = stack(house,
                           @t{modem}.scale(0.5),
                           line(~dy: 16, ~line_width: w))
-  let p = beside(~sep: 32, lined_house, lined_house, lined_house, lined_house)
+  let p = beside(~sep: 32,
+                 lined_house.colorize(c1),
+                 lined_house.colorize(c2),
+                 lined_house.colorize(c3),
+                 lined_house.colorize(c4))
   let cable = line(~dx: p.width * 1.2, ~line_width: w)
+  let h = 64
+  let channel_color = "lightblue"
   fun arrow(p :~ Pict) :~ Pict:
-    let h = 64
     polygon([[0, h/2], [h/2, 0], [h/2, h/4], [p.width, h/4],
              [p.width, h*3/4], [h/2, h*3/4], [h/2, h]],
-            ~fill: "lightblue",
+            ~fill: channel_color,
             ~line: #false)
-  let cable:
-    cond
-    | options[#'download]: stack(~sep: 32, cable, arrow(cable).rotate(pi)).refocus(cable)
-    | options[#'upload]: stack(~sep: 32, cable, arrow(cable)).refocus(cable)
-    | ~else: cable
-  let cmts = stack(@t{CMTS}, server).refocus(server)
+  fun packets(p :~ Pict, [[col, w], ...]):
+    if options[#'download]
+    | let W = (p.width - h/2) / 5
+      fun as_color(col): if col is_a Pict | #false | col
+      fun as_pict(col): if options[#'sched] && col is_a Pict | col | nothing
+      overlay.right(p, beside(overlay(rectangle(~width: w * W, ~height: h/2,
+                                                ~fill: as_color(col) || "black",
+                                                ~line: channel_color).ghost(!as_color(col)),
+                                      as_pict(col)),
+                              ...))
+    | p
+  fun slots(f, m :~ Map, q :~ Map):
+    let N = 15
+    let W = (p.width + h/2) / N
+    if options[#'upload]
+    | overlay.right(f, beside(& for List (i in 0..N):
+                                let req = options[#'reqs] && ((i+1) mod 5 == 0)
+                                let r:
+                                  rectangle(~width: W, ~height: h/2,
+                                            ~fill: m.get(i, if req | "gray" | #false),
+                                            ~line: "black")
+                                if req | overlay(r, q.get(i, t("?").colorize("lightgray"))) | r))
+    | f
+  fun sched(c2, c3, c4 = #false):
+    let S = h/8
+    let s2 = square(~fill: c3, ~size: S)
+    stack(~sep: S / 4,
+          square(~fill: c2, ~size: S),
+          beside(~sep: S / 4,
+                 s2,
+                 square(~fill: c4, ~size: S).ghost(!c4)).refocus(s2))
+  let (cable, pad_amt):
+    let up = arrow(cable)
+    let down = arrow(cable).rotate(pi).translate(h/2, 0)
+    fun freq(f, p):
+      beside(~sep: 5, @romanly{@(to_string(f)) MHz}.scale(0.6), p).refocus(p)
+    let p:
+      stack(~sep: 32,
+            cable,
+            stack(
+              stack(freq("30.5", slots(up,
+                                       { 1: c4, 6: c2, 7: c2 },
+                                       { 4: t("!").colorize(c3) } ++ (if options[#'collide]
+                                                                      | { 14: beside(t("!").colorize(c1),
+                                                                                     t("!").colorize(c2),
+                                                                                     collide_pip) }
+                                                                      | {}))),
+                    freq("31.7", slots(up,
+                                       { 1: c4, 2: c4, 5: c1, 6: c1, 7: c1, 8: c3, 10: c3 },
+                                       { 4: t("!").colorize(c2) }))),
+              stack(freq("705.0", packets(down, [[c4, 1], [c1, 2], [c2, 1], [c3, 1]])),
+                    freq("711.0", packets(down, [[c2, 1], [c1, 0.75], [sched(c2, c3), 0.25], [c2, 2], [#false, 1]])),
+                    freq("717.0", packets(down, [[sched(c4, c4, c1), 0.25], [#false, 1.25], [c4, 3.5]])),
+                    freq("723.0", packets(down, [[c3, 2], [c4, 2], [c1, 1]])))
+            ).ghost(!options[#'bands]))
+    values(p.refocus(cable), p.height - cable.height)
+  let cmts = stack(CMTS, server).refocus(server)
   let p = stack(~horiz: #'right, p, beside(cmts, cable).refocus(cable))  
-  p.pad(~bottom: 128)
+  p.pad(~bottom: pad_amt)
 
-block:
-  let options :~ OptMap = {}
-  let turn = @t{turn}
-  let channels = @t{channels}
+fun docsis_slide(options :~ OptMap, note = #false) :~ OptMap:
   slide(
     ~title: "DOCSIS Cable Internet Protocol",
-    slide.alts(
-      [cable(options),
-       slide.align(
-         @para{Shared line is split into channels by frequency (FDM):},
-         @item{Some channels are download: all modems receive},
-         block:
-           let p = @item{Remaining @channels are upload: CMTS receives}
-           switch(p,
-                  balloon.pin(~on: p,
-                              ~at: Find.bottom(channels),
-                              ~spike: #'n,
-                              @para{Fewer, which explains asymmetric speed}))
-       )],
-      [cable(options ++ { #'download }),
-       slide.align(
-         @para{Download:},
-         @item{Only one sender, so no coordination needed},
-         @item{@lines(@para{Modems listen on all channels, but they},
-                      @para{ignore frames intended for others})}
-       )],
-      [cable(options ++ { #'upload }),        
-       slide.align(
-         block:
-           let p = @para{Upload uses a hybrid of TDM and polling-ish @turn taking:}
-           switch(p,
-                  balloon.pin(~on: p,
-                              ~at: Find.top(turn),
-                              ~spike: #'sw,
-                              @lines(@para{Ok to rely on leader, because},
-                                     @para{CMTS has to work, anyway}))),
-         @item{Designated short slots used for requests},
-         @item{CMTS broadcasts slot assignments to grant modem requests},
-         @item{Modem uses assigned slots for data upload},
-       )]
-    )  
-)
+    block:
+      let p = cable(options)
+      let p:
+        if note == #'cmts
+        | balloon.pin(lines(@defterm{Cable modem},
+                            @defterm{termination system},
+                            @defterm{(CMTS)},
+                            @para{is in control}),
+                      ~on: p,
+                      ~at: Find.left(CMTS),
+                      ~spike: #'e)
+        | p
+      let p:
+        if note == #'bands
+        | beside(~sep: 100,
+                 p,
+                 lines(@para{Shared line is split into},
+                       @para{channels by frequency},
+                       blank(10),
+                       beside.topline(@para{—},
+                                      @t{ },
+                                      @lines(@para{which is an example}
+                                             @para{of FDM}))))
+            .refocus(p)
+        | p
+      let p:
+        if note == #'more_dl
+        | beside(~sep: 100,
+                 p,
+                 lines(@para{More download channels},
+                       @para{than upload channels}))
+            .refocus(p)
+        | p
+      let p:
+        if note == #'shared_dl
+        | beside(~sep: 100,
+                 p,
+                 lines(@para{All modems see all},
+                       @para{download channels},
+                       blank(30),
+                       @para{Since only CMTS writes,},
+                       @para{no need for slots or},
+                       @para{collision handling}))
+            .refocus(p)
+        | p
+      let p:
+        if note == #'shared_ul
+        | beside(~sep: 100,
+                 p,
+                 lines(@para{Shared upload channel},
+                       @para{has slots},
+                       blank(30),
+                       lines(@para{Periodic polling uses},
+                             @para{ designated slots}).colorize("blue").ghost(!options[#'reqs]),
+                       blank(30),
+                       lines(@para{Slots are allocated},
+                             @para{by CMTS}).ghost(!options[#'sched]))) 
+            .refocus(p)
+        | p
+      let p:
+        if note == #'shared_ul && options[#'polling_ok]
+        | balloon.pin(lines(@para{Centralized polling},
+                            @para{ok, since CMTS},
+                            @para{must always work}),
+                      ~on: p,
+                      ~at: Find.left(CMTS),
+                      ~spike: #'e)
+        | p
+      let p:
+        if note == #'collide
+        | balloon.pin(lines(@para{Requests may collide,},
+                            @para{detected by not},
+                            @para{getting an upload slot}),
+                      ~on: p,
+                      ~at: Find.right(collide_pip),
+                      ~dx: -40,
+                      ~spike: #'w)
+        | p
+      let p:
+        if note == #'collide && options[#'retry]
+        | beside(~sep: 100,
+                 p,
+                 lines(@tt{ },
+                       @tt{ },
+                       @para{Collision handled},
+                       @para{by random delay},
+                       @para{and then retry}).colorize("blue"))
+            .refocus(p)
+        | p
+      p
+  )
+  options
+
+let options = docsis_slide({})
+let options = docsis_slide(options, #'cmts)
+let options = docsis_slide(options ++ { #'bands }, #'bands)
+let options = docsis_slide(options, #'more_dl)
+let options = docsis_slide(options ++ { #'colors, #'download }, #'shared_dl)
+let options = docsis_slide(options ++ { #'upload }, #'shared_ul)
+let options = docsis_slide(options ++ { #'sched }, #'shared_ul)
+let options = docsis_slide(options ++ { #'reqs }, #'shared_ul)
+let options = docsis_slide(options ++ { #'reqs, #'polling_ok }, #'shared_ul)
+let options = docsis_slide(options ++ { #'collide }, #'collide)
+let options = docsis_slide(options ++ { #'retry }, #'collide)
+
+slide(~title: "Summary",
+      slide.align(
+        ~sep: slide.gap * 2,
+        @para{@defterm{Cyclic-redundancy check (CRC)} commonly used at link layer},
+        @para{Link-to-physical transition often involves negotiating a shared medium},
+        stack.left(
+          ~sep: 10,
+          @para{Two ways to share:},
+          @item{@defterm{Time-division multiplexing (TDM)}}.pad(~left: 30),
+          @item{@defterm{Frequency-division multiplexing (FDM)}}.pad(~left: 30)
+        ),
+        stack.left(
+          ~sep: 10,
+          @para{Three ways to allocate a division:},
+          @item{@defterm{polling}}.pad(~left: 30),
+          @item{@defterm{token-passing}}.pad(~left: 30),
+          @item{@defterm{random access}}.pad(~left: 30),
+          @para{... with @defterm{carrier sense} and/or collision detection}.pad(~left: 80)
+        )        
+      ))
+
+all_layers_slides(~title: @titlely{Layers — @italic{Done!}},
+                  ~crc: #false,
+                  ~steps: #false,
+                  ~highlight: #false)
+
+start_at_recent()

@@ -7,11 +7,13 @@ import:
   "common.rhm" open
   "layers.rhm"
   "linkLayer.rhm"!pkt
+  "linkLayer.rhm"!layers.all_layers_slides
   "delays.rhm"!network as delays:
     expose:
       switchbox
   "networkLayerData.rhm"!subnet as network_layer
-  "layout.rhm"
+
+all_layers_slides()
 
 let thistle_ip = @tt{155.98.69.112}
 let ipv6_addr = @tt{2607:f8b0:4025::2004}
@@ -32,13 +34,13 @@ block:
         ~sep: 24
         ~horiz: #'left,
         @para{Network addresses as @bold{IP} addresses:}
-        show(#'example, @para{@spc @thistle_ip --- 32 bytes})
-        show(#'example, @para{@spc @ipv6_addr --- 128 bytes})
-        show(#'org, @para{Hierarchical by proximity})
+        show(#'example, @para{@spc @thistle_ip --- 32 bits})
+        show(#'example, @para{@spc @ipv6_addr --- 128 bits})
+        show(#'org, @para{Hierarchical by proximity, to some degree})
         show(#'setup, @para{Needs to be configured})
         blank(32)
-        @para{Link addresses as @bold{MAC} (medium access control) addresses:}
-        show(#'example, @para{@spc @laptop_mac --- 48 bytes})
+        @para{Link addresses as @defterm{MAC (medium access control)} addresses:}
+        show(#'example, @para{@spc @laptop_mac --- 48 bits for Ethernet})
         show(#'org, @para{Limited structure / hierarchical by manufacturer})
         show(#'setup, @para{Interface always knows its @MAC @spc @(@para{more like an @italic{identity} than an @italic{address}}.scale(0.75))})
       )
@@ -199,7 +201,7 @@ let arp_whois:
 let arp_iam:
   let p:
     pkt.pkt_ize([lines(@bold{Ethernet},
-                       @para{src: @tt{FF-FF-FF-FF-FF-FF}},
+                       @para{src: @router_mac},
                        @para{dest: @laptop_mac}),
                  lines(@bold{ARP},
                        @para{I have @router_ip})]).scale(0.5)
@@ -776,7 +778,7 @@ fun label_data_center(p):
   p
 
 slide(
-  ~title: "Traditional Data Center Organzation",
+  ~title: "Traditional Data Center Organization",
   steps(
     [rack, label_rack], rack,
     [linked_rack, label_linked_rack],
@@ -958,105 +960,11 @@ import self!vlan open
 
 vitual_lan_slides({})
 
-let payload:
-  layout.row(layout.field(16, @t{payload}, ~varies: #true, ~height: 5, ~inset: 1))
-
-let dest_field = layout.field(6, @t{dest})
-let source_field = layout.field(6, @t{source})
-let CRC_field = layout.field(4, @t{CRC})
-let type_field = layout.field(2, @t{type})
-
-let bitless_ethernet_frame:
-  layout.record(layout.row(dest_field,
-                           source_field,
-                           type_field,
-                           layout.field(2, nothing)),
-                payload,
-                layout.row(layout.field(12, nothing),
-                           CRC_field))
-
-let ethernet_frame:
-  layout.record(~bytes: 16,
-                bitless_ethernet_frame)
-
-slide(
-  ~title: "Ethernet Frame Layout",
-  slide.alts(
-    ethernet_frame,
-    balloon.pin(~on: ethernet_frame,
-                ~at: Find.left(dest_field, ~dx: 5),
-                ~spike: #'e,
-                @para{destination MAC}),
-    balloon.pin(~on: ethernet_frame,
-                ~at: Find.left(source_field, ~dx: 5),
-                ~spike: #'e,
-                ~dx: 64,
-                @para{source MAC}),
-    balloon.pin(~on: ethernet_frame,
-                ~at: Find.right(type_field, ~dx: -5),
-                ~spike: #'w,
-                ~dx: -64,
-                @para{IP}),
-    balloon.pin(~on: ethernet_frame,
-                ~at: Find.right(payload, ~dx: -5),
-                ~spike: #'w,
-                @para{between 46 and 1500 bytes}),
-    balloon.pin(~on: layout.record(~bytes: 16,
-                                   rectangle(~around: bitless_ethernet_frame,
-                                             ~line: #false,
-                                             ~fill: "yellow")),
-                ~at: Find.right(CRC_field, ~dx: -5),
-                ~spike: #'w,
-                @para{CRC for the whole frame})
-  )
-)
-
-let preamble_field = layout.field(7, @t{preamble})
-let sfd_field = layout.field(1, @t{SFD})
-
-let ethernet_physical_frame:
-  layout.record(~bytes: 16,
-                layout.row(layout.field(8, nothing),
-                           preamble_field,
-                           sfd_field), 
-                bitless_ethernet_frame,
-                layout.row(layout.field(12, @t{inter-packet gap}),
-                           layout.field(4, nothing)))
-
-slide(
-  ~title: "Ethernet Physical Layer Layout",
-  slide.alts(
-    ethernet_physical_frame,
-    block:
-      let p:
-        balloon.pin(~on: ethernet_physical_frame,
-                    ~at: Find.top(preamble_field, ~dy: 5),
-                    ~dy: 64,
-                    ~spike: #'s,
-                    @para{Seven @tt{10101010}s to sync})
-      slide.alts(
-        p,
-        balloon.pin(~on: p,
-                    ~at: Find.right(sfd_field, ~dx: -5),
-                    ~spike: #'w,
-                    @para{One @beside.baseline(@tt{1010101}, @tt{1}.colorize("red"))})
-      )
-  )
-)
-
-slide(
-  ~title: "Ethernet Physical Layer",
-  slide.align(
-    @para{Originally, machines on an ethernet LAN shared a wire},
-    blank(),
-    @para(@List{Modern ethernet is always @t{@defterm{switched}:} there's a dedicated wire},
-          @List{from each machine to the switch}),
-    slide.right(
-      @para{This makes MAC addresses somewhat redundant!}.colorize("blue").scale(0.75)
-    ),
-    slide.next,
-    blank(),
-    @para(@List{Many ethernet frames are not phsyically ethernet at all, because},
-          @List{the easiest way to create a new physical layer is to emulate an ethernet device})
-  )
-)
+slide(~title: "Summary",
+      slide.align(
+        @para{Network layer: addresses, subnets, and routers},
+        @para{Link layer: @defterm{MACs}, @defterm{LANs} and @defterm{switches}},
+        blank(),
+        @para{Link devices configure themselves via @defterm{ARP}},
+        @para{Switches configure themselves by observing frames}
+      ))

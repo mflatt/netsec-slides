@@ -10,8 +10,8 @@ Slide sequence:
 * networkLayerData.rhm
 * networkLayerData2.rhm
 * networkLayerControl.rhm
-* linkLayer.rhm
 * lans.rhm
+* linkLayer.rhm
 * crypto.rhm
 * streamCipher.rhm
 * blockCipher.rhm
