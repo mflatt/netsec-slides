@@ -91,7 +91,10 @@ module ~early layers ~lang rhombus/static:
   fun all_layers_slides(~title: title = "Layers",
                         ~crc = #false,
                         ~steps = !crc,
-                        ~highlight = #true):
+                        ~highlight = #true,
+                        ~show_why = #false):
+    let app_layer_pip = blank()
+    let link_layer_pip = blank()
     let [[name, examples, interface], ...] = layers.make()
     fun adj_intf(name, interface):
       match name
@@ -100,7 +103,6 @@ module ~early layers ~lang rhombus/static:
       | "link": @italic{packets}
       | "physical": @italic{frames}
       | ~else: nothing
-
     let made = [[name, examples, adj_intf(name, interface)], ...]
     fun add_number(p, i) :~ Pict:
       let n :~ Pict:
@@ -111,8 +113,14 @@ module ~early layers ~lang rhombus/static:
              n.colorize("blue"),
              p)
         .refocus(p)
+    fun add_pip(p, i):
+      match i
+      | 0: beside(app_layer_pip, p)
+      | 3: beside(link_layer_pip, p)
+      | ~else: p
     fun add_number_and_router(p, i):
       let p = add_number(p, i)
+      let p = add_pip(p, i)
       let (str, bm):
         cond
         | !highlight: values(#false, #false)
@@ -166,10 +174,29 @@ module ~early layers ~lang rhombus/static:
                             ~adjust_interface: add_pkt)
                 )
             | nothing,
-            layers.pict(made, ~interfaces: #true,
-                        ~highlight: highlight && "link",
-                        ~adjust: add_number_and_router,
-                        ~adjust_interface: add_pkt),
+            block:
+              let p:
+                layers.pict(made, ~interfaces: #true,
+                            ~highlight: highlight && "link",
+                            ~adjust: add_number_and_router,
+                            ~adjust_interface: add_pkt)
+              if show_why
+              | let p2:
+                  balloon.pin(~on: p,
+                              ~at: Find.left(app_layer_pip),
+                              ~spike: #'e,
+                              lines(@para{When building systems, we},
+                                    @para{mostly get to work at this},
+                                    @para{level of abstraction}))
+                let p3:
+                  balloon.pin(~on: p2,
+                              ~at: Find.left(link_layer_pip),
+                              ~spike: #'e,
+                              lines(@para{Attacks sometimes},
+                                    @para{work by breaking a},
+                                    @para{leaky abstraction}))
+                switch(p, p2, p3)
+              | p,
             if crc
             | layers.pict(made, ~interfaces: #true,
                           ~highlight: "link",
@@ -181,7 +208,7 @@ module ~early layers ~lang rhombus/static:
 import self!layers open
 all_layers_slides(~crc: #true)
 
-slide(~title: "Weak Checksum: Parity",
+slide(~title: "Weak: Parity",
       lines(~horiz: #'right,
             @para{A 1-bit checksum is a @defterm{parity} check},
             @para{... since that 1 bit is either on/odd or off/even}.scale(0.75)),
@@ -189,11 +216,103 @@ slide(~title: "Weak Checksum: Parity",
              [@tt{10011010}, @t{→}, @tt{0}],
              [@tt{10111010}, @t{→}, @tt{1}]]),
       slide.next,
-      blank(64),
+      blank(48),
       @lines(@para{Fast, but two corrupt bits cancel, which is}
-             @para{especially bad when corruption is bursty}))
+             @para{especially bad when corruption is bursty}),
+      table([[@tt{10001010}, @t{→}, @tt{1}],
+             [beside(@tt{1}, @boldly(@tt{11}).colorize("red"), @tt{01010}), @t{→}, @tt{0}]])
+      )
 
 block:
+  let sums = line(~dx: @tt{10001010}.width)
+  slide(~title: "Better: Checksum",
+        @para{Adding numbers and keeping low bits is better},
+        blank(),
+        table([[@tt{10001010}, blank(), @beside(@tt{1},@(@boldly{@tt{111}}.colorize("red")), @tt{1010})],
+               [@tt{10011110}, blank(), @beside(@tt{10011110})],
+               [@tt{10111010}, blank(), @beside(@tt{10111010})],
+               [@tt{10111110}, blank(), @beside(@tt{10111110})],
+               [sums, blank(), sums],
+               [@tt{10100000}, @t{≠}, @beside(@tt{0}.colorize("red"), @tt{0}, @tt{01}.colorize("red"), @tt{0000})]],
+              ~hsep: 50),
+        slide.next,
+        blank(),
+        @para{But it can miss many kinds of regular patterns},
+        table([[@tt{10001010}, blank(), @beside(@tt{10001},@boldly(@tt{1}.colorize("red")), @tt{10})],
+               [@tt{10011110}, blank(), @beside(@tt{10011},@boldly(@tt{0}.colorize("red")), @tt{10})],
+               [@tt{10111010}, blank(), @beside(@tt{10111},@boldly(@tt{1}.colorize("red")), @tt{10})],
+               [@tt{10111110}, blank(), @beside(@tt{10111},@boldly(@tt{0}.colorize("red")), @tt{10})],
+               [sums, blank(), sums],
+               [@tt{10100000}, @t{=}, @tt{10100000}]],
+              ~hsep: 50))
+          
+def long_division1:
+  fun total(p :~ Pict): stack(p, line(~dx: p.width, ~line_width: 2))
+  stack.right(total(@tt{  2871088}),
+              beside.top(~sep: 5, @tt(to_string(43)), @roman{⟌}.pad(~right: -5, ~top: 1),
+                         stack(~horiz: #'left,
+                               ~order: #'back,
+                               @tt{123456789},
+                               @tt{ 86},
+                               @tt{ 374},
+                               beside(@tt{ }, total(@tt{344})),
+                               @tt{  305},
+                               beside(@tt{  }, total(@tt{301})),
+                               @tt{    46},
+                               beside(@tt{    }, total(@tt{43})),
+                               @tt{     37},
+                               beside(@tt{     }, total(@tt{ 0})),
+                               @tt{     378},
+                               beside(@tt{     }, total(@tt{344})),
+                               @tt{      349},
+                               beside(@tt{      }, total(@tt{344})),
+                               beside(@tt{        }, rectangle(~around: @tt{5}, ~fill: "beige")))))
+    .scale(0.85)
+
+def long_division2 :~ Pict:
+  fun total(p :~ Pict): stack(p, line(~dx: p.width, ~line_width: 2))
+  stack.right(total(beside(@tt{  287}, @tt{3413}.colorize("red"), @tt{})),
+              beside.top(~sep: 5, @tt(to_string(43)), @roman{⟌}.pad(~right: -5, ~top: 1),
+                         stack(~horiz: #'left,
+                               ~order: #'back,
+                               beside(@tt{123}, @boldly{@tt{5}}.colorize("red"), @tt{56789}),
+                               @tt{ 86},
+                               beside(@tt{ 37}, @tt{5}.colorize("red")),
+                               beside(@tt{ }, total(@tt{344})),
+                               beside(@tt{  3}, @tt{1}.colorize("red"), @tt{5}),
+                               beside(@tt{  }, total(@tt{301})),
+                               beside(@tt{   1}.colorize("red"), @tt{46}),
+                               beside(@tt{   }, total(@tt{129}.colorize("red"))),
+                               beside(@tt{    17}.colorize("red"), @tt{7}),
+                               beside(@tt{    }, total(@tt{172}.colorize("red"))),
+                               beside(@tt{     05}.colorize("red"), @tt{8}),
+                               beside(@tt{     }, total(beside(@tt{0}.colorize("red"), @tt{4}, @tt{3}.colorize("red")))),
+                               beside(@tt{      15}.colorize("red"), @tt{9}),
+                               beside(@tt{      }, total(@tt{129}.colorize("red"))),
+                               beside(@tt{       }, rectangle(~around: @tt{30}.colorize("red"), ~fill: "beige")))))
+    .scale(0.85)
+
+block:
+  let crc_title = "Strong: Cyclic Redundancy Check"
+  slide(~title: crc_title,
+        @para{@bold{Division} is much better at mixing numbers},
+        block:
+          let p = animate(fun (n):
+                            beside(~sep: 50,
+                                   long_division1,
+                                   long_division2.scale(n, 1))).sustain()
+          slide.alts(
+            p,
+            beside(~sep: 80,
+                   p.snapshot(1),
+                   lines(@para{General division is},
+                         @para{ expensive on a CPU},
+                         blank(10),
+                         @para{Specialized division},
+                         @para{can be fast, especially},
+                         @para{in hardware}).colorize("blue"))
+              .refocus(p)
+          ))
   let d = @romanly{@italic{d}}
   let D = @romanly{@italic{D}}
   let r = @romanly{@italic{r}}
@@ -201,22 +320,18 @@ block:
   let G = @romanly{@italic{G}}
   let eqls = @romanly{=}
   let standard = @t{IEEE standard}
-  slide(~title: "Strong: Cyclic Redundancy Check",
+  slide(~title: crc_title,
         slide.align(
-          lines(@para{A checksum based on adding numbers and keeping only low bits},
-                @para{is a kind of hash function... but not an especially good hash function}),
-          slide.next,
-          blank(),       
-          @para{A @defterm{cyclic redundancy check (CRC)} is a much better hash function:},
+          @para{A @defterm{cyclic redundancy check (CRC)} takes advantage of division:},
         ),
+        beside(~sep: 16, R, eqls,
+               @romanly{remainder of},
+               romanly: frac(@t{@D × 2@superscript{@r}}, G)).pad(~vert: 32),
         table([[d, eqls, @para{number of bits to check}],
                [D, eqls, @para{@d bits of data}],
                [r, eqls, @para{bits for hash result (typically 8, 12, 16, or 32)}],
-               [R, eqls, @para{the hash of @D}],
-               [G, eqls, @para{a carefully chosen, agreed-on @t{@romanly{@r+1}-bit} number}]]),
-        beside(~sep: 16, R, eqls,
-               @romanly{remainder of},
-               romanly: frac(@t{@D × 2@superscript{@r}}, G)),
+               [G, eqls, @para{a carefully chosen, agreed-on @t{@romanly{@r+1}-bit} number}],
+               [R, eqls, @para{the result for @D}]]),
         slide.next,
         blank(),
         block:
@@ -540,18 +655,42 @@ slide(
     )
 )
 
-slide(
-  ~title: "Shared-Medium Strategy 3: Random Access",
-  slide.align(
-    @para{A @defterm{random access} strategy requires either},
-    @item{detection of collisions by senders},
-    @item{@defterm{carrier sense} to detect when someone is already sending},
-    @para{or both},
-    slide.next,
-    blank(32),
-    @para{A random delay is used when a collision is detected}
+block:
+  def c1 = color1
+  def c2 = color2
+  def c3 = color3
+  def c4 = color4
+  fun msg(color, n) :~ Pict:
+    rectangle(~width: n * 64, ~height: 48, ~fill: color)
+  def oops :~ Pict:
+    let p = @bold{!}
+    p.scale(48 / p.height).pad(~horiz: 10)
+  let p:
+    add_vline(table([[msg(c1, 1), nothing, nothing,     nothing,  msg(c1, 1), oops.colorize(c1), nothing, nothing],
+                     [nothing,    nothing, msg(c2, 2),  nothing,  nothing, nothing, msg(c2, 2), oops.colorize(c2)],
+                     [nothing,    nothing, nothing,     nothing,  msg(c3, 1), oops.colorize(c3), nothing, nothing],
+                     [nothing,    nothing, nothing,     msg(c4, 2), nothing, nothing, overlay.right(msg(c4, 2).ghost(), msg(c4, 1)), oops.colorize(c4)]],
+                    ~vert: #'top,
+                    ~vline: "lightgray",
+                    ~vsep: 0,
+                    ~hsep: 0))
+  let p: beside(dots, p, dots)
+  slide(
+    ~title: "Shared-Medium Strategy 3: Random Access",
+    slide.align(
+      @para{@defterm{Random access}:},
+      blank(28),
+      p.pad(~horiz: 36),
+      slide.next,
+      blank(),
+      slide.center(
+        @item(~bullet: minus.ghost()){Need collision detection and/or @defterm{carrier sense}},
+        @item(~bullet: minus.ghost()){Random delay when collision is detected},
+        slide.next,
+        @item(~bullet: plus){Potentially better utilization}
+      )
+    )
   )
-)
 
 fun mk_ra(color, n):
   let r = rectangle(~width: 96, ~height: 48, ~fill: color, ~line: color && #'inherit)
@@ -629,6 +768,7 @@ let (csma_setup, csma_maker):
   fun send3g(msg): mk_ra(#false, 3)(msg)
   fun send1g(msg): mk_ra(#false, 1)(msg)
   let empty = Pict.ghost(send3("3"))
+  let send1a :~ Pict = mk_ra(color1, 1)("a")
   let send3a :~ Pict = send3("a")
   let send3b :~ Pict = send3("b")
   let send3ga :~ Pict = send3g("a")
@@ -637,7 +777,7 @@ let (csma_setup, csma_maker):
   fun mk_table(send3a, send3b, send1a,
                ~send1a_2: send1a_2 = nothing,
                ~send3a_2: send3a_2 = empty,
-               ~send3b_2: send3b_2 = empty):
+               ~send3b_2: send3b_2 = empty) :~ Pict:
     add_vline(
       table([[empty,    send1a,    send1a_2,   nothing,   nothing,      nothing,    nothing],
              [empty,    nothing,    empty,     nothing,   nothing,    nothing,    nothing],
@@ -673,7 +813,7 @@ let (csma_setup, csma_maker):
     cone(p, send1ga, color1, ~stop_at: stop_at)
   values(
     switch(
-      mk_table(send3a, send3b, empty),
+      mk_table(send3a, send3b, empty, ~send1a_2: send1a.alpha(0.3)).sustain(),
       cones3(mk_table(send3ga, send3gb, empty)),
       cones1(cones3(mk_table(send3ga, send3gb, send1ga)))
     ),
@@ -745,8 +885,11 @@ slide(
         @para{``don't talk when someone else is talking''}.pad(~left: 64)),
   slide.next,
   blank(),
-  lines(@para{The catch: there's a delay between the time that one node sends},
-        @para{and another node starts to sense it}),
+  block:
+    let p:
+      lines(@para{The catch: there's a delay between the time that one node sends},
+            @para{and another node starts to sense it})
+    switch(p.ghost(), p),
   csma_setup
 )
 
@@ -973,6 +1116,5 @@ slide(~title: "Summary",
 all_layers_slides(~title: @titlely{Layers — @italic{Done!}},
                   ~crc: #false,
                   ~steps: #false,
-                  ~highlight: #false)
-
-start_at_recent()
+                  ~highlight: #false,
+                  ~show_why: #true)
