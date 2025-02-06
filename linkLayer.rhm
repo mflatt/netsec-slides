@@ -47,7 +47,7 @@ module ~early pkt ~lang rhombus/static:
     | let content :~ Pict:
         match i
         | 1: lines(@tt{GET / HTTP/1.1},
-                   @tt{Host: cs.utah.edu"})
+                   @tt{Host: cs.utah.edu})
         | 2: lines(@bold{TCP},
                    @para{src port: @tt{7786}},
                    if options[#'dest] | @para{dest port: @tt{80}} | nothing)

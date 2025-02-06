@@ -45,14 +45,14 @@ fun integrity_slide(options :~ OptMap) :~ OptMap:
     square(~fill: col("purple"))
   let msg :~ Pict:
     if options[#'hmac_add]
-    | beside(msg, hmac)
+    | beside(msg, hmac.launder())
     | msg
   let msg :~ Pict:
     if options[#'key2]
     | beside(msg, rectangle(~around: key2.scale(0.5), ~height: msg.height, ~fill: "lightgray"))
     | msg
-  let msg1 = msg.ghost()
-  let msg2 = msg.ghost()
+  let msg1 = msg.ghost().launder()
+  let msg2 = msg.ghost().launder()
   fun add_key(p):
     if options[#'key]
     | let pk = stack(~sep: 16, p, key)

@@ -306,7 +306,7 @@ fun nat_network(options :~ OptMap) :~ Pict:
     fun portno(n): if n is_a Pict | n | tt(to_string(n))
     [@para{@as_orig(inside_addr) @spc @as_orig(portno(orig_port))}, as_new(portno(new_port))]
   let laptop2_nat_line = [nat_line(inside2_addr, orig_port2, new_port2)]
-  let inside1_addr_in_table = tt(inside1_addr)
+  let inside1_addr_in_table = tt(inside1_addr).launder()
   let ssh_nat_line = [nat_line(as_orig(inside1_addr_in_table), ssh_port, ssh_port).map(
                         fun (p :~ Pict): rectangle(~around: p.pad(~horiz: 3), ~fill: "lightgray").refocus(p)
                       )]

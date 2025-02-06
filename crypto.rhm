@@ -68,13 +68,20 @@ module ~early key ~lang rhombus/static/and_meta:
 
 import self!key open
 
+runtime_path.def credit_card_png: "images/credit-card.png"
+runtime_path.def medical_chart_png: "images/medical-chart.png"
+runtime_path.def chat_icon_png: "images/chat-icon.png"
 runtime_path.def xkcd_png: "images/xkcd_alice_bob.png"
 runtime_path.def laptop_png: "images/laptop.png"
 runtime_path.def router_png: "images/router.png"
 
 def laptop = bitmap(laptop_png).scale(0.2)
 def router = bitmap(router_png).scale(0.4)
-        
+
+def chat_icon = bitmap(chat_icon_png).scale(0.1)
+def medical_chart = bitmap(medical_chart_png).scale(0.4)
+def credit_card = bitmap(credit_card_png).scale(0.4)
+
 slide(~title: "Cryptography",
       @para(@{@defterm{Cryptography}: secure communication in}            
             @{the presence of adversaries}),
@@ -124,14 +131,13 @@ slide(~title: "Cryptography",
         let p = link(p, laptop1, laptop21)
         let p = link(p, laptop22, laptop2)
         let p_mitm = p
+        fun add_icon(p, icon :~ Pict):
+          overlay(p, icon.pad(~bottom: 130)).refocus(p)
         slide.alts(
           p_direct,
-          stack(~sep: 128,
-                p_direct,
-                beside(@para{In this class, @italic{crypto} is short for @italic{cryptography},},
-                       @t{ },
-                       @para{not @italic{cryptocurrency} or @italic{cryptoanalysis}}).scale(0.75).colorize("blue"))
-            .refocus(p_direct),
+          add_icon(p_direct, credit_card),
+          add_icon(p_direct, medical_chart),
+          add_icon(p_direct, chat_icon),
           p_routers,
           p_eve,
           balloon.pin(~on: p_eve,
@@ -144,7 +150,12 @@ slide(~title: "Cryptography",
                       ~spike: #'s,
                       ~dy: 128,
                       @para{@defterm{man in the middle (MITM)}}),
-          
+          stack(~sep: 128,
+                p_mitm,
+                beside(@para{In this class, @italic{crypto} is short for @italic{cryptography},},
+                       @t{ },
+                       @para{not @italic{cryptocurrency} or @italic{cryptoanalysis}}).scale(0.75).colorize("blue"))
+            .refocus(p_mitm),          
         ))
       
 
@@ -167,6 +178,7 @@ slide(~title: "Cryptography Application Goals",
         forward(@para{@back(@defterm{Authenticity}): identity of each communicating party can be confirmed}),
         slide.next,
         blank(),
+        @para{and sometimes},
         forward(@para{@back(@defterm{Non-repudiation}): parties cannot deny previous commitments})
       ),
       slide.next,
@@ -569,7 +581,7 @@ fun subst_permute_combo(options :~ OptMap) :~ OptMap:
             if options[#'key]
             | beside(~sep: 64,
                      p,
-                     balloon.note(@para{@key is ⟨columns, rotation⟩},
+                     balloon.note(@para{@key is ⟨rotation, columns⟩},
                                   ~fill: "lightblue"))
                 .refocus(p)
             | p
@@ -621,6 +633,12 @@ fun xor_slide(options :~ OptMap) :~ OptMap:
   let (meet_2, _) = xor(meet_1, seed2, ~rounds: 1, ~get_seed: #true)
   let sep = 10
   let extra = show_values(#false, meet_2, @t{=}, ~sep: sep)
+  let key_x2 = rectangle(~around: stack(~sep: 8, key, @t{2 times}.scale(0.5)).pad(4),
+                         ~fill: "lightblue").pad(30)
+  let extra = pin(~on: extra,
+                  key_x2,
+                  ~at: Find.left(extra),
+                  ~pinhole: Find.right(key_x2))
   let p:
     stack(
       ~sep: 32,
@@ -679,7 +697,7 @@ fun xor_combo2_slide(options :~ OptMap) :~ OptMap:
   slide(
     ~title: "Chaining plus Substitution plus Permutation",
     plaintext(diff(meet, this_meet)),
-    @step{accumulate},
+    @step{chain},
     diff(xor(meet, 5), xor(this_meet, 5)),
     @step{substitute},
     diff(rot(xor(meet, 5), 13), rot(xor(this_meet, 5), 13)),
@@ -697,11 +715,11 @@ slide(~title: "Key Size",
              @{and our example combination generates results that @italic{look}},
              @{random, but there's an easy way to see that it's insecure}),
         blank(),
-        slide.center(@para{@key = @rectangle(~around: @t{⟨rotation, columns, init⟩}, ~fill: "lightblue", ~line: #false)}),
+        slide.center(@para{@key = @rectangle(~around: @t{⟨rotation, columns, init, times⟩}, ~fill: "lightblue", ~line: #false)}),
         slide.next,
         blank(),
-        @para{Assuming that up to 32 columns makes sense:},
-        slide.center(@para{26 × 32 × 27 @spc = @spc 22,464 possible keys}),
+        @para{Assuming that up to 32 columns and 10 iterations make sense:},
+        slide.center(@para{26 × 32 × 27 × 10@spc = @spc 224,640 possible keys}),
         slide.next,
         blank(),
         @para{So, @defterm{key size} is going to be an important metric}
@@ -729,7 +747,7 @@ slide(~title: "Summary",
           @item{@defterm{Confidentiality}},
           @item{@defterm{Integrity}},
           @item{@defterm{Authenticity}},
-          @item{@defterm{Non-repudiation}}
+          @item{@defterm{Non-repudiation} (sometimes)}
         ),
         blank(),
         stack.left(

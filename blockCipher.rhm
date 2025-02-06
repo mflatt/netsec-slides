@@ -549,7 +549,8 @@ block:
   let s_boxes = beside(~sep: 32, & s_box_list)
   let split_line = line(~dx: s_boxes.width - 2*s_box_width/7)
   let join_line = line(~dx: s_boxes.width - 4*s_box_width/7)
-  let p = rectangle(~around: @romanly{P}.pad(~top: 3), ~width: halfword_width, ~fill: permute_color, ~line: #'inherit)
+  let p = rectangle(~around: @romanly{P}.pad(~top: 3), ~width: halfword_width, ~fill: permute_color,
+                    ~line: #'inherit, ~refocus: #false)
   let q = stack(xor.pad(~bottom: 16),
                 split_line,
                 s_boxes,       
@@ -648,7 +649,8 @@ slide(~title: "DES Issues",
       slide.align(
         @para{Algorithm was designed for hardware}.pad(~left: -32),
         lines(
-          para(@{@rectangle(~around: @roman{P}.pad(~top: 3), ~width: halfword_width, ~fill: permute_color, ~line: #'inherit)},
+          para(@{@rectangle(~around: @roman{P}.pad(~top: 3), ~width: halfword_width, ~fill: permute_color,
+                            ~line: #'inherit, ~refocus: #false)},
                @{bit permutations are a pain to implement in software}),
           para(@{with @tt{and}, @tt{or}, @tt{<<}, and @tt{>>}})),
         blank(32),
