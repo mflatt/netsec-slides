@@ -23,7 +23,7 @@ slide(~title: "Random Numbers",
       ),
       slide.next,
       blank(64),
-      @para{Doesn't that sound like a pseudo-random number generator (@defterm{PRNG})?})
+      @para(~width: 2000){That's also what a @defterm{pseudo-random number generator} (@defterm{PRNG}) does})
 
 fun make_rand(~a = #false, ~b = #false) :~ Random:
   Random(Array(a || 100, 2, 3, b || 400, 5, 6))
@@ -34,21 +34,27 @@ fun random(n):
   to_string(my_rand.random(n))
 
 slide(~title: "PRNGs",
-      @verbatim{
-        @(nonarchival(@tt{> random.seed(74658319934)}.time_pad(~before: 1), 0))
-        > random(256)
-        @random(256)
-        > random(256)
-        @random(256)
-        > random(256)
-        @random(256)
-        > random(256)
-        @random(256)
-        > random(256)
-        @random(256)
-        > random(256)
-        @random(256)
-      })
+      overlay.bottom_right(
+        @verbatim{
+          @(nonarchival(@tt{> random.seed(74658319934)}.time_pad(~before: 1), 0))
+          > random(256)
+          @random(256)
+          > random(256)
+          @random(256)
+          > random(256)
+          @random(256)
+          > random(256)
+          @random(256)
+          > random(256)
+          @random(256)
+          > random(256)
+          @random(256)
+        },
+        balloon.note(@lines(@para{Using a PRNG sequence to},
+                            @para{to encrypt is called a},
+                            @para{@defterm{stream cipher}}))
+          .time_pad(~before: 2).pad(~right: -200)))
+                     
 
 fun make_rand_bm(bstr :: Bytes, from = #false, ~b: r_b = #false):
   let bstr = bstr.copy()
@@ -121,23 +127,120 @@ slide(~title: "Stream Cipher",
                                                         ~line: #false)}),
         slide.next,
         blank(),
-        @para{The @romanx{i}th ciphertext @CT element from the @romanx{i}th plaintext @PT element:},
+        @para{Convert the @romanx{i}th plaintext @PT element to the @romanx{i}th ciphertext @CT element:},
         slide.center(
           block:
             let p = @romanly{@CT_i = @PT_i @xor_op_c @K_i}
-            balloon.pin(~on: p,
-                        ~at: Find.bottom(xor_op_c),
-                        ~spike: #'nw,
-                        @para{xor}.time_clip())
+            switch(
+              p,
+              balloon.pin(~on: p,
+                          ~at: Find.bottom(xor_op_c),
+                          ~spike: #'nw,
+                          @para{xor}.time_clip())
+            )
         ),
         slide.next,
-        @para{Since @romanly{⊕} is its own inverse:},
-        slide.center(@romanly{@PT_i = @CT_i ⊕ @K_i}),
-        slide.next,
-        blank(),
-        @para{Treating @xor_op_c as mapping over sequences},
-        slide.center(@romanly{@CT = @PT ⊕ @K}),
-        slide.center(@romanly{@PT = @CT ⊕ @K})        
+        slide.alts(
+          block:
+            let w = @roman{1}
+            let z = @roman{0}
+            let z1 = z.launder()
+            let z2 = z.launder()
+            let eql = @roman{=}
+            let eql1 = eql.launder()
+            let xor_op1 = xor_op.launder()
+            fun mk_p(~l: l = values, ~r: r = values,
+                     ~xor: x = values, ~eql: e = values,
+                     ~xor1: x1 = x, ~eql1: e1 = e,
+                     ~ones = values, ~at_zeros = values, ~by_zeros = values):
+              table(~vert: #'center,
+                    [[at_zeros(l(z1)), x1(xor_op1), by_zeros(r(z2)), e1(eql1), by_zeros(z)],
+                     [at_zeros(l(z)), x1(xor_op), by_zeros(r(w)), e1(eql), by_zeros(w)],
+                     [l(w), x(xor_op), r(z), e(eql), w].map(ones),
+                     [l(w), x(xor_op), r(w), e(eql), z].map(ones)])
+            let p = mk_p()
+            let (lx, _) = Find.left(z1).in(p)
+            let (rx, _) = Find.left(z2).in(p)
+            let (xorx, _) = Find.left(xor_op1).in(p)
+            let (eqlx, _) = Find.left(eql1).in(p)
+            fun fade(p :~ Pict): p.colorize("lightgray") // p.alpha(0.3)
+            fun blue(p :~ Pict): p.colorize("blue")
+            fun red(p :~ Pict): p.colorize("red")
+            fun make_translate(dx): fun (p :~ Pict): p.translate(dx, 0)
+            fun digits(d, ...) :~ Pict: beside.center(~sep: 4, overlay(d, xor_op.ghost()), ...)
+            [slide.center(
+               blank(),
+               slide.alts(
+                 animate(
+                   fun (n):
+                     mk_p(~l: make_translate((1 - n) * (rx - lx)),
+                          ~r: make_translate((1 - n) * (lx - rx)))
+                 ).sustain(),
+                 animate(
+                   fun (n):
+                     mk_p(~l: fade,
+                          ~xor: make_translate(n * (eqlx - xorx)),
+                          ~eql: make_translate(n * (xorx - eqlx)))                     
+                 ),
+                 animate(
+                   fun (n):
+                     mk_p(~l: if n .= 0 | fade | values,
+                          ~ones: if n .=1 | fade | values,
+                          ~by_zeros: if n .=1 | blue | values,
+                          ~at_zeros: if n .=1 | red | values,
+                          ~xor: make_translate((1 - n) * (eqlx - xorx)),
+                          ~eql: make_translate((1 - n) * (xorx - eqlx)))                     
+                 ),
+                 animate(
+                   fun (n):
+                     mk_p(~ones: fade,
+                          ~at_zeros: red,
+                          ~by_zeros: blue,
+                          ~xor1: make_translate(n * (eqlx - xorx)),
+                          ~eql1: make_translate(n * (xorx - eqlx)))                     
+                 ).sustain(),
+                 block:
+                   let top_n = digits(@roman{1}, @roman{1}, @roman{0}, @roman{0})
+                   stack(~sep: current_line_sep(),
+                         block:
+                           fun twelve(n):
+                             overlay(@roman{12}.scale(1 - n, 1),
+                                     top_n.scale(n, 1)) 
+                           switch(
+                             animate(twelve).sustain(2),
+                             animate(fun (n): twelve(1 - n))
+                           ),
+                         block:
+                           fun xors(n):
+                             overlay(xor_op.scale(1 - n, 1),
+                                     digits(xor_op, xor_op, xor_op, xor_op).scale(n, 1))
+                           switch(xor_op,
+                                  animate(xors).sustain(),
+                                  animate(fun (n): xors(1 - n))),                                    
+                         block:
+                           fun nine(n):
+                             overlay(@roman{9}.scale(1 - n, 1),
+                                     digits(@roman{1}, @roman{0}, @roman{0}, @roman{1}).scale(n, 1))
+                           switch(animate(nine).sustain(2),
+                                  animate(fun (n): nine(1 - n))),
+                         stack(
+                           ~sep: current_line_sep(),
+                           line(~dx: top_n.width),
+                           animate(fun (n):                             
+                                     overlay(digits(@roman{0}, @roman{1}, @roman{0}, @roman{1}).scale(1-n, 1),
+                                             @roman{5}.scale(n, 1)))
+                             .sustain()
+                         ).time_pad(~before: 3))
+               )
+             )],
+          [@para{Since @romanly{⊕} is its own inverse:},
+           slide.center(@romanly{@PT_i = @CT_i ⊕ @K_i}),
+           slide.next,
+           blank(),
+           @para{Treating @xor_op_c as mapping over sequences},
+           slide.center(@romanly{@CT = @PT ⊕ @K}),
+           slide.center(@romanly{@PT = @CT ⊕ @K})]
+        )
       ))
 
 fun enmat(p :~ Pict) :~ Pict:
@@ -151,10 +254,11 @@ fun image_slide(options :~ OptMap, adjust = values) :~ OptMap:
   let rand2 = rand1.launder()
   let ct1 = ciphertext(enmat(bm(rand_secret_bm)))
   let ct2 = ct1.launder()
+  let secret = bm(secret_bm)
   let p:    
     stack(~sep: 128,
           beside(~sep: 32,
-                 plaintext(enmat(bm(secret_bm))),
+                 plaintext(enmat(secret)),
                  @roman{⊕}.scale(2),
                  note_key(rand1, key),
                  @roman{=}.scale(2).ghost(!options[#'plus]),
@@ -183,11 +287,22 @@ fun image_slide(options :~ OptMap, adjust = values) :~ OptMap:
                       ~end_angle: pi * -1/2)
       p
     | p
+  let p:
+    if options[#'rgba]
+    | balloon.pin(~on: p,
+                  ~at: Find.top_left(secret),
+                  ~spike: #'ne,
+                  @lines(
+                    @para{Each pixel is},
+                    @para{ ⟨@italic{red}, @italic{green}, @italic{blue}, @italic{alpha}⟩}
+                  ))
+    | p
   slide(~title: "Stream Cipher on an Image",
         adjust(p))
   options
 
 let options = image_slide({}, nonarchival)
+let rgba_options = image_slide(options ++ { #'rgba }, nonarchival)
 let options = image_slide(options ++ { #'plus }, nonarchival)
 let options = image_slide(options ++ { #'revert }, nonarchival)
 let options = image_slide(options ++ { #'plus2 })
@@ -254,6 +369,7 @@ fun image_mix_slide(options :~ OptMap, adjust = values) :~ OptMap:
                beside.topline(@para{@CT_a @xor_op_c @CT_b},
                               @t{ },
                               @lines(@para{= @PT_a @xor_op_c @K @xor_op_c @PT_b @xor_op_c @K},
+                                     @para{= @PT_a @xor_op_c @PT_b @xor_op_c @K @xor_op_c @K},
                                      @para{= @PT_a @xor_op_c @PT_b})))
       overlay.bottom_left(p,
                           f.pad(~left: -f.width/2,
@@ -359,7 +475,7 @@ let options = magled_image_slide(options ++ { #'something_else })
 
 slide(~title: "Creating a Really Good PRNG",
       slide.left(
-        para(@{We need a @italic{crytographically secure} PRNG (@defterm{CSPRNG})}),
+        para(@{We need a @defterm{crytographically secure PRNG} (@defterm{CSPRNG})}),
         blank(),
         @item{Cannot predict next output from previous outputs},
         @item{Passes statistical randomness tests},
@@ -415,8 +531,8 @@ block:
   slide(~title: "PRNG",
         p,
         blank(32),
-        @para{@romanly{2@superscript{N}} possible states},
         @para{@romanly{2@superscript{C × M}} possible sequences},
+        @para{@romanly{2@superscript{N}} possible states},
         @para{⇒ lots of overlap when @romanly{C × M ≫ N}})
 
 block:

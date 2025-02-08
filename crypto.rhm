@@ -563,10 +563,10 @@ fun diff(s1 :~ String, s2 :~ String, ~sep: sep = 0):
   | s1 == "": blank()
   | s1[0] == s2[0]: beside.baseline(~sep: sep,
                                     tt(s2.substring(0, 1)),
-                                    diff(s1.substring(1), s2.substring(1), ~sep: sep))
+                                    diff(s1.substring(1..), s2.substring(1..), ~sep: sep))
   | ~else: beside.baseline(~sep: sep,
                            tt(s2.substring(0, 1)).colorize("red"),
-                           diff(s1.substring(1), s2.substring(1), ~sep: sep))
+                           diff(s1.substring(1..), s2.substring(1..), ~sep: sep))
            
 fun subst_permute_combo(options :~ OptMap) :~ OptMap:
   let this_meet = if options[#'change] | meet_in | meet

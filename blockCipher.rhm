@@ -230,10 +230,12 @@ module ~early feistel ~lang rhombus/static:
 
   def xor = xor_op
     
-  fun feistel_legs():
+  fun feistel_legs(options :~ OptMap):
     let seg :~ Pict:
       let p = blank(~height: 16)
-      connect(~on: p, Find.top(p), Find.bottom(p),
+      connect(~on: p,
+              if options[#'invert] | Find.bottom(p) | Find.top(p),
+              if options[#'invert] | Find.top(p) | Find.bottom(p),
               ~arrow_size: 12,
               ~line_width: lw,
               ~style: #'arrow)
@@ -252,13 +254,13 @@ module ~early feistel ~lang rhombus/static:
     stack(astext(overlay(@t(str), blank(~width: 2*halfword_width - 2 * textpad))),
           if options[#'aes]
           | aes_leg()
-          | feistel_legs())
+          | feistel_legs(options))
                                                   
   fun feistel_out(astext = ciphertext, str = "ciphertext", ~options: options :~ OptMap = {}) :~ Pict:
     stack(
       if options[#'aes]
       | aes_leg()
-      | feistel_legs(),
+      | feistel_legs(options),
       astext(overlay(@t(str), blank(~width: 2*halfword_width - 2 * textpad)))
     )
 
@@ -280,14 +282,37 @@ module ~early feistel ~lang rhombus/static:
     if head_only
     | head
     | let k = make_k(k_n)
+      let flip_n = options[#'flip_key] || 0
+      let twist_n = options[#'twist] || 0
+      let twist_a = math.cos(twist_n * math.pi)
+      let l_t = blank()
+      let r_t = blank()      
+      let l_tt = blank()
+      let r_tt = blank()      
       let p = stack(~sep: 16,
-                    match skip_head
-                    | n :: Real: overlay(@t{...}.alpha(n), head.alpha(1-n))
-                    | #true: head.ghost().pad(~top: -head.height)
-                    | ~else: head,
+                    stack(
+                      ~sep: twist_n * l.height / 2,
+                      match skip_head
+                      | n :: Real: overlay(@t{...}.alpha(n), head.alpha(1-n))
+                      | #true: head.ghost().pad(~top: -head.height)
+                      | ~else: head,
+                      beside(~sep: l.width, l_tt, r_tt),
+                      beside(~sep: l.width, l_t, r_t).scale(twist_a)
+                    ),
                     k,
                     blank(),
                     f)
+      let p = p.replace(k, k.scale(twist_a, 1))
+      let p = p.replace(f, f.scale(twist_a, 1))
+      let (p :~ Pict, lift_n):
+        if flip_n > 0
+        | let n = options[#'flip_key]
+          let (_, ky) = Find.top(k).in(p)
+          let (_, fy) = Find.top(f).in(p)
+          let p = p.replace(k, k.translate(0, n * (fy - ky)))
+          let p = p.replace(f, f.translate(0, n * (ky - fy)))
+          values(p, flip_n * (fy - ky))
+        | values(p, 0)
       let opp_xor = blank()
       let l_b = blank()
       let r_b = blank()
@@ -295,18 +320,27 @@ module ~early feistel ~lang rhombus/static:
       let lr_b = blank()
       let rl_bb = blank()
       let lr_bb = blank()
-      let p = overlay.left_bottom(p, overlay(xor.ghost(aes), l.ghost().launder()))
-      let p = overlay.right_bottom(p, overlay(opp_xor, l.ghost().launder()))
-      let p = stack(~sep: l.height /  (if aes | 4 | 2),
+      let p_g = p.ghost().launder()
+      let p_m = overlay.left_bottom(p_g, overlay(xor.ghost(aes), l.ghost().launder()).pad(~bottom: lift_n))
+      let p_m = overlay.right_bottom(p_m, overlay(opp_xor, l.ghost().launder()).pad(~bottom: lift_n))
+      let p = overlay.top(p, p_m.scale(twist_a, 1))
+      let sep = l.height /  (if aes | 4 | 2)
+      let p = stack(~sep: sep,
                     p,
-                    beside(~sep: l.width, l_b, r_b),
-                    beside(~sep: l.width, rl_b, lr_b),
-                    beside(~sep: l.width, rl_bb, lr_bb))
-      let p = connect(~on: p,
-                      Find.bottom(k),
-                      Find.top(f),
-                      ~style: #'arrow,
-                      ~line_width: lw)
+                    stack(~sep: sep * (1 - twist_n),
+                          beside(~sep: l.width, l_b, r_b).scale(twist_a, 1),                   
+                          beside(~sep: l.width, rl_b, lr_b),
+                          beside(~sep: l.width, rl_bb, lr_bb)))
+      let p:
+        cond
+        | flip_n < 0.25 || flip_n > 0.75:
+            connect(~on: p,
+                    if flip_n < 0.5 | Find.bottom(k) | Find.top(k),
+                    if flip_n < 0.5 | Find.top(f) | Find.bottom(f),
+                    ~style: #'arrow,
+                    ~line_width: lw)
+        | ~else:
+            p
       let p:
         if !aes
         | let p = connect(~on: p,
@@ -321,9 +355,21 @@ module ~early feistel ~lang rhombus/static:
                           ~style: #'arrow,
                           ~line_width: lw)
           let p = connect(~on: p,
+                          Find.top(if twist_n .= 0 | xor | l_tt),
                           Find.bottom(l),
+                          ~style: if options[#'invert] | #'arrow | #'line,
+                          ~line_width: lw,
+                          ~line: "forestgreen")
+          let p = connect(~on: p,
+                          Find.bottom(l_tt),
+                          Find.top(l_t),
+                          ~style: #'line,
+                          ~line_width: lw,
+                          ~line: "forestgreen")
+          let p = connect(~on: p,
+                          Find.bottom(l_t),
                           Find.top(xor),
-                          ~style: #'arrow,
+                          ~style: if options[#'invert] | #'line | #'arrow,
                           ~line_width: lw,
                           ~line: "forestgreen")
           let p = connect(~on: p,
@@ -352,7 +398,18 @@ module ~early feistel ~lang rhombus/static:
         if aes
         | p
         | let p = connect(~on: p,
+                          Find.center(if twist_n .= 0 | r_b | r_tt),
                           Find.bottom(r),
+                          ~line_width: lw,
+                          ~style: if options[#'invert] | #'arrow | #'line,
+                          ~line: "firebrick")
+          let p = connect(~on: p,
+                          Find.bottom(r_tt),
+                          Find.center(r_t),
+                          ~line_width: lw,
+                          ~line: "firebrick")
+          let p = connect(~on: p,
+                          Find.bottom(r_t),
                           Find.center(r_b),
                           ~line_width: lw,
                           ~line: "firebrick")
@@ -367,17 +424,17 @@ module ~early feistel ~lang rhombus/static:
                           ~line_width: lw,
                           ~line: "firebrick")
           let p = connect(~on: p,
-                          Find.center(lr_b),
+                          Find.center(if twist_n < 1 | lr_b | xor),
                           Find.center(lr_bb),
                           ~line_width: lw,
                           ~line: "blue",
-                          ~style: #'arrow)
+                          ~style: if options[#'invert] | #'line | #'arrow)
           let p = connect(~on: p,
-                          Find.center(rl_b),
+                          Find.center(if twist_n < 1 | rl_b | r_t),
                           Find.center(rl_bb),
                           ~line_width: lw,
                           ~line: "firebrick",
-                          ~style: #'arrow)
+                          ~style: if options[#'invert] | #'line | #'arrow)
           p
       let p:
         if options[#'split]
@@ -469,10 +526,10 @@ let feistel_plain_top = feistel_top({})
 let feistel_middle:
   stack(feistel(1, ~skip_head: #true))
 
-fun feistel_bottom(n, options = {}):
+fun feistel_bottom(n, options = {}) :~ Pict:
   stack(feistel(15, ~skip_head: n, ~options: options),
         feistel(16, ~head_only: #true),
-        feistel_out())
+        feistel_out(~options: options))
 
 let feistel_top_mid = stack(feistel_plain_top,
                             feistel_middle)
@@ -494,8 +551,33 @@ slide(~title: "DES Feistel Structure",
                         feistel_bottom(1-n)).scale(1-((1-n)*0.35))),
         feistel_bottom(0, {}),
         feistel_bottom(0, { #'old_right: #true }),
-        feistel_bottom(0, { #'old_left: #true })
+        switch(
+          ~join: #'splice,
+          ~splice: #'before,
+          feistel_bottom(0, { #'old_left: #true }),
+          block:
+            let orig = feistel_bottom(0, {})
+            let flipped = orig.launder()
+            let out_h = feistel_out().height
+            fun combine(flipped :~ Pict, ~n = 1):
+              beside(~sep: -orig.width + (300 * n),
+                     orig,
+                     overlay(flipped.rotate(-n * math.pi)
+                               .launder()
+                               .pad(~bottom: math.sin(n * math.pi) * 200),
+                             flipped.ghost())
+                       .refocus(flipped)
+                       .translate(0, -n * out_h))
+            switch(
+              animate(fun (n): combine(feistel_bottom(0, { #'invert: #true }), ~n: n)),
+              animate(fun (n): combine(feistel_bottom(0, { #'invert: #true, #'flip_key: n }))),
+              animate(fun (n): combine(feistel_bottom(0, { #'invert: #true, #'flip_key: 1, #'twist: n })))
+                .sustain()
+            )
+        )
       ))
+
+start_at_recent()
 
 slide(~title: "DES Feistel Structure",
       block:
@@ -683,7 +765,7 @@ slide(~title: "AES",
         but(@item{Reversible mixing function @(@romanly{R}.colorize(alg_color)) (instead of Feistal structure)},
             @para{includes @beside.baseline(xor, @t{}) of key from schedule})
       ))
-  
+
 block:
   let options :~ OptMap = { #'aes: #true }
   let { #'aes: aes,
@@ -874,13 +956,41 @@ block:
 slide(~title: "Processor Support for AES",
       slide.align(
         @para{x86 instructions for AES extension:}.pad(~left: -32),
-        table([[@tt{AESENC}, @para{Perform @(@roman{R}.colorize(alg_color))}],
-               [@tt{AESENCLAST}, @para{Perform @(@roman{R′}.colorize(alg_color))}],
-               [@tt{AESDEC}, @para{Perform inverse of @(@roman{R}.colorize(alg_color))}],
-               [@tt{AESDECLAST}, @para{Perform inverse of @(@roman{R′}.colorize(alg_color))}],
-               [blank(), blank()],
-               [@tt{AESKEYGENASSIST}, @para{Key sequence helper}],
-               [@tt{AESIMC}, @para{Key sequence helper}]])
+        block:
+          let enc = feistel("i", ~options: ({} :: OptMap) ++ { #'aes })
+          let enclast = feistel(10, ~options: ({} :: OptMap) ++ { #'aes, #'mix_prime })
+          let aesenc = @tt{AESENC}
+          let aesenclast = @tt{AESENCLAST}
+          let aeskeyasst = @tt{AESKEYGENASSIST}
+          let p:
+            table([[aesenc, @para{Perform @(@roman{R}.colorize(alg_color))}],
+                   [aesenclast, @para{Perform @(@roman{R′}.colorize(alg_color))}],
+                   [@tt{AESDEC}, @para{Perform inverse of @(@roman{R}.colorize(alg_color))}],
+                   [@tt{AESDECLAST}, @para{Perform inverse of @(@roman{R′}.colorize(alg_color))}],
+                   [blank(), blank()],
+                   [aeskeyasst, @para{Key sequence helper}],
+                   [@tt{AESIMC}, @para{Key sequence helper}]])
+          switch(
+            p,
+            balloon.pin(~on: p,
+                        ~at: Find.left(aesenc),
+                        ~spike: #'e,
+                        ~dx: 50,
+                        ~fill: "lightblue",
+                        enc),
+            balloon.pin(~on: p,
+                        ~at: Find.left(aesenclast),
+                        ~spike: #'e,
+                        ~dx: 50,
+                        ~fill: "lightblue",
+                        enclast),
+            balloon.pin(~on: p,
+                        ~at: Find.left(aeskeyasst),
+                        ~spike: #'e,
+                        ~dx: 50,
+                        ~fill: "lightblue",
+                        @beside(key, @t{ ⇒ }, make_k("i")))
+          )
       ))
 
 block:
