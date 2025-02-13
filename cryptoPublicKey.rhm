@@ -260,7 +260,7 @@ fun paint_slide(options :~ OptMap) :~ OptMap:
   let S1 = (XBv ** Av) mod pv
   let S2 = (XAv ** Bv) mod pv  
   fun s(n): to_string(n)
-  fun numbers(p, n :~ Pict, side, ~dy = 0) :~ Pict:
+  fun numbers(p :~ Pict, n :~ Pict, side, ~dy = 0) :~ Pict:
     if options[#'numbers]
     | let r = rectangle(~around: n.pad(~horiz: 3, ~vert: 7),
                         ~line: "black",
@@ -271,7 +271,7 @@ fun paint_slide(options :~ OptMap) :~ OptMap:
         | beside(~sep: sep, p, r)
         | beside(~sep: sep, r, p)
       q.refocus(p)
-    | p
+    | p.pad(0)
   fun goal(p :~ Pict):
     rectangle(~around: p.pad(5), ~refocus: p, ~rounded: #'default, ~fill: "gold")
   let yellow_can = numbers(yellow_can0,

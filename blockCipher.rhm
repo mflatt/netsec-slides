@@ -172,12 +172,26 @@ slide(~title: "Block Ciphers",
         ),
         @para{Each @roman{N}-bit @plaintext(@t{plaintext}) becomes an @roman{N}-bit @ciphertext(@t{ciphertext})},
         slide.next,
-        blank(64),
-        para("We'll look at two block ciphers:").pad(~left: -16),
-        blank(),
-        @para{@defterm{Data Encryption Standard (DES)}: older, broken at original key size},
-        blank(),
-        @para{@defterm{Advanced Encryption Standard (AES)}: newer, very widely used}
+        slide.alts(
+          [blank(32),
+           slide.center(
+             slide.align(
+               @para{Which is better, a @italic{stream cipher} or @italic{block cipher}?},
+               slide.next,
+               @item{Neither}.pad(~left: 30),
+               slide.next,
+               @item{It's complicated}.pad(~left: 30),
+               slide.next,
+               @item{Just use AES, which is a block cipher}.pad(~left: 30)
+             )
+           )],
+          [blank(64),
+           para("We'll look at two block ciphers:").pad(~left: -16),
+           blank(),
+           @para{@defterm{Data Encryption Standard (DES)}: older, broken at original key size},
+           blank(),
+           @para{@defterm{Advanced Encryption Standard (AES)}: newer, very widely used}]
+        )
       ))
 
 block:
@@ -190,8 +204,8 @@ block:
           @para{Three main components:}.pad(~left: -32),
           @item{@defterm{Key schedule} generated PRNG-like from the key},
           slide.center(@para{@key @spc ⇒ @spc @Kt(0), @Kt(1), @Kt(2), ... @Kt(15)}),
-          @item{16 rounds of @italic{Feistal structure} mixing with key schedule as input},
-          @item{Feistal function @(@romanly{F}.colorize(alg_color)) to implement mixing}
+          @item{16 rounds of @italic{Feistel structure} mixing with key schedule as input},
+          @item{Feistel function @(@romanly{F}.colorize(alg_color)) to implement mixing}
         ),
         slide.right(@para{Following pictures are based on @tt{https://en.wikipedia.org/wiki/Data_Encryption_Standard}}
                       .scale(0.5)
@@ -577,8 +591,6 @@ slide(~title: "DES Feistel Structure",
         )
       ))
 
-start_at_recent()
-
 slide(~title: "DES Feistel Structure",
       block:
         let p:
@@ -587,7 +599,7 @@ slide(~title: "DES Feistel Structure",
                  stack(feistel_in(ciphertext, "ciphertext"),
                        feistel(0, ~k: 15),
                        feistel(1, ~k: 14),
-                       feistel(15, ~k: 1, ~skip_head: 1),
+                       feistel(15, ~k: 0, ~skip_head: 1),
                        feistel(16, ~k: 0, ~head_only: #true),
                        feistel_out(plaintext, "plaintext"))).scale(0.65)
         switch(
@@ -762,7 +774,7 @@ slide(~title: "AES",
             @para{different PRNG-like generator}),
         but(@item{11, 13, or 15 rounds of mixing using key schedule as input},
             @para{different mixing function}),
-        but(@item{Reversible mixing function @(@romanly{R}.colorize(alg_color)) (instead of Feistal structure)},
+        but(@item{Reversible mixing function @(@romanly{R}.colorize(alg_color)) (instead of Feistel structure)},
             @para{includes @beside.baseline(xor, @t{}) of key from schedule})
       ))
 

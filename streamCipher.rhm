@@ -163,7 +163,7 @@ slide(~title: "Stream Cipher",
             let (rx, _) = Find.left(z2).in(p)
             let (xorx, _) = Find.left(xor_op1).in(p)
             let (eqlx, _) = Find.left(eql1).in(p)
-            fun fade(p :~ Pict): p.colorize("lightgray") // p.alpha(0.3)
+            fun fade(p :~ Pict): p.alpha(0.3)
             fun blue(p :~ Pict): p.colorize("blue")
             fun red(p :~ Pict): p.colorize("red")
             fun make_translate(dx): fun (p :~ Pict): p.translate(dx, 0)

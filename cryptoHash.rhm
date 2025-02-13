@@ -85,7 +85,7 @@ fun integrity_slide(options :~ OptMap) :~ OptMap:
         cond
         | options[#'mallory]:
             add_note(medium,
-                     @para{Any stream of bytes decypts as @italic{something}})
+                     @para{Any stream of bytes decrypts as @italic{something}})
         | options[#'key2]:
             add_note(medium.sustain(),
                      lines(@para{Putting the key @key2 in just one place},
@@ -350,6 +350,7 @@ block:
   let w = 600
   let lw = 3    
   let needpad = 30
+  let md5_constant_color = "lightgreen"                    
   let message = overlay(blank(~width: w - 2*textpad - needpad), @t{plaintext})
   let chunks :~ List:
     fun mk(needpad) :~ Pict:
@@ -378,19 +379,108 @@ block:
     let chain = beside(& for List (i: 0..8): beside(right, F), right)
     let chain = beside(iv, chain).refocus(chain)
     let chain = beside(chain,
+                       #//
                        rectangle(~around: @t{finalize}.pad(5),
                                  ~fill: alg_box_color,
                                  ~line: #'inherit),
+                       #//
                        right,
                        ciphertext(@t{hash})).refocus(chain)
     stack(p,
           beside(~sep: w / 8, & for List (i: 0..8): down),
           chain
           )
+  let F = rectangle(~around: @romanly{F@subscript{i}}.pad(~top: 3, ~horiz: 5), ~fill: "lightgreen", ~line: #'inherit)
+  let K = rectangle(~around: @romanly{K@subscript{i}}.pad(~top: 3, ~horiz: 5), ~fill: "lightgreen", ~line: #'inherit)
+  let G = rectangle(~around: @romanly{G@subscript{i}}.pad(~top: 3, ~horiz: 5), ~fill: "lightgreen", ~line: #'inherit)
+  let plus = rectangle(~around: @t{ + }, ~fill: "white", ~line: #'inherit)
+  let overall_m:
+    fun make_m(i):
+      rectangle(~around: @romanly{M@subscript{@(to_string(i))}}.pad(5), ~fill: Color(alg_box_color).scale(2.4), ~line: #'inherit)
+    let m0 = make_m(0)
+    let m1 = make_m(1)
+    let m2 = make_m(2)
+    let m3 = make_m(3)
+    let m62 = make_m(62)
+    let m63 = make_m(63)
+    let dy = 32
+    let asize = 12
+    let xlw = 2
+    let dots = @tt{...}
+    let m_sep = 64
+    let ms = beside(~sep: m_sep, m0, m1, m2, m3, dots, m62, m63).pad(~bottom: 2 * dy)
+    let in_pip = blank()
+    let m = overlay.top(rectangle(~around: ms.pad(~top: 96, ~bottom: 16, ~horiz: 32, ~right: 64),
+                                  ~fill: Color(alg_box_color).scale(1.4),
+                                  ~line: #'inherit),
+                        block:
+                          let m = @romanly{M}.pad(~top: 4)
+                          beside(~sep: 16, in_pip, m).refocus(m))
+    fun incoming(m, mi, ~line_width = xlw, ~start = #false, throw) :~ Pict:
+      connect(~on: m,
+              if start | Find(in_pip, ~dy: -64) | Find(in_pip),
+              if start | Find(in_pip) | Find.top(mi),
+              ~start_angle: -1/2 * pi,
+              ~start_pull: 0.2 + (0.05 * throw),
+              ~end_angle: -1/2 * pi,
+              ~line: "brown",
+              ~line_width: line_width,
+              ~style: if start | #'line | #'arrow,
+              ~arrow_size: asize)
+    let m = incoming(m, #false, ~start: #true, ~line_width: lw, 0)
+    fun add_plus(m, mi, throw, ~at_end = #false) :~ values(Pict, Pict):
+      let m = incoming(m, mi, throw)
+      let p = plus.scale(0.75).launder()     
+      let m = pin(~on: m,
+                  ~at: Find.right(mi, ~dx: m_sep/ 2),
+                  ~pinhole: Find(p),
+                  p)
+      let m = connect(~on: m,
+                      Find.left(mi, ~dx: -16),
+                      Find.bottom(p),
+                      ~start_angle: -1/2 * pi,
+                      ~start_pull: 0.5,
+                      ~end_angle: 1/2 * pi,
+                      ~line: "blue",
+                      ~line_width: xlw,
+                      ~style: #'arrow,
+                      ~arrow_size: asize)
+      values(m, p)
+    fun link(m, f, t, ~line_width = xlw, ~at_start = #false) :~ Pict:
+      connect(~on: m,
+              if f is_a Find | f | Find.right(f),
+              if t is_a Find | t | Find.left(t),
+              ~start_angle: at_start && -1/2 * pi,
+              ~end_angle: at_start && 0,
+              ~line: "blue",
+              ~line_width: line_width,
+              ~style: #'arrow,
+              ~arrow_size: asize)
+    fun links(m, fts :~ List) :~ Pict:
+      for values(m = m) ([from, to] in fts):
+        link(m, from, to)
+    let (m, p0) = add_plus(m, m0, 0)
+    let (m, p1) = add_plus(m, m1, 1)
+    let (m, p2) = add_plus(m, m2, 2)
+    let (m, p3) = add_plus(m, m3, 3)
+    let (m, p62) = add_plus(m, m62, 1)
+    let (m, p63) = add_plus(m, m63, ~at_end: #true, 0)
+    let m = links(m, [[m0, p0], [m1, p1], [m2, p2], [m3, p3], [dots, m62], [m62, p62], [m63, p63],
+                      [p0, m1], [p1, m2], [p2, m3], [p62, m63]])
+    #//
+    let m = pin(~on: m, ~at: Find.right(p3, ~dx: 32), ~pinhole: Find.left(dots), dots)
+    let m = link(m, p3, dots)
+    #//
+    let m = link(m, Find.right(p62, ~dx: -64), p62)
+    #//
+    let m = link(m, Find.left(m0, ~dx: -18), p0, ~at_start: #true)
+    let m = link(m, Find.left(m0, ~dx: -64), m0, ~line_width: lw)
+    let m = link(m, p63, Find.right(p63, ~dx: 48), ~line_width: lw)
+    m.pad(~top: 100)
   let f_box :~ Pict:
     fun piece(a, n) :~ Pict:
       rectangle(~around: @romanly{@a@subscript(to_string(n))}, ~width: message.height * 1.5, ~height: message.width / 6,
-                ~fill: "lightblue", ~line: "blue")
+                ~fill: "lightblue", ~line: "blue", ~refocus: #false)
     let A = piece("A", "i")
     let B = piece("B", "i")
     let C = piece("C", "i")
@@ -403,7 +493,6 @@ block:
     let BG = B1.ghost().launder()
     let CG = C1.ghost().launder()
     let DG = D1.ghost().launder()
-    let plus = rectangle(~around: @t{ + }, ~fill: "white", ~line: #'inherit)
     let plus1 = plus.launder()
     let plus2 = plus.launder()
     let plus3 = plus.launder()
@@ -411,13 +500,12 @@ block:
     let in = stack(A, B, C, D)
     let out = beside(stack(AG, BG, CG, DG),
                      stack(A1, B1, C1, D1))
-    let F = rectangle(~around: @romanly{F@subscript{i}}.pad(~top: 3, ~horiz: 5), ~fill: "lightgreen", ~line: #'inherit)        
-    let K = rectangle(~around: @romanly{K@subscript{i}}.pad(~top: 3, ~horiz: 5), ~fill: "lightgreen", ~line: #'inherit)        
     let step1 = overlay.top(stack(~sep: 16,
                                   plus.pad(~top: (A.height - plus.height) / 2),
                                   F),
                             in.ghost().launder())
     let pplus1 = plus1.pad(~top: (A.height - plus1.height) / 2, ~horiz: 16)
+    let pplus1 = stack(~sep: -8, G, pplus1).refocus(pplus1)
     let pplus2 = stack(~sep: 16,
                        plus2.pad(~top: (A.height - plus2.height) / 2, ~horiz: 16),
                        K)
@@ -433,6 +521,8 @@ block:
       connect(~on: p, Find.right(f), Find.left(t), ~line: col, ~line_width: lw, ~style: #'arrow)
     fun valink (p, f, t, col) :~ Pict:
       connect(~on: p, Find.top(f), Find.bottom(t), ~line: col, ~line_width: lw, ~style: #'arrow, ~arrow_size: 8)
+    fun vxalink (p, f, t, col) :~ Pict:
+      connect(~on: p, Find.bottom(f), Find.top(t), ~line: col, ~line_width: lw, ~style: #'arrow, ~arrow_size: 8)
     fun fxlink (p, f, col, dx, F):
       let (_, y0) = Find.center(f).in(p)
       let (x, y) = Find.bottom(F).in(p)
@@ -443,7 +533,7 @@ block:
     fun incoming(p, f :~ Find, color, fx, fy, tx, ty):
       let (x, y) = f.in(p)
       connect(~on: p, Find.abs(x+fx, y+fy), Find.abs(x+tx, y+ty), ~line: color,
-              ~line_width: lw, ~style: #'arrow)
+              ~line_width: 2 * lw, ~style: #'arrow)
     let dA = 32
     let dB = 32
     let dC = 32
@@ -467,14 +557,15 @@ block:
     let alg = alink(alg, plus2, shift, cA)
     let alg = alink(alg, shift, plus3, cA)
     let alg = valink(alg, F, plus, cA)
+    let alg = vxalink(alg, G, plus1, cA)
     let alg = valink(alg, K, plus2, cA)
-    let alg = rectangle(~around: alg.pad(~top: 32, ~bottom: 16, ~horiz: 32), ~fill: Color(alg_box_color).scale(1.4), ~line: #'inherit)
+    let alg = rectangle(~around: alg.pad(~top: 48, ~bottom: 16, ~horiz: 32), ~fill: Color(alg_box_color).scale(2.4), ~line: #'inherit)
     let alg = incoming(alg, Find.left(in), "blue", -64, 0, 0, 0)
     let alg = incoming(alg, Find.right(out), "blue", 0, 0, 64, 0)
-    let alg = incoming(alg, Find.top(plus1), "brown", 0, -96, 0, 0)
+    let alg = incoming(alg, Find.top(G), "brown", 0, -48, 0, 0)
     let alg = overlay.top(alg, @romanly{M@subscript{i}}.pad(~top: 8))
     let alg = alg.scale(0.75).pad(32)
-    beside.top(~sep: 16, @para{@M is 64 of}, alg).refocus(alg)
+    beside.top(~sep: 16, @para{@M contains 64 of}, alg).refocus(alg)
   fun note_chunk(p):
     balloon.pin(~on: p,                
                 ~at: Find.top(chunks[0]),
@@ -490,6 +581,13 @@ block:
                 ~at: Find.top(iv),
                 ~spike: #'se,
                 @para{128 bits})
+  fun note_fixed_init(p):
+    balloon.pin(~on: p,                
+                ~at: Find.bottom(iv),
+                ~spike: #'n,
+                ~sprout: 0.2,
+                ~fill: md5_constant_color,
+                @tt{0x67452301efcdab8998badcfe10325476}.time_clip())
   let noted = note_pad(note_chunk(beside(& chunks, pad_chunk)))
   slide(
     ~title: "MD5",
@@ -498,11 +596,48 @@ block:
       note_chunk(beside(& chunks, need_pad)),
       noted,
       md5(noted),
-      note_state(md5(noted))
+      note_state(md5(noted)),
+      note_fixed_init(note_state(md5(noted)))
     ),
     slide.next,
-    f_box.pad(~bottom: -96).translate(0, 48)
+    block:
+      let p = f_box.pad(~bottom: -96).translate(0, 48)
+      let B = @romanly{B@subscript{i}}
+      let C = @romanly{C@subscript{i}}
+      let D = @romanly{D@subscript{i}}
+      fun at (s, e, f):
+        let p = @t{@romanly{F@subscript{@(to_string(s))}} to @romanly{F@subscript{@(to_string(e))}}}
+        stack.left(~sep: -4, p.scale(0.75), f)
+      slide.alts(
+        overall_m,
+        p,
+        balloon.pin(~on: p,
+                    ~at: Find.top(G),
+                    ~spike: #'sw,
+                    ~fill: md5_constant_color,
+                    stack.right(~sep: current_line_sep(),
+                                @para{Picks 32-bit word within 64-bit chunk},
+                                @para{Count by 1, then 5, then 3, then 7}.scale(0.75))),
+        balloon.pin(~on: p,
+                    ~at: Find.bottom(F),
+                    ~spike: #'nw,
+                    ~fill: md5_constant_color,
+                    lines(table([[at(0, 15, @romanly{(@B ∧ @C) ∨ (¬@B ∧ @D)}),
+                                  at(16, 31, @romanly{(@B ∧ @C) ∨ (@C ∧ ¬@D)})],
+                                 [at(32, 47, @romanly{@B ⊕ @C ⊕ @D}),
+                                  at(48, 63, @romanly{@C ⊕ (@B ∨ ¬@D)})]],
+                                ~hsep: 64,
+                                ~vsep: 16).pad(~left: 16))),
+        balloon.pin(~on: p,
+                    ~at: Find.bottom(K),
+                    ~spike: #'nw,
+                    ~fill: md5_constant_color,
+                    @para{@romanly{abs(sin(i)) × 2@superscript{32}}}),
+        overall_m
+      )
   )
+
+start_at_recent()
 
 def alice_pw = @tt{d8ef3b7d2e6a8}
 def carol_pw = @tt{a6fdb8307dbc0}
