@@ -616,7 +616,7 @@ block:
                     ~spike: #'sw,
                     ~fill: md5_constant_color,
                     stack.right(~sep: current_line_sep(),
-                                @para{Picks 32-bit word within 64-bit chunk},
+                                @para{Picks 32-bit word within 512-bit chunk},
                                 @para{Count by 1, then 5, then 3, then 7}.scale(0.75))),
         balloon.pin(~on: p,
                     ~at: Find.bottom(F),
@@ -636,8 +636,6 @@ block:
         overall_m
       )
   )
-
-start_at_recent()
 
 def alice_pw = @tt{d8ef3b7d2e6a8}
 def carol_pw = @tt{a6fdb8307dbc0}
