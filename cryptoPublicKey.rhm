@@ -111,6 +111,7 @@ slide(~title: "Communication with Shared Secrets",
         slide.next,
         blank(),
         @para{How do Alice and Bob get a shared secret in the first place?},
+        slide.next,
         blank(),
         para(@{It turns out that it's possible to turn private secrets},
              @{into a shared secret through a @italic{public} conversation!})
@@ -122,8 +123,15 @@ slide(~title: public_key_title,
       slide.align(
         @para{Two widely used algorithms to create shared secrets:},
         blank(),
-        @item{@defterm{Diffie-Hellman}},
-        @item{@defterm{RSA}},
+        @item{@beside(@defterm{Diffie-Hellman}, @(@defterm{-Merkel}.alpha(0.5).time_pad(~before: 1)))},
+        block:
+          fun expand(s):
+            let p = defterm(s).alpha(0.5)
+            switch(p.scale(0), animate(fun (n): p.scale(n)).sustain())
+          let p = @defterm{R@expand{ivest-}S@expand{hamir-}A@expand{delman}}
+          let q = @defterm{X}.ghost()
+          let p = overlay.top_left(p, q).refocus(q)
+          @item{@p},
         blank(),
         para(@{Both from the 1970s with similar capabilities---but different immediate uses, and RSA dominates for historical},
              @{and commercial reasons})
@@ -294,7 +302,7 @@ fun paint_slide(options :~ OptMap) :~ OptMap:
   let brown_can2 = numbers(brown_can0.launder(),
                            table(~hsep: 8,
                                  ~vsep: 12,
-                                 [[@romanly{@XAP@subscript{@AP}@superscript{@BP} mod @pP}, @roman{=}, blank()],
+                                 [[@romanly{@XAP@superscript{@BP} mod @pP}, @roman{=}, blank()],
                                   [@romanly{@s(XAv)@superscript{@s(Bv)} mod @s(pv)}, @roman{=}, @goal(@romanly{@s(S2)})]]),
                            #'right)
   let orange_can = numbers(orange_can0,
@@ -602,6 +610,8 @@ slide(~title: "Internet Key Exchange (IKE)",
       15728E5A 8AACAA68 FFFFFFFF FFFFFFFF
       })
 
+slide(@para{See @tt{dh.py}})
+
 fun try_dh():
   def IKE_group_14:
     ["FFFFFFFF", "FFFFFFFF", "C90FDAA2", "2168C234", "C4C6628B",
@@ -705,7 +715,7 @@ fun alice_and_bob_pki(options :~ OptMap) :~ Pict:
 
 fun pki_slide(options :~ OptMap) :~ OptMap:
   let idea:
-    @lines(@para{General idea is that secrets come in pairs:}
+    @lines(@para{General idea is that keys come in pairs:}
            @para{@spc private @no_priv @spc and  @spc public @no_pub})
   let idea:
     if options[#'decrypt]
@@ -857,6 +867,19 @@ fun rsa_slide(options :~ OptMap) :~ OptMap:
                           ~spike: #'nw,
                           @para{Factoring out @pP and @qP is infeasible})
             | p,
+          block:
+            let x = @romanly{@italic{x}}
+            let eql = @roman{=}
+            let formula = @romanly{@x@superscript{@dP@eP} mod @NP @eql @x}
+            let p = @para{Then @formula for any @x < @NP}
+            let p:
+              if options[#'proof]
+              | balloon.pin(~on: p,
+                            ~at: Find.bottom(eql),
+                            ~spike: #'n,
+                            @para{Proof by Euler's theorem or Fermat's little theorem})
+              | p
+            p.ghost(!options[#'theorem]),
           blank(),
           beside(~sep: 128,
                  stack(~sep: 32,
@@ -864,7 +887,7 @@ fun rsa_slide(options :~ OptMap) :~ OptMap:
                        @romanly{@red_pub @XAP = ⟨@eP, @NP⟩}).ghost(!options[#'keys]),
                  stack(~sep: 32,
                        block:
-                         let p: @roman{@pt_i@superscript{@dP} mod @NP = @ct_i}
+                         let p: @roman{@pt_i@superscript{@eP} mod @NP = @ct_i}
                          if options[#'bits]
                          | balloon.pin(~on: p,
                                        ~at: Find.top(pt_i),
@@ -872,7 +895,7 @@ fun rsa_slide(options :~ OptMap) :~ OptMap:
                                        ~sprout: 0.5,
                                        @para{@(k)-bit chunk of message})
                          | p,
-                       @roman{@ct_i@superscript{@eP} mod @NP = @pt_i}).ghost(!options[#'use]))
+                       @roman{@ct_i@superscript{@dP} mod @NP = @pt_i}).ghost(!options[#'use]))
         ))
   options
 
@@ -883,9 +906,13 @@ let aside_options = rsa_slide(options ++ { #'relatively_prime_easy })
 let options = rsa_slide(options ++ { #'derive })
 let aside_options = rsa_slide(options ++ { #'mod_inverse })
 let aside_options = rsa_slide(options ++ { #'factoring })
+let options = rsa_slide(options ++ { #'theorem })
+let aside_options = rsa_slide(options ++ { #'proof })
 let options = rsa_slide(options ++ { #'keys })
 let options = rsa_slide(options ++ { #'use })
 let options = rsa_slide(options ++ { #'bits })
+
+slide(@para{See @tt{rsa.py}})
 
 slide(~title: "RSA versus a Block Cipher",
       slide.align(

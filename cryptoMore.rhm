@@ -1,6 +1,7 @@
 #lang rhombus/static/and_meta
 import:
   rhombus/runtime_path
+  pict/rhombus open
   slideshow open
   "common.rhm" open
   "crypto.rhm"!key open
@@ -460,7 +461,180 @@ slide(~title: "Summary",
       slide.align(
         @para{@defterm{Elliptic key cryptography} is an alternative to the traditional number-theory choice of encoding},
         @para{Same protocol as Diffie-Hellman ⇒ @defterm{ECDH}}.pad(~left: 32),
-        blank(),
+        blank(50),
         @para{There are several @defterm{modes of operation} possible for block ciphers},
         @para{@defterm{Galois/counter (GCM)} is a good choice}.pad(~left: 32)
       ))
+
+fun ideal_group(e, ...):
+  stack.left(~sep: slide.gap,
+             e,
+             ...)
+
+def ideal_one_way = rhombus(one_way(a: int, b: int) -> int)
+def ideal_inverse_pair = rhombus(inverse_pair(key: int) -> tuple[int, int])
+
+def ideal_core:
+  ideal_group(
+    rhombus(random() -> int),
+    ideal_one_way,
+    ideal_inverse_pair,
+  )
+
+def ideal_arith:
+  ideal_group(
+    rhombus(plus(a: int, b: int) -> int),
+    rhombus(times(a: int, b: int) -> int),
+    rhombus(xor(a: int, b: int) -> int)
+  )
+
+def ideal_net:
+  ideal_group(    
+    rhombus(broadcast(from: str, to: str, message: int) -> None),
+    rhombus(receive(from: str, to: str) -> int)
+  )
+
+def ideal_run:
+  ideal_group(    
+    rhombus(run(proc: Callable[[], None], ...) -> None)
+  )
+
+block:
+  let p:
+    stack.left(
+      ~sep: slide.gap,
+      ideal_core,
+      blank(),
+      ideal_arith,
+      blank(),
+      ideal_net,
+      blank(),
+      ideal_run
+    )
+  fun hilite(p :~ Pict):
+    rectangle(~around: p.pad(5), ~refocus: p, ~fill: "yellow")
+  fun annote(ideal :~ Pict, note :~ Pict, spike):
+    let (x, y) = Find(note).in(overlay.right(p, note))
+    let (tx, ty) = Find.left(ideal).in(p)
+    balloon.pin(~on: p.replace(ideal, hilite(ideal)),
+                ~at:
+                  match spike
+                  | #'w: Find.right(ideal)
+                  | #'nw: Find.bottom_right(ideal, ~dx: 700 - ideal.width)
+                  | #'sw: Find.top_right(ideal, ~dx: 700 - ideal.width),
+                note,
+                ~spike: spike,
+                ~dy:
+                  match spike
+                  | #'w: 0
+                  | #'nw: (ty - y) + ideal.height
+                  | #'sw: (ty - y) - note.height)
+
+  let title = "Idealized Crypto Library"
+    
+  slide(~title: title,
+        slide.alts(
+          p,
+          annote(ideal_core,
+                 lines(@para{``Magic'' functions on},
+                       @para{N-bit integers}),
+                 #'nw),
+          annote(ideal_arith,
+                 lines(@para{Just arithmetic,},
+                       @para{but modulo 2@superscript{N}}),
+                 #'w),
+          annote(ideal_net,
+                 lines(@para{Simplified networking,},
+                       @para{no private messages}),
+                 #'sw),
+          annote(ideal_run,
+                 lines(@para{Helper to run examples,},
+                       @para{one proc per participant}),
+                 #'sw)
+        ))
+
+  slide(~title: title,
+        block:
+          let p:
+            stack.left(
+              ~sep: slide.gap,
+              ideal_one_way,
+              stack.left(
+                ~sep: slide.gap,
+                @para{Takes two N-bit integers and returns another N-bit integer},
+                @para{No way to go backwards, unless @rhombus(a) or @rhombus(b) known to be @rhombus(1)},
+                @para{Commutative and associative},
+                @para{@rhombus(ideal_one_way(1, a)) = @rhombus(a) for any @rhombus(a)}            
+              ).pad(~left: 40),
+              blank(),
+              ideal_inverse_pair,
+              stack.left(
+                ~sep: slide.gap,
+                @para{Returns @rhombus(a) and @rhombus(b) such that @rhombus(one_way(a, b)) = @rhombus(1)},
+                @para{Implies that @rhombus(one_way(one_way(c, a), b)) = @rhombus(c)},
+                @para{Same @rhombus(key) ⇒ same @rhombus(a) and @rhombus(b)}
+              ).pad(~left: 40),
+            ).pad(~right: 200)
+          slide.alts(
+            p,
+            overlay.right(p,
+                          balloon.note(stack.left(
+                                         ~sep: slide.gap,
+                                         lines(@para{Idealized, because},
+                                               @para{this combination is},
+                                               @italic{too good to be true}),
+                                         @blank(),
+                                         lines(@para{Implementation colludes},
+                                               @para{behind the scenes},
+                                               @para{to create this illusion},
+                                               @para{within a single process}).scale(0.8)))
+                            .pad(~right: -130))
+          )            
+        )
+
+slide(~title: "PRNG Example",
+      @rhombusblock(
+        def make_prng(key):
+          state = key
+          def next():
+            nonlocal state
+            state = state + 1
+            return one_way(state, key)
+          return next
+
+        my_next = make_prng(42)
+        my_next()
+        my_next()
+      ))
+
+slide(~title: "Stream Cipher Example",
+      @rhombusblock(
+        def a_stream_cipher_send(key):
+          my_next = make_prng(key)
+
+          plaintexts = [1, 2, 3, 4, 5, 6]
+
+          broadcast("alice", "bob", xor(len(plaintexts), my_next()))
+    
+          for plaintext in plaintexts:
+            broadcast("alice", "bob", xor(plaintext, my_next()))
+
+
+        def b_stream_cipher_receive(key):
+          my_next = make_prng(key)
+
+          cipher_n = receive("alice", "bob")
+          n = xor(cipher_n, my_next())
+
+          for i in range(0, n):
+            cipher_v = receive("alice", "bob")
+            print(xor(cipher_v, my_next()))
+
+
+        run(lambda: a_stream_cipher_send(79),
+            lambda: b_stream_cipher_receive(79))
+      ).scale(0.6))
+
+start_at_recent()
+
+      
