@@ -14,7 +14,7 @@ import:
   "authentication.rhm"!more_keys open
   "layout.rhm" open
 
-socket_slides.layers_slides({ #'layers_ssl: #true })
+socket_slides.layers_slides({ #'layers_tls: #true })
 
 slide(~title: "Transport Layer Security",
       slide.align(
@@ -440,6 +440,8 @@ slide(~title: "TLS History",
              [@bold{TLS 1.1}, @t{2006}, @bad{deprecated (2021)}],
              [@bold{TLS 1.2}, @t{2008}, @ok{discouraged}],
              [@bold{TLS 1.3}, @t{2018}, @good{current}]]).pad(~left: 150))
+
+slide(@italic{Check connection details for some web sites})
 
 slide(~title: "Summary",
       slide.align(

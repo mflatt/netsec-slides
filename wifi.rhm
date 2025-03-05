@@ -35,7 +35,7 @@ slide(~title: "Wi-Fi Security",
         @para{Wi-Fi security encrypts frames that your machine broadcasts},
         slide.next,
         blank(),
-        lines(@para{But in motivating SSL, IPsec, and similar, we have assumed that},
+        lines(@para{But in motivating TLS, IPsec, and similar, we have assumed that},
               @para{packets are public, anyway...}),
         slide.next,
         blank(),
@@ -245,6 +245,15 @@ fun wep_slide(options :~ OptMap) :~ OptMap:
         | p
       p
     | p
+  let p:
+    if options[#'iv_plaintext] && !options[#'bits]
+    | balloon.pin(~on: p,
+                  ~at: Find.bottom(iv_p),
+                  ~spike: #'n,
+                  ~sprout: 0.2,
+                  ~dy: -30,
+                  @para{Plain text, so everyone with @key can decrypt!})
+    | p
   let p :~ Pict:
     if options[#'bits]
     | let p:
@@ -266,7 +275,7 @@ fun wep_slide(options :~ OptMap) :~ OptMap:
   let p:
     if options[#'repeat]
     | overlay.right_top(p,
-                        balloon.note(lines(@para{Only 12 bits of key vary per frame},
+                        balloon.note(lines(@para{Only 24 bits of key vary per frame},
                                            @para{⇒ repeat is likely after 12,000 frames})))
     | p
   slide(~title: "WEP",
@@ -280,6 +289,8 @@ let options = wep_slide(options ++ { #'crc })
 let options = wep_slide(options ++ { #'crc_enc })
 let options = wep_slide(options ++ { #'packet })
 let options = wep_slide(options ++ { #'iv_packet })
+let options = wep_slide(options ++ { #'iv_plaintext })
+start_at_recent()
 let options = wep_slide(options ++ { #'bits })
 let options = wep_slide(options ++ { #'repeat })
 
@@ -383,6 +394,17 @@ let aside_options = wpa_slide(options ++ { #'eap })
 let aside_options = wpa_slide(options ++ { #'go })
 let aside_options = wpa_slide(options ++ { #'personal })
 
+slide(~title: "Why Was WEP So Bad?",
+      slide.align(
+        @para{WEP was defined in @bold{1999}},
+        slide.right(
+          @para{a point in time where everyone certainly knew better!}.colorize("blue"),
+        ),
+        slide.next,
+        blank(50),
+        @para{Understanding @italic{why} WEP was made weak needs more historical context}
+      ))
+
 def govt_title = "Cryptography and Government"
 
 slide(~title: govt_title,
@@ -393,7 +415,7 @@ slide(~title: govt_title,
         blank(),
         slide.next,
         @para{Some ways this has played out:},
-        @item{DES and the ensuring controversy, leading to AES},
+        @item{DES and the ensuing controversy, leading to AES},
         @item{The @defterm{Clipper chip} design of 1993-1996},
         @item{The Snowden revelations of 2013}
       ))

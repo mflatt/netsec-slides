@@ -16,15 +16,17 @@ module ~early socket_slides ~lang rhombus/static:
   def layers_title = "Network Layers"
 
   def socket = italic("socket")
+  def tls_name = @t{TLS}
 
-  fun my_layers(n, m, ~top = #false):
+  fun my_layers(n, m, ~top = #false, overall_options :~ Map):
     let [l0, [name, ex, intf], li, ...] = layers.make()
     let l1 = [name, ex, socket]
+    let SSL = if overall_options.get(#'layers_tls, #false) | tls_name | "SSL"
     let l :~ List = (if m > 0
                      | fun adj(s): t(s).scale(m)
                        let [name0, ex0, intf0] = l0
                        [[overlay(t(name0).ghost(), t("program")), ex0, intf0],
-                        ["library", "SSL, HTML, QUIC, ...", italic("object")].map(adj),
+                        ["library", beside.baseline(@para{@SSL}, @para{, HTML, QUIC, ...}), italic("object")].map(adj),
                         l1, li, ...]
                      | [l0, l1, li, ...])
     let p = layers.pict(l, ~interfaces: n)
@@ -35,7 +37,7 @@ module ~early socket_slides ~lang rhombus/static:
               layers.pict(l.take(3), ~interfaces: 1))
     | p
 
-  def basic_layers = my_layers(1, 0, ~top: #true)
+  def basic_layers = my_layers(1, 0, ~top: #true, {})
 
   fun recap(p, options :~ Map):
     if options.get(#'recap, #false)
@@ -54,22 +56,30 @@ module ~early socket_slides ~lang rhombus/static:
       if #false
       | slide(~title: layers_title,
               slide.alts(
-                animate(fun (n): my_layers(n, 0)),
-                animate(fun (m): my_layers(1, m)),
-                animate(fun (m): my_layers(1, 1-m)).sustain()
+                animate(fun (n): my_layers(n, 0, overall_options)),
+                animate(fun (m): my_layers(1, m, overall_options)),
+                animate(fun (m): my_layers(1, 1-m, overall_options)).sustain()
               ))
       | slide(~title: layers_title,
-              animate(fun (n): my_layers(n, 0)))
+              animate(fun (n): my_layers(n, 0, overall_options)))
         slide(~title: layers_title,
-              animate(fun (m): my_layers(1, m)))
+              animate(fun (m): my_layers(1, m, overall_options)))
         slide(~title: layers_title,
-              if overall_options.get(#'layers_ssl, #false)
-              | my_layers(1, 1)
-              | animate(fun (m): my_layers(1, 1-m)).sustain())
+              if overall_options.get(#'layers_ssl, #false) || overall_options.get(#'layers_tls, #false)
+              | my_layers(1, 1, overall_options)
+              | animate(fun (m): my_layers(1, 1-m, overall_options)).sustain())
 
-    unless overall_options.get(#'layers_ssl, #false)
+    unless overall_options.get(#'layers_ssl, #false)|| overall_options.get(#'layers_tls, #false)
     | slide(~title: layers_title,
             recap(basic_layers, overall_options))
+    when overall_options.get(#'layers_tls, #false)
+    | let p = my_layers(1, 1, overall_options)
+      let p:
+        balloon.pin(~on: p,
+                    ~at: Find.bottom(tls_name),
+                    ~spike: #'nw,
+                    @para{Transport Layer Security})
+      slide(~title: layers_title, p)
 
   def ip_address = @italic{IP address}
   def port_number = @italic{port number}
@@ -652,7 +662,7 @@ fun data(s):
   lines(& recur loop (str :~ String = str) :~ List:
           if str.length() <= W
           | [tt(str)]
-          | loop(str.substring(0, W)) ++ loop(str.substring(W)))
+          | loop(str.substring(0, W)) ++ loop(str.substring(W..)))
 
 
 let actual_req = data("D\x1c\x12\x19\3\xa4\xcf\x99\x90D\xde\x86\xdd`\x07\x02\x00\x008\x11@&\x01"

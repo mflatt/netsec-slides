@@ -2,6 +2,7 @@
 import:
   rhombus/runtime_path
   slideshow open
+  pict/radial
   "common.rhm" open
   "crypto.rhm"!key open
   "cryptoPublicKey.rhm"!paint open
@@ -9,7 +10,7 @@ import:
   "cryptoMore.rhm"!counter_like open
   "blockCipher.rhm"!des_key_sched.key_sched_stack
   "blockCipher.rhm"!feistel.aes_stack
-
+  "delays.rhm"!network as delays
 
 module ~early more_keys ~lang rhombus/static/and_meta:
   import:
@@ -230,7 +231,7 @@ def rsa_keys = beside(~sep: 16,
 fun toolbox_slide(options :~ OptMap):
   let bn:
     @balloon.note(@para{Cryptographic algorithms need to mix these ingredients correctly})
-      .translate(0, 16)
+      .translate(0, 0)
       .ghost(!options[#'mix])
   slide(~title: "Cryptography Toolbox",
         table(~hsep: 64,
@@ -245,10 +246,10 @@ fun toolbox_slide(options :~ OptMap):
                                                               @roman{⇒}.pad(~bottom: 2),
                                                               @roman{x = y})],
                [@defterm{Diffie-Hellman}, paints, stack(@t{shared secret}, key)],
-               [@defterm{RSA}, rsa_keys, @t{authentication}]]),
+               [@defterm{RSA}, rsa_keys, @t{authentication}.pad(20)]]),
         if options[#'auth]
         | balloon.pin(~on: bn,
-                      ~at: Find.right_bottom(bn),
+                      ~at: Find.right_bottom(bn, ~dy: -36),
                       ~spike: #'w,
                       ~fill: "lightblue",
                       @lines(@para{... including for},
@@ -258,11 +259,13 @@ fun toolbox_slide(options :~ OptMap):
 
 toolbox_slide({})
 
+#//
 slide(~title: "Stream-Cipher-Like Forms Inside Block Ciphers",
       beside(~sep: 300,
              key_sched_stack({}),
              aes_stack()[#'aes]))
 
+#//
 slide(~title: "Block Cipher to Stream Cipher with Hashing",
       @balloon.note(@para{Galois/counter (GCM) uses three of our ingredients}),
       blank(64),
@@ -410,7 +413,7 @@ slide(~title: auth_title,
         blank(),
         @para{Some options:},
         @item{previously shared secret @key},
-        @item{previously acquired RSA @A_key and @B_key},
+        @para{@item{previously acquired RSA} @A_key and @B_key},
         slide.next,
         blank(64),
         @italic{For now, assume a previously shared @key}
@@ -422,6 +425,20 @@ def qeq:
   let eq = @roman{=}
   stack(~sep: -8, @roman{?}.scale(0.75), eq).refocus(eq)
                 
+fun bad_offer_slide(answer):
+  slide(~title: bad_auth_title,
+        ~layout: #'top,
+        convo(Action(@para{@key, @roman{R}}),
+              @romanly{@tt{Can you read @romanly{@(«Enc»)(@key, R)}?}}.scale(0.75),
+              Action(stack(~horiz: #'left,
+                           ~sep: current_line_sep(),
+                           key,
+                           @romanly{R = @(«Dec»)(@key, @(«Enc»)(@key, R))}.ghost(!answer))
+                       .refocus(key)),
+              & if answer | [@romanly{@romanly{R}}] | []))
+bad_offer_slide(#false)
+bad_offer_slide(#true)
+
 fun bad_challenge_slide(check):
   slide(~title: bad_auth_title,
         ~layout: #'top,
@@ -717,6 +734,105 @@ let options = certificate_slide(options ++ { #'def_chain })
 let options = certificate_slide(options ++ { #'root_cert })
 let options = certificate_slide(options ++ { #'keychain })
 
+runtime_path.def file_png: "images/file.png"
+def file_icon = bitmap(file_png).scale(0.15)
+
+block:
+  let arrow = radial.arrow(~fill: "forestgreen", ~length: 50)
+  slide(~title: "Getting a Certificate",
+        slide.align(
+          @para{How does a service provider obtain a certificate?},
+          blank(50),
+          slide.next,
+          @item{Some kinds of certificates: @bold{paperwork}},
+          slide.center(
+            beside(~sep: 60, file_icon, arrow, institution)
+          ),
+          slide.next,
+          blank(),
+          @item{Web sites: @boldly(@para{Let's Encrypt})},
+          slide.center(
+            beside(~sep: 60,
+                   radial.gear(~fill: "gray", ~width: 80),
+                   arrow,
+                   delays.server.scale(0.75))
+          )
+        ))
+
+block:
+  let server = delays.server.scale(0.75)
+  fun site(p, who) :~ Pict:
+    stack(p, tt(who)).refocus(p)
+  let site_name = "www.bob-bowl.com"
+  let bob = site(server, site_name)
+  let le = site(server, "letsencrypt.org")
+  let dns = site(server, "8.8.8.8")
+  let token = @tt{162435}.colorize("blue")
+  fun le_slide(options :~ OptMap) :~ OptMap:
+    let p:
+      stack(~sep: 200,
+            beside(~sep: 400, bob, le),
+            dns.ghost(!options[#'dns]))
+    let p:
+      if options[#'reply]
+      | connect(~on: p,
+                Find.left(le),
+                Find.right(bob),
+                ~style: #'arrow,
+                ~label: if options[#'cert]
+                        | certificate({#'certificate: #true},
+                                      ~who: @tt(site_name).scale(0.5).pad(~vert: 8)).pad(~bottom: -20)
+                        | @para{serve up @token})
+      | connect(~on: p,
+                Find.right(bob),
+                Find.left(le),
+                ~style: #'arrow,
+                ~label: stack(~sep: current_line_sep(), @t{cert for}, @tt(site_name)))
+    let p:
+      if options[#'dns]
+      | connect(~on: p,
+                Find.bottom(le, ~dy: @tt{x}.height),
+                Find.right_top(dns),
+                ~style: #'arrow,
+                ~label: let p = @tt{www.bob-bowl.com}
+                        let pip = blank()
+                        beside(pip, p).refocus(pip))
+      | p
+    let p:
+      cond
+      | options[#'cert]:
+          p
+      | options[#'valid]:
+          connect(~on: p,
+                  Find.right_top(bob),
+                  Find.left_top(le),
+                  ~start_angle: 1/8 * pi,
+                  ~end_angle: -1/8 * pi,
+                  ~style: #'arrow,
+                  ~label: token.translate(0, -30))
+      | options[#'query]:
+          connect(~on: p,
+                  Find.left_top(le),
+                  Find.right_top(bob),
+                  ~start_angle: 7/8 * pi,
+                  ~end_angle: -7/8 * pi,
+                  ~style: #'arrow,
+                  ~label: @para{@tt{http://www.bob-bowl.com/token}}.translate(0, -30))
+      | ~else:
+          p
+    slide(~title: titlely(@para{Getting a Certificate via Let's Encrypt}),
+          p)
+    options
+
+  let options = {}
+  let options = le_slide(options)
+  let options = le_slide(options ++ { #'reply })
+  let options = le_slide(options ++ { #'dns })
+  let options = le_slide(options ++ { #'query })
+  let options = le_slide(options ++ { #'valid })
+  let options = le_slide(options ++ { #'cert })
+  #void
+
 def more_bad_auth_title = "More Bad Authentication Ideas"
 
 slide(~title: more_bad_auth_title,
@@ -884,7 +1000,7 @@ let options = session_keys_slide(options ++ { #'resp })
 let aside_options = session_keys_slide(options ++ { #'session })
 let options = session_keys_slide(options ++ { #'compromise })
 
-slide(~title: "Session Keys with Prefect Forward Secrecy",
+slide(~title: "Session Keys with Perfect Forward Secrecy",
       block:
         let b_key_1 = b_key.launder()
         let p:
@@ -913,7 +1029,7 @@ slide(~title: "Session Keys with Prefect Forward Secrecy",
           balloon.pin(~on: p2,
                       ~at: Find.left(explain),
                       ~spike: #'e,                      
-                      @defterm{prefect forward secrecy (PFS)})
+                      @defterm{perfect forward secrecy (PFS)})
         ))
 
 slide(~title: "Summary",

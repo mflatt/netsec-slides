@@ -14,7 +14,7 @@ import:
 runtime_path.def tor_png: "images/tor.png"
 def tor_logo = bitmap(tor_png)
 
-slide(~title: "Authenticated and Secret Communication",
+slide(~title: "Authenticated and Confidential Communication",
       make_tls_packet(@italic{encrypted}),
       slide.next,
       blank(32),
@@ -27,16 +27,16 @@ slide(~title: "Authenticated and Secret Communication",
       blank(32),
       slide.align(
         @para{Addressing these problems requires a new protocol at the network layer},
-        @para{Since changing IP is not practical, that leaves @defterm{tunnelling} as an option}
+        @para{Since changing IP is not practical, that leaves @defterm{tunneling} as an option}
       ))
 
-slide(~title: "Earlier Tunnelling Example: IPv6 over IPv4",
+slide(~title: "Earlier Tunneling Example: IPv6 over IPv4",
       mixed_network({}))
 
-vitual_lan_slides({ #'title: "Earlier Tunnelling Example: VLAN over IP",
+vitual_lan_slides({ #'title: "Earlier Tunneling Example: VLAN over IP",
                     #'skip_to_end: #true })
 
-slide(~title: "Tunnels for Authenticated and Secret Communication",      
+slide(~title: "Tunnels for Authenticated and Confidential Communication",      
       slide.align(
         ~sep: 64,
         @para{Two prominent examples:}.pad(~left: -32),
@@ -141,6 +141,14 @@ fun vpn_pict(options :~ OptMap) :~ Pict:
                   ~dy: -64,
                   lines(@para{Connecting to the VPN gives},
                         @para{a host a virtual address}))
+    | p
+  let p:
+    if options[#'note_demo]
+    | stack(~sep: 150,
+            p,
+            balloon.note(~fill: "lightblue",
+                         @italic{see demo using department VPN}))
+        .refocus(p)
     | p
   let p:
     if options[#'intf]
@@ -288,6 +296,7 @@ let aside_options = vpn_slide(options ++ { #'vpn_server })
 let pre_packet_options = options ++ { #'virtual }
 let options = pre_packet_options
 let aside_options = vpn_slide(options ++ { #'connect })
+let aside_options = vpn_slide(aside_options ++ { #'note_demo })
 let aside_options = vpn_slide(options ++ { #'intf })
 let options = vpn_slide(options ++ { #'packet })
 let options = vpn_slide(options ++ { #'send_packet })
@@ -502,7 +511,7 @@ slide(~title: "Secure DNS",
 
 slide(~title: "Summary",
       slide.align(
-        lines(para(@{@defterm{Tunnelling} and layering TLS are general strategies}),
+        lines(para(@{@defterm{Tunneling} and layering TLS are general strategies}),
               @para{for adding security over existing networking layers}),
         blank(),
         para(@{@defterm{VPNs} use @defterm{IPSec}, which uses @defterm{IKE}}),

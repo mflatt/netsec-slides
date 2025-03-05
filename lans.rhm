@@ -718,16 +718,17 @@ let data_center:
 
 fun
 | steps([p, lbl], px): lbl(p)
-| steps([p :~ Pict, lbl], px, [p0, lbl0], p1, ...):
+| steps([p :~ Pict, lbl], px, [p0 :~ Pict, lbl0], p1, ...):
     let (l, t) = Find.top_left(px).in(p0)
     let (r, b) = Find.bottom_right(px).in(p0)
     let sc = (r - l) / p.width
     fun make_next(p :~ Pict) :~ Pict:
-      pin(~on: p0,
-          ~at: Find.top_left(px),
+      let (x, y) = Find.top_left(px).in(p0)
+      pin(~on: p0.launder(),
+          ~at: Find.abs(x, y),
           p.scale(sc),
           ~order: #'back)
-    let pg = p.ghost()
+    let pg = p.ghost().launder()
     let nextg = make_next(pg)
     let together = overlay(nextg, p)
     let (ol, ot) = Find.top_left(p).in(together)
@@ -750,30 +751,38 @@ fun
 fun label_rack(p): beside(~sep: 32,
                           p,
                           t("Server rack")).refocus(p)
-fun label_linked_rack(p): pin(~on: p,
-                              ~at: Find.top_right(switchbox, ~dx: 32),
-                              @t{Top of rack (TOR) switch})
-fun label_tier2(p): pin(~on: p,
-                        ~at: Find.top_right(t2_switchbox, ~dx: 32),
-                        @t{Tier-2 switch})
+fun label_linked_rack(p):
+  let (x, y) = Find.top_right(switchbox, ~dx: 32).in(linked_rack)
+  pin(~on: p,
+      ~at: Find.abs(x, y),
+      @t{Top of rack (TOR) switch})
+fun label_tier2(p):
+  let (x, y) = Find.top_right(t2_switchbox, ~dx: 32).in(tier2)
+  pin(~on: p,
+      ~at: Find.abs(x, y),
+      @t{Tier-2 switch})
 fun label_tier1(p):
   let t1 = @t{Tier-1 switch}
   let ac = @t{Access router}
   let lb = @t{Load balancer}
+  let (x, y) = Find.left(t1_switchbox, ~dx: -t1.width - 16, ~dy: -t1.height/2).in(tier1)
   let p = pin(~on: p,
-              ~at: Find.left(t1_switchbox, ~dx: -t1.width - 16, ~dy: -t1.height/2),
+              ~at: Find.abs(x, y),
               t1)
+  let (x, y) = Find.left(access_router, ~dx: -ac.width - 16, ~dy: -ac.height/2).in(tier1)
   let p = pin(~on: p,
-              ~at: Find.left(access_router, ~dx: -ac.width - 16, ~dy: -ac.height/2),
+              ~at: Find.abs(x, y),
               ac)
+  let (x, y) = Find.right(balancer, ~dx: 16, ~dy: -lb.height/2).in(tier1)
   let p = pin(~on: p,
-              ~at: Find.right(balancer, ~dx: 16, ~dy: -lb.height/2),
+              ~at: Find.abs(x, y),
               lb)
   p
 fun label_data_center(p):
   let br = @t{Border router}
+  let (x, y) = Find.right(border_router, ~dx: 16, ~dy: -br.height/2).in(data_center)
   let p = pin(~on: p,
-              ~at: Find.right(border_router, ~dx: 16, ~dy: -br.height/2),
+              ~at: Find.abs(x, y),
               br)
   p
 
@@ -920,7 +929,7 @@ module ~early vlan ~lang rhombus/static:
     slide(
       ~title: options[#'title] || "Virtual LAN",
       (if options[#'skip_to_end]
-       | (fun (&args): slide.alts(& args.take(2)))
+       | (fun (&args): slide.alts(& args.take_last(2)))
        | slide.alts)(
         slide.align(
           ~horiz: #'left,
