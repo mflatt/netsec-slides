@@ -288,14 +288,15 @@ fun filesystem(p :~ Pict) :~ Pict:
       p)
 
 fun make_tree(root :~ Pict, children :~ List, ~slice = #false) :~ Pict:
+  let pip = blank()
   let p:
     stack(~sep: 48,
-          root,
+          overlay.bottom(root, pip),
           beside.top(~sep: 32, & children))
   let p :~ Pict:
     for values(p = p) (c: children):
       connect(~on: p,
-              Find.bottom(root),
+              Find.bottom(pip),
               Find.top(c),
               ~line_width: 2)
   if slice

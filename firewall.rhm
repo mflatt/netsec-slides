@@ -7,17 +7,23 @@ import:
   "delays.rhm"!network as delays
 
 runtime_path.def bricks_png: "images/bricks.png"
+runtime_path.def less_bricks_png: "images/less-bricks.png"
 runtime_path.def router_png: "images/router.png"
 runtime_path.def laptop_png: "images/laptop.png"
+runtime_path.def ubuntu_vm_png: "images/ubuntu-vm.png"
+runtime_path.def host_terminal_png: "images/host-terminal.png"
 
 def bricks = bitmap(bricks_png).scale(0.4)
+def less_bricks = bitmap(less_bricks_png).scale(0.4)
+def ubuntu_vm = bitmap(ubuntu_vm_png).scale(0.1)
+def host_terminal = bitmap(host_terminal_png).scale(0.1)
 
 def laptop = delays.laptop.scale(0.5)
 def router = delays.router.scale(0.5)
 def server = delays.server.scale(0.5)
 
-fun make_firewall(alpha) :~ Pict:
-  stack(bricks.alpha(alpha), router)
+fun make_firewall(alpha, ~router = router) :~ Pict:
+  stack(if alpha .= 1 | bricks | less_bricks, router)
 def firewall = make_firewall(1)
 
 def internet = overlay(radial.cloud(~width: 400, ~height: 300, ~fill: "lightgray"),
@@ -178,24 +184,25 @@ slide(~title: "Network/Transport Layer Firewalls",
                       ~dy: -64,
                       @para{Allow internal clients to access external web servers}),
           protocol(p,
-                   lines(@para{allow incoming TCP port @tt{80}, @tt{443}},
-                         @para{allow outgoing TCP port @tt{80}, @tt{443}},
+                   lines(@para{allow incoming TCP dest port @tt{80}, @tt{443}},
+                         @para{drop otherwise}),
+                   lines(@para{Need to allow responses, which},
+                         @para{go to client ephemeral ports}),
+                   ~at: 0.30),
+          protocol(p,
+                   lines(@para{allow incoming TCP dest port @tt{80}, @tt{443}},
+                         @para{allow outgoing TCP dest port > @tt{1024}},
                          @para{drop otherwise}),
                    @para{Allows incoming HTTP attempts for non-servers}, ~at: 0.15),
           protocol(p,
                    lines(beside.topline(@para{allow incoming TCP },
                                         @stack.left(@t{ address @server_addr},
                                                     @t{ port @tt{80}, @tt{443}})),
-                         @para{allow outgoing TCP port @tt{80}, @tt{443}},
+                         @para{allow outgoing TCP dest port > @tt{1024}},
                          @para{drop otherwise}),
                    block:
-                     let p: lines(@para{Doesn't allow replies to server clients,},
-                                  @para{who receive replies at ephemeral ports})
-                     switch(p,
-                            lines(p,
-                                  @tt{ },
-                                  @para{Outgoing web access has the same},
-                                  @para{issue for incoming replies})),
+                     lines(@para{Doesn't allow non-servers to access},
+                           @para{external web servers}),
                    ~at: 0.60),
           protocol(p,
                    lines(beside.topline(@para{allow incoming TCP },
@@ -229,6 +236,15 @@ slide(~title: "Network/Transport Layer Firewalls",
                           ~spike: #'n,
                           ~dy: -200,
                           @para{Prevents packets that would start a connection}),
+              ACK_p,
+              stack.right(ACK_p.pad(~right: 200),
+                          stack(~sep: 16,
+                                ~horiz: #'left,
+                                @para{Options for DNS:},
+                                @item{Allow UDP port @tt{53} and > @tt{1024}},
+                                item(lines(@para{Make internal hosts use an internal DNS server,},
+                                           @para{and allow UDP only for that server}))))
+                .refocus(p),
               stack(~sep: slide.gap,
                     ACK_p,
                     @para{Stateless firewalls like this are @defterm{packet filter firewalls}})
@@ -245,22 +261,29 @@ slide(~title: "Network/Transport Layer Firewalls",
                                          @t{ },
                                          @para{Firewall and NAT functionality},
                                          @para{are often bundled together}))),
-              stack.right(connected_p.pad(~right: 200),
-                          stack(~sep: 16,
-                                ~horiz: #'left,
-                                @para{Options for DNS:},
-                                @item{Allow UDP port @tt{53} and > @tt{1024}},
-                                item(lines(@para{Make internal hosts use an internal DNS server,},
-                                           @para{and allow UDP only for that server}))))
-                .refocus(p)
-            )
+                          )
         ))
+
+def rewinds:
+  for List (i in 0..4):
+    retract_recent()
 
 slide(~title: "Example Firewall",
       slide.align(
         @para{On Linux, @tt{iptables} implements a NAT-capable firewall},
-        @item{Can work as a host-specific firewall on user machine},
-        @item{Can work as a firewall router when forwarding packets between interfaces}
+        block:
+          let fw: @beside(laptop, bricks)
+          let fw: beside(~sep: 5, fw, line(~dx: 20, ~line_width: 2)).refocus(fw)
+          @item{Can work as a host-specific firewall on user machine @fw},
+        block:
+          let p:
+            @item{Can work as a firewall router when forwarding packets between interfaces}
+          let rtr: beside(line(~dx: 20, ~line_width: 2),
+                          router,
+                          line(~dx: 20, ~line_width: 2))
+                     .refocus(router)
+          let fw = make_firewall(1.0, ~router: rtr)
+          beside(p, fw).refocus(p)
       ),
       blank(16),
       @verbatim{
@@ -273,6 +296,24 @@ slide(~title: "Example Firewall",
       slide.next,
       blank(32),
       @para{Windows and macOS have firewall options in their system-settings dialogs})
+
+fun demo_slide(options :~ OptMap) :~ OptMap:
+  slide(~title: "Demo",
+        beside(~sep: 5,
+               beside(overlay.right(laptop.ghost(options[#'ubuntu]),
+                                    ubuntu_vm.ghost(!options[#'ubuntu])),
+                      bricks),
+               line(~dx: 20, ~line_width: 2),
+               overlay.bottom_left(internet,
+                                   host_terminal.ghost(!options[#'terminal]).pad(~bottom: -30))))
+  options
+
+let options = demo_slide({})
+let options = demo_slide(options ++ { #'ubuntu })
+let options = demo_slide(options ++ { #'terminal })
+
+for (s :: Slide in rewinds.reverse()):
+  s.reissue()
 
 slide(~title: "More Filters",
       slide.align(

@@ -24,7 +24,10 @@ slide(~title: "Using a Safe Language",
         slide.next,
         blank(32),
         lines(@para{@defterm{Safe} means no undefined behavior, so you can reason in terms of source},
-              @para{without considering generated machine code})
+              @para{without considering generated machine code}),
+        slide.next,
+        blank(32),
+        lines(@para{A safe language can be misused so that it allows a @defterm{code injection} attack})
       ))
 
 def info_var = @tt{info}
@@ -133,6 +136,18 @@ slide(~title: "HTML Injection",
         parameterize { current_font: current_font() with (size = 0.75 * current_font().size) }:
           para(@{The injected HTML could include JavaScript code},
                @{that runs in the browser of anyone who looks for Carol's phone number})
+      ))
+
+slide(~title: "Validation",
+      slide.align(
+        @para{@defterm{Client-side validation}},
+        @para{e.g., using JavaScript to check text before sending}.pad(~left: 40),
+        @para{An important component of a @italic{good user interface}}.pad(~left: 20),
+        blank(30),
+        slide.next,
+        @para{@defterm{Server-side validation}},
+        @para{e.g., @tt{is_valid_field} and @tt{sanitize}}.pad(~left: 40),
+        @para{An import component of @bold{security}}.pad(~left: 20)
       ))
 
 slide(~title: "Code at Run Time",

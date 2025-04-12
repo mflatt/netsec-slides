@@ -29,6 +29,7 @@ slide(~title: "Cryptography Application Goals",
                 blank(),
                 @para{@defterm{Authenticity}: identity of each communicating party can be confirmed},
                 blank(),
+                @para{and sometimes},
                 @para{@non_re: parties cannot deny previous commitments}
               )
             )
@@ -94,15 +95,14 @@ slide(~title: "Commitment via Public Declarations",
                                    @para{a way to make sure that the record},
                                    @para{is accurate and never rewritten})
                            switch(nonarchival(p),
-                                  nonarchival(p),
                                   balloon.pin(~on: p,
                                               ~at: Find.left_bottom(p, ~dy: -16),
                                               ~dx: 64,
                                               ~spike: #'ne,
                                               lines(@para{This is a question of @defterm{integrity,}},
                                                     @para{and we know how to handle that, too}))),
-                         lines(@para{Does not scale to lots of},
-                               @para{people with many promises}).sustain().delay(1)
+                         lines(@para{Needs to scale to lots of},
+                               @para{people with many promises}).delay(1).delay(1)
                        )
                      )
                        .refocus(next_top))
@@ -126,49 +126,80 @@ fun sha_conn(p, f, t, ~horiz = #false) :~ Pict:
           ~style: #'arrow)
 
 def Enc = @romanly{Enc}.colorize(alg_color)
+def whom_scale = 0.5
 
 fun make_block(from, to, amt, key, prev_hc, this_hc,
+               ~hash = #true,
+               ~encrypt = #true,                    
+               ~by_whom = #false,
                ~nonce = #false):
   let blk:
     rectangle(~around: stack(~sep:8,
                              ~horiz: #'left,
                              beside(~sep: 4,
-                                    @roman{@(«Enc»)(@key, @tt{@from}},
+                                    if by_whom | @roman{@by_whom}.scale(whom_scale) | nothing,
+                                    if encrypt | @roman{@(«Enc»)(@key, } | nothing,
+                                    @tt{@from},
                                     stack(~sep: -20, @tt{@amt }.scale(0.8), @tt{→}),
-                                    @roman{@tt{@to})}),
-                             @para{prev: @tt{@prev_hc}}.scale(0.8),
+                                    @roman{@tt{@to}},
+                                    if encrypt | @roman{)} | nothing),
+                             if hash
+                             | @para{prev: @tt{@prev_hc}}.scale(0.8)
+                             | nothing,
                              if nonce
                              | @para{nonce: @tt{@nonce}}.scale(0.8)
                              | nothing)
                          .pad(8))
   let out = @tt{@this_hc}.scale(0.8)
-  let p: stack(~sep: 32, blk, sha256, out)
-  let p: sha_conn(sha_conn(p, blk, sha256), sha256, out)
+  let p: stack(~sep: 32, blk, sha256.ghost(!hash), out.ghost(!hash))
+  let p: if hash | sha_conn(sha_conn(p, blk, sha256), sha256, out) | p
   let left_pad = 48
   let q: p.pad(~left: left_pad)
+  let from = Find.left(blk, ~dx: -left_pad)
+  let to = Find.left(blk)
   connect(~on: q,
-          Find.left(blk, ~dx: -left_pad),
-          Find.left(blk),
+          if hash | to | from,
+          if hash | from | to,
           ~line_width: 3,
-          ~style: #'arrow)
+          ~style: #'arrow,
+          ~line: if hash | "lightgray" | "black")
 
-fun hash_chain(alice_name, bob_name, mallory_name):
+fun hash_chain(alice_name, bob_name, mallory_name,
+               ~hash = #true,
+               ~encrypt = hash,
+               ~by_whom = encrypt):
   let alice_hc = "AA64FC78B56F"
-  beside(make_block(alice_name, bob_name, "$100", alice_private_key, "45DC87FF9E01", alice_hc),
-         make_block(bob_name, mallory_name, "$47", bob_private_key, alice_hc, "567FD0C9AB37"))
+  beside(make_block(alice_name, bob_name, "$100", alice_private_key, "45DC87FF9E01", alice_hc,
+                    ~hash: hash,
+                    ~encrypt: encrypt,
+                    ~by_whom: by_whom && alice_public_key),
+         make_block(bob_name, mallory_name, "$47", bob_private_key, alice_hc, "567FD0C9AB37",
+                    ~hash: hash,
+                    ~encrypt: encrypt,
+                    ~by_whom: by_whom && bob_public_key))
 
 slide(~title: "A Chain of Blocks",
       slide.align(
         @para{Define a @defterm{ledger} as a sequence of blocks},
-        slide.left(
-          ~sep: -8,
-          para(@{Define each @defterm{block} to include data plus the hash of the next-older},
-               @{block in the sequence}),
-          slide.center(@para{⇒ a @defterm{chain} via hashes})
+        slide.alts(
+          slide.center(
+            blank(20),
+            hash_chain("alice", "bob", "mallory", ~hash: #false)
+          ),
+          slide.left(
+            ~sep: -8,
+            para(@{Define each @defterm{block} to include data plus the hash of the next-older},
+                 @{block in the sequence}),
+            slide.center(@para{⇒ a @defterm{chain} via hashes}),
+            blank(70),
+            slide.center(
+              slide.alts(hash_chain("alice", "bob", "mallory", ~encrypt: #false),
+                         hash_chain("alice", "bob", "mallory", ~by_whom: #false),
+                         hash_chain("alice", "bob", "mallory"),
+                         hash_chain(alice_public_key, bob_public_key, mallory_public_key))
+            )
+          )
         ),
-        blank(8),
-        slide.alts(hash_chain("alice", "bob", "mallory"),
-                   hash_chain(alice_public_key, bob_public_key, mallory_public_key)),
         slide.next,
         blank(8),
         para(@{As long as two entities agree on the current block (or even just its hash),},
@@ -286,11 +317,11 @@ fun network_state(options :~ OptMap) :~ Pict:
           | i == 4 && options[#'new]:
               stack.left(~sep: 8,
                          v.alpha(if options[#'voted] | 0.0 | 0.3),
-                         new_v).refocus(v)
+                         new_v.launder()).refocus(v)
           | i == 3 && options[#'new2]:
               stack.left(~sep: 8,
                          v.alpha(0.3),
-                         new2_v).refocus(v)
+                         new2_v.launder()).refocus(v)
           | options[#'voted]:
               v.ghost()
           | ~else:
@@ -382,6 +413,17 @@ fun network_state(options :~ OptMap) :~ Pict:
         p
   p
 
+slide(~title: "Blockchain Uses",
+      @para{There are many potential uses of blockchains},
+      blank(40),
+      slide.align(
+        @para{@defterm{Cryptocurrency} is one of the main uses},
+        slide.next,
+        @item{Bitcoin},
+        @item{Etherium},
+        @item{many others}
+      ))
+
 fun consensus_slide(options :~ OptMap, ~animate: a_key = #false) :~ OptMap:
   slide(~title: "Consensus",
         if options[#'chain]
@@ -419,6 +461,7 @@ slide(~title: @para{@titlely{Proof of} @titlely{Work}},
              @{the resulting hash code starts with some number of @(@boldly(@tt{0}).colorize("firebrick"))s:}),
         slide.center(make_block(alice_public_key, bob_public_key, "$100", alice_private_key, "45DC87FF9E01",
                                 @tt{@(@boldly(@tt{000}).colorize("firebrick"))4FC78B56F},
+                                ~by_whom: alice_public_key,
                                 ~nonce: @boldly(@tt{15743}.colorize("firebrick"))))
       ))
 
@@ -553,17 +596,8 @@ slide(~title: "Proof of Stake",
         @para{A problem with @bold{proof of stake}: the rich get richer}
       ))
 
-slide(~title: "Blockchain Uses",
+slide(~title: "Blockchain Expressiveness",
       slide.align(
-        @para{Although blockchain does not necessarily mean cryptocurrency, that's easily the largest use:},
-        stack.left(
-          ~sep: slide.gap / 2,
-          @item{Bitcoin},
-          @item{Etherium},
-          @item{Many others}
-        ).pad(~left: 32),
-        slide.next,
-        blank(),
         @para{A Bitcoin transaction is a simple script},
         blank(),
         @para{An Etherium transaction is a program in a Turing-complete language},

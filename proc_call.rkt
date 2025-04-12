@@ -460,7 +460,7 @@
                                      cb-find p
                                      #:spike 'n
                                      #:color "lightgreen"
-                                     (para* "Blocked by W^X"))                        
+                                     (para* "Blocked by page protection"))                        
                         p)))]
     [else p2]))
 

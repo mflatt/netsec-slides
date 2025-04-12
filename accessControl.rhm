@@ -50,6 +50,7 @@ fun access_slide(options :~ OptMap, ~skip = #false) :~ OptMap:
   let capability4 = capability.launder()
   let access_control:
     rectangle(~around: @defterm{access control}.rotate(1/2*math.pi).pad(~horiz: 8),
+              ~refocus: #false,
               ~height: 500,
               ~fill: "lightgray").ghost(!options[#'access])
   let p:
@@ -59,6 +60,7 @@ fun access_slide(options :~ OptMap, ~skip = #false) :~ OptMap:
                  bob,
                  eve_unscaled).scale(0.75),
            rectangle(~around: @defterm{authentication}.rotate(1/2*math.pi).pad(~horiz: 8),
+                     ~refocus: #false,
                      ~height: 500,
                      ~fill: "lightgray").ghost(!options[#'auth]),
            stack(~sep:64,
@@ -176,6 +178,7 @@ fun prog(label, p :~ Pict) :~ Pict:
   stack(~sep: 16,
         bold(label),
         rectangle(~around: p.scale(0.8).pad(16),
+                  ~refocus: #false,
                   ~fill: "beige"))
 
 fun oo_adt_slide(options :~ OptMap, ~archival = #false) :~ OptMap:
@@ -325,27 +328,35 @@ block:
   let process_id = lines(@para{each started process has user ID},
                          @para{supplied by parent process})
   let system_color = "forestgreen"
+  fun delay (p :~ Pict, n) :~ Pict:
+    if n == 0
+    | p
+    | switch(p.ghost(), delay(p, n-1))
   slide(~title: "Authentication Result",
-        table([[overlay(@italic{system}, blank(~width: simple_network.width)),
-                overlay(@italic{capability @capability.scale(0.5)}, blank(~width: process_id.width)).translate(-48, 0)],
-               [@t{operating system login}.colorize(system_color),
-                process_id],
-               [simple_network.colorize(system_color),
-                @t{TCP connection implies user}],
-               [@t{web service}.colorize(system_color),
-                lines(@para{login supplies a @defterm{cookie}, which},
-                      @para{is sent back with each request})]],
-              ~vsep: 2 * slide.gap,
-              ~hsep: 64,
-              ~horiz: #'left,
-              ~vert: #'topline))
+        slide.alts(
+          @para{The result of authentication is a capability  @capability.scale(0.5)},
+          table([[overlay(@italic{system}, blank(~width: simple_network.width)),
+                  overlay(@italic{capability @capability.scale(0.5)}, blank(~width: process_id.width)).translate(-48, 0)],
+                 [@t{operating system login}.colorize(system_color),
+                  process_id],
+                 [delay(simple_network.colorize(system_color), 1),
+                  delay(@t{TCP connection implies user}, 1)],
+                 [delay(@t{web service}.colorize(system_color), 2),
+                  delay(lines(@para{login supplies a @defterm{cookie}, which},
+                              @para{is sent back with each request}), 2)]],
+                ~vsep: 2 * slide.gap,
+                ~hsep: 64,
+                ~horiz: #'left,
+                ~vert: #'topline)
+        ))
 
 def cookie = @tt{MSDAPP_Token=0d27775ad131}
+def msd_host = @tt{msdapp.cs.utah.edu}
              
 def login_req:
   @verbatim|{
 POST /?login=y HTTP/1.1
-Host: msdapp.cs.utah.edu
+Host: |@msd_host
 Content-Type: application/x-www-form-urlencoded
 Content-Length: 41
 
@@ -390,11 +401,16 @@ fun cookie_slide(options :~ OptMap) :~ OptMap:
     let p:
       rectangle(
         ~around: p.scale(0.75),
-        ~width: 350,
-        ~height: 250,
+        ~refocus: #false,
+        ~width: 300,
+        ~height: 200,
         ~line: "black"
       )
-    stack(p, cookie.scale(0.75).ghost(!options[#'cookie_keep]))
+    stack(p,
+          stack.left(
+            @tt{@msd_host: }.scale(0.75),
+            cookie.pad(~left: 20)
+          ).scale(0.75).ghost(!options[#'cookie_keep]).pad(~horiz: -100))
   let screen:
     cond
     | options[#'welcome]:
@@ -440,7 +456,7 @@ fun cookie_slide(options :~ OptMap) :~ OptMap:
             ~label: msg.translate(0, -16),
             ~line_width: 3)
   slide(~title: "Authentication Tokens as Cookies",
-        p.translate(100, 0).pad(~top: 100))
+        p.translate(50, 0).pad(~top: 100))
   options
 
 let options = cookie_slide({})
@@ -541,7 +557,7 @@ block:
                @item{@tt{execute} ⇒ @tt{cd}}
              )],
             [blank(32),
-             @para{Every process has a current @user, @group, and a table},
+             @para{Every process has a current @user and @group},
              slide.alts(
                [@item{login or @tt{su} changes current @user},
                 @item{login or @tt{newgrp} changes current @group}],

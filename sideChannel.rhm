@@ -110,7 +110,7 @@ int check_password(char *provided, int p_len,
 }
 }|
 
-fun timing_slide(n :: Real):
+fun timing_slide(n :: Real, ~exercise = #false):
   fun at(i, p :~ Pict): p.ghost(n < i)
   let p:
     beside(~sep: 128,
@@ -133,10 +133,16 @@ fun timing_slide(n :: Real):
     if n < 8
     | nonarchival(p)
     | p
+  let p:
+    if exercise
+    | overlay.bottom(p,
+                     balloon.note(@tt{http://bit.ly/4hWGU95}))
+    | p
   slide(~title: "String Comparison",
         p)
 
 for (n: -1..=8): timing_slide(n)
+// timing_slide(8, ~exercise: #true)
 
 slide(~title: "Timing-Safe String Comparison",
       check_password_good_c,

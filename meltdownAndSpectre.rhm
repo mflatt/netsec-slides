@@ -82,6 +82,7 @@ fun boxed(~above: above :~ Pict = nothing,
                                ~line: match fill
                                       | c :: Color: c.scale(0.5)
                                       | ~else: Color(fill).scale(0.5),
+                               ~refocus: #false,
                                ~fill: fill),
                      right_icon).ghost(!on)))
 
@@ -277,8 +278,8 @@ fun safety_slides(options :~ OptMap,
     | balloon.pin(~on: p,
                   ~at: Find.top(app_poll_stopwatch),
                   ~spike: #'s,
-                  lines(@para{Timing can distinguish source code paths},
-                        @para{intended to be kept secret}))
+                  lines(@para{Timing can expose information about},
+                        @para{machine-code paths @italic{not} taken}))
     | p
   let p:
     if options[#'cpu_timing_channel]
@@ -304,9 +305,9 @@ fun safety_slides(options :~ OptMap,
                   ~at: Find.right_top(spectre),
                   ~spike: #'sw,
                   ~fill: "pink",
-                  lines(@para{A long-term},
-                        @para{problem for},
-                        @para{JS engines}))
+                  lines(@para{Addressed},
+                        @para{in recent},
+                        @para{CPU designs}))
     | p
   slide(~title: "Safety and Isolation",
         if is_nonarchival
@@ -428,7 +429,7 @@ def sum_path_core_c:
 def sum_path_input_c:
   @verbatim|{
 #define N 10
-int aray[N] = { 9, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+int array[N] = { 9, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
 }|
 
 def sum_path_drive_c:
@@ -751,6 +752,7 @@ slide(~title: "Example Program",
               perf_table
             let p:
               rectangle(~around: p.pad(10),
+                        ~refocus: #false,
                         ~fill: "lightblue")
             let p:
               switch(nonarchival(p),
@@ -919,7 +921,7 @@ slide(~title: spectre,
         @item{turn off speculation, which makes things slow},
         @item{generate code to cooperate less, which makes things slow},
         @item{reduce timer resolution, which makes attacks harder},
-        @item{🤷‍♂️}
+        @item{design hardware to include mitigation}
       ))
 
 slide(~title: meltdown,

