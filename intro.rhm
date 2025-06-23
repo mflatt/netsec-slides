@@ -104,7 +104,7 @@ slide(~title: "About the Instructor",
           blank(),
           @lines(
             @para{So, not a networking or security expert in the}
-            @para{academic sense, but a long-time practioner}
+            @para{academic sense, but a long-time practitioner}
           ))]       
        ))
 
