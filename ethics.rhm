@@ -1,0 +1,228 @@
+#lang rhombus/static/and_meta
+
+import:
+  "common.rhm" open
+
+fun xslide(~title: title,
+           ~layout: layout = #'auto,
+           rest, ...):
+  fun
+  | squash(): []
+  | squash(a, [b, ...], rest, ...):
+     [slide.align(~sep: slide.gap / 2, a, b, ...),
+      squash(rest, ...)]
+  | squash(v, rest, ...):
+      [v, squash(rest, ...)]
+  let p:
+    slide_pict(slide.align(squash(rest, ...)))
+  slide(~title: title,
+        ~layout: layout,
+        p.scale(math.min(p.height, 600) / p.height))
+
+def ethics_title = "Ethics in Software Security"
+
+xslide(~title: ethics_title,
+       @para{Software has an impact on people and the world},
+       @para{Make it a good impact},
+       blank(32),
+       @para{Ethical questions are particularly relevant to security choices},
+       slide.next,
+       item(lines(@para{Neglect to fix a bug in programs you run},
+                  @para{⇒ maybe waste some computer time}.pad(~left: 32))),
+       item(lines(@para{Neglect to keep information secure},
+                  @para{⇒ maybe expose someone else to harm}.pad(~left: 32))),
+       slide.next,
+       blank(32),
+       lines(@italic{An Introduction to Cybersecurity Ethics}.scale(0.75),
+             @para{Vallor and Rewak}.scale(0.75),
+             @tt{https://www.scu.edu/media/ethics-center/technology-ethics/IntroToCybersecurityEthics.pdf}.scale(0.5)))
+
+xslide(~title: ethics_title,
+       para(@{We always want to avoid harm to others, but ethical},
+            @{questions arise due to the problem of balancing},
+            @{potential harms and costs}),
+       blank(),
+       para(@{Perfect security is impossible, and the closer you get to perfect},
+            @{security, the more it costs}),
+       para(@{At the same time, it's easy to underestimate the harm caused by bad security}))       
+
+xslide(~title: "Causes and Effects",
+       slide.align(
+         ~sep: 2 * slide.gap,
+         @para{Harms to privacy can lead to identity theft, extortion, degraded reputation},
+         @para{Harms to property can affect livelihood},
+         para(@{Poor choices in transparency and disclosure prevent others from making informed choices},
+              @{or force them to incur costs}),
+         @para{Misallocation of resources can similarly lead to an unfair allocation of costs}
+       ))
+
+xslide(~title: "Stakeholders",
+       @para{When considering cause and effect, keep in mind everyone affected},
+       blank(32),
+       slide.center(
+         slide.align(
+           @item{software producers},
+           @item{customers and users},
+           @item{employees and employers},
+           @item{service providers},
+           @item{anyone on the internet}
+         )
+       ))
+
+def challenges_title = "10 Common Ethical Challenges"
+fun challenge(n, rest, ...) :~ Pict:
+  let p: para(~full: #true,
+              ~width: 900,
+              rest, ...)
+  beside.topline(@bold{@to_string(n). }, p).refocus(p).colorize("darkblue").pad(~top: 100)
+
+def challenges_layout = #'top
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(1){Balancing security and other goals},
+       @item{Deliberate choices?},
+       @item{Communicated clearly with customers/employers/employees/users?},
+       @item{In case of a breach, are the choices justifiable?},
+       @item{Choices are consistent, sincere, and transparent?})
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(2){Incident and threat response},
+       @item{Have a plan?},
+       [@subitem{for information leaks?},
+        @subitem{for ransoms?}],
+       @item{Have resources to carry out that plan?},
+       @item{Gray areas?})
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(3){Reporting security breaches},
+       @item{Have a notification plan?},
+       @item{Plan provides timely information?},
+       @item{Other stakeholders view of the plan?},
+       @item{Overreacts or underreacts?})
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(4){Monitoring system behavior},
+       @item{How to monitor without intruding on privacy?},
+       @item{How much to publicize/explain monitoring?},
+       @item{Managing logs and other recorded information?})
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(5){Data storage},
+       @item{Data safely transmitted and stored?},
+       @item{Appropriate trust/care in communicating with third parties?},
+       @item{Policy for cooperating with law enforcement?},
+       @item{Does usefulness of data justify risk of storage?})
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(6){Project design},
+       @item{Usefulness of networking feature justify risk?},
+       @item{Sufficiently imaginative about potential misuse?},
+       @item{Is there an upgrade path?},
+       @item{Are users adequately informed about risks?})
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(7){Accountability},
+       @item{Is there a responsible security team?},
+       @item{Who is responsible in case of a breach?},
+       @item{Organizational policies and processes?},
+       @item{Adequate training and skill for responsible parties?})
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(8){Research and testing},
+       @item{When to publicize potential exploits?},
+       @item{Whether to publish tools and malware?},
+       @item{Actively foster/hire skills that can be used to unethical ends?})
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(9){Managing competing interests},
+       @item{Considered both short term and long term?},
+       @item{Incentives aligned with ethical results?},
+       @item{What if an employer/client insists on a wrong choice?})
+
+xslide(~title: challenges_title,
+       ~layout: challenges_layout,
+       @challenge(10){Broader impacts},
+       @item{Considered stakeholders beyond those immediately affected?},
+       @item{Sufficient external input into plans?},
+       @item{Security practices defensible in the long run?})
+
+def responsibilities_title = "Developer Responsibilities"
+
+fun responsibility(rest, ...) :~ Pict:
+  let p :~ Pict:
+    boldly:
+      para(~width: 700,
+           ~full: #true,
+           rest, ...)
+  p.pad(~left: -16, ~bottom: 16).colorize("darkblue").pad(~left: -200, ~right: -200)
+
+def resp_layout = #'top
+
+xslide(~title: responsibilities_title,
+       ~layout: resp_layout,
+       @responsibility{System Design},
+       @para{Use appropriately secure protocols},
+       [@item{Networking: TLS or similar},
+        @item{Authentication: RSA or similar},
+        @item{Algorithms: AES, SHA-256, etc.},
+        @item{Passwords: salted hashes}],
+       blank(),
+       @para{Isolate and follow principle of least privilege})
+
+xslide(~title: responsibilities_title,
+       ~layout: resp_layout,
+       @responsibility{Development Tools},
+       @item{Choose appropriate languages and libraries},
+       @item{Get software updates},
+       @item{Report bugs appropriately})
+
+xslide(~title: responsibilities_title,
+       ~layout: resp_layout,
+       @responsibility{Development Process},
+       @item{Version control & backups},
+       @item{Testing},
+       @item{Static analysis},
+       @item{Code reviews},
+       @item{External audits})
+
+xslide(~title: responsibilities_title,
+       ~layout: resp_layout,
+       @responsibility{Internet Commons},
+       @para{Secure your system against misuse},
+       [@item{spamming},
+        @item{botnets},
+        @item{other DoS}],
+       @para{Prevent breaches},
+       [@item{firewall policies},
+        @item{authorization policies},
+        @item{software updates}],
+       @para{Detect and respond},       
+       [@item{monitoring},
+        @item{notification plan}])
+
+xslide(~title: "Onward",
+       @para{The role and influence of computing is bound to continue expanding},
+       blank(32),
+       @item{In the 1970s, internet designers couldn't anticipate current security needs},
+       @item{In the 2020s, we're wrestling with new AI security questions},
+       blank(32),
+       @para{Expect lifelong learning for both technological and ethical concerns})
+
+slide(~title: "Finishing Up CS 6014",
+      slide.align(
+        @para{Be sure to hand in your presentation reviews via Canvas},
+        blank(),
+        @para{Let me know if you plan to work on the optional encrypted-filesystem assignment}
+      ))
+      
+slide(@t{🎉}.scale(5))
+

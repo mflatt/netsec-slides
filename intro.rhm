@@ -123,7 +123,7 @@ slide(~title: "Homework, Midterm, and Grading",
             @item{1 team presentation}
           ),
           grade(70)],
-         [@para{Midterm exam: February 28},
+         [@para{Midterm exam: February 27},
           grade(15)],
          [@para{Class participation},
           grade(15)]]

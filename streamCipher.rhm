@@ -8,8 +8,8 @@ import:
 
 runtime_path.def clock_png: "images/clock_small.png"
 runtime_path.def house_png: "images/house_small.png"
-def secret_bm = draw.Bitmap.from_file(clock_png)
-def secret2_bm = draw.Bitmap.from_file(house_png)
+def secret_bm = draw.Bitmap.read(clock_png)
+def secret2_bm = draw.Bitmap.read(house_png)
 
 unless secret_bm.width == secret2_bm.width && secret_bm.height == secret2_bm.height
 | error("size mismatch")

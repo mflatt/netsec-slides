@@ -412,8 +412,8 @@ def magnifying_glass = bitmap(magnifying_glass_png).scale(0.2)
 
 fun problem(s): defterm(s)
 
-let mp1 = mobile_phone.ghost()
-let mp2 = mobile_phone.ghost()
+let mp1 = mobile_phone.ghost().launder()
+let mp2 = mobile_phone.ghost().launder()
 
 let wifi_addr = @tt{10.18.230.214}
 let cell_addr = @tt{172.9.15.132}.colorize("red")

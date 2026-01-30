@@ -201,7 +201,7 @@ slide(~title: "Map of the Internet 2023",
 fun commas(s :~ String) :~ String:
   if s.length() <= 3
   | s
-  | commas(s.substring(0, s.length() - 3)) ++ "," ++ s.substring(s.length() - 3)
+  | commas(s.slice(0, -3)) ++ "," ++ s.slice(-3)
 
 fun ip_table(rows :~ List, bits) :~ Pict:
   table(rows.map(fun ([addr, n]):
